@@ -14,6 +14,14 @@ DirectXState :: struct {
     depthBufferView: ^d3d11.IDepthStencilView,
     rasterizerState: ^d3d11.IRasterizerState,
     depthStencilState: ^d3d11.IDepthStencilState,
+
+    textures: [TextureType]GpuTexture,
+    vertexBuffers: [GpuBufferType]GpuBuffer,
+    indexBuffers: [GpuBufferType]GpuBuffer,
+
+    vertexShaders: [VertexShaderType]^d3d11.IVertexShader,
+    pixelShaders: [PixelShaderType]^d3d11.IPixelShader,
+    inputLayouts: [InputLayoutType]^d3d11.IInputLayout,
 }
 
 initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
@@ -123,4 +131,9 @@ clearDirectX :: proc(directXState: ^DirectXState) {
     directXState.depthBufferView->Release()
     directXState.rasterizerState->Release()
     directXState.depthStencilState->Release()
+
+    for texture in directXState.textures {
+        texture.buffer->Release()
+        texture.srv->Release()
+    }
 }

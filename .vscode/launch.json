@@ -9,7 +9,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/bin/odin_dx11_test.exe",
-            "cwd": "${workspaceFolder}",
+            "cwd": "${workspaceFolder}/bin",
             "args": [],
             "preLaunchTask": "odin build"
         }
