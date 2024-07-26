@@ -25,6 +25,8 @@ initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
     featureLevels := [?]d3d11.FEATURE_LEVEL{._11_0}
 	res := d3d11.CreateDevice(nil, .HARDWARE, nil, {.DEBUG}, &featureLevels[0], len(featureLevels), d3d11.SDK_VERSION, &baseDevice, nil, &baseDeviceContext)
     assert(res == 0)
+    defer baseDevice->Release()
+    defer baseDeviceContext->Release()
 
 	res = baseDevice->QueryInterface(d3d11.IDevice_UUID, (^rawptr)(&directXState.device))
     assert(res == 0)
@@ -35,14 +37,17 @@ initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
 	dxgiDevice: ^dxgi.IDevice
 	res = directXState.device->QueryInterface(dxgi.IDevice_UUID, (^rawptr)(&dxgiDevice))
     assert(res == 0)
+    defer dxgiDevice->Release()
 
     dxgiAdapter: ^dxgi.IAdapter
 	res = dxgiDevice->GetAdapter(&dxgiAdapter)
     assert(res == 0)
+    defer dxgiAdapter->Release()
 
 	dxgiFactory: ^dxgi.IFactory2
 	res = dxgiAdapter->GetParent(dxgi.IFactory2_UUID, (^rawptr)(&dxgiFactory))
     assert(res == 0)
+    defer dxgiFactory->Release()
 
     swapchainDesc := dxgi.SWAP_CHAIN_DESC1{
 		Width  = 0,
@@ -104,4 +109,18 @@ initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
 	directXState.device->CreateDepthStencilState(&depthStencilDesc, &directXState.depthStencilState)
 
     return directXState
+}
+
+clearDirectX :: proc(directXState: ^DirectXState) {
+	directXState.swapchain->SetFullscreenState(false, nil)
+
+    directXState.device->Release()
+    directXState.ctx->Release()
+    directXState.swapchain->Release()
+    directXState.backBuffer->Release()
+    directXState.backBufferView->Release()
+    directXState.depthBuffer->Release()
+    directXState.depthBufferView->Release()
+    directXState.rasterizerState->Release()
+    directXState.depthStencilState->Release()
 }

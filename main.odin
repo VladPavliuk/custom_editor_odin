@@ -1,9 +1,5 @@
 package main
 
-import "core:fmt"
-
-import "vendor:directx/dxgi"
-import "vendor:directx/d3d11"
 import "vendor:glfw"
 
 main :: proc() {
@@ -11,6 +7,7 @@ main :: proc() {
     defer glfw.DestroyWindow(window)
 
     directXState := initDirectX(hwnd)
+    defer clearDirectX(&directXState)
 
     for !glfw.WindowShouldClose(window) {
         render(&directXState)
