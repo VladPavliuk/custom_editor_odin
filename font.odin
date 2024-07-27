@@ -12,10 +12,10 @@ loadFont :: proc(directXState: ^DirectXState) -> GpuTexture {
 
     bitmapSize: int2 = { 512, 512 }
     
-    charsData: [96]stbtt.bakedchar
+    charsData: [95]stbtt.bakedchar
     tmpFontBitmap := make([]byte, bitmapSize.x * bitmapSize.y)
     defer delete(tmpFontBitmap)
-    overflow := stbtt.BakeFontBitmap(raw_data(fileContent), 0, 32.0, raw_data(tmpFontBitmap), bitmapSize.x, bitmapSize.y, 32, 96, raw_data(charsData[:]))
+    overflow := stbtt.BakeFontBitmap(raw_data(fileContent), 0, 64.0, raw_data(tmpFontBitmap), bitmapSize.x, bitmapSize.y, 32, 95, raw_data(charsData[:]))
 
     textureDesc := d3d11.TEXTURE2D_DESC{
         Width = u32(bitmapSize.x), 

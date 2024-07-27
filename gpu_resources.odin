@@ -4,6 +4,7 @@ import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import "vendor:directx/d3d_compiler"
 
+import "core:fmt"
 import "core:os"
 import "core:strings"
 
@@ -72,10 +73,10 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     }
 
     quadVertices := make([]VertexItem, 4)
-    quadVertices[0] = VertexItem{ {0.0, 0.0, 0.0}, {0.0, 1.0} } 
-    quadVertices[1] = VertexItem{ {0.0, 1.0, 0.0}, {0.0, 0.0} } 
+    quadVertices[0] = VertexItem{ {-1.0, -1.0, 0.0}, {0.0, 1.0} } 
+    quadVertices[1] = VertexItem{ {-1.0, 1.0, 0.0}, {0.0, 0.0} } 
     quadVertices[2] = VertexItem{ {1.0, 1.0, 0.0}, {1.0, 0.0} } 
-    quadVertices[3] = VertexItem{ {1.0, 0.0, 0.0}, {1.0, 1.0} }
+    quadVertices[3] = VertexItem{ {1.0, -1.0, 0.0}, {1.0, 1.0} }
 
     directXState.vertexBuffers[.QUAD] = createVertexBuffer(quadVertices[:], directXState)
     
@@ -99,12 +100,17 @@ loadTextures :: proc(directXState: ^DirectXState) {
 
 loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
     blob: ^d3d11.IBlob
-    
+    errMessageBlob: ^d3d11.IBlob = nil
+    defer if errMessageBlob != nil { errMessageBlob->Release() }
+
     fileContent, success := os.read_entire_file_from_filename(filePath)
     assert(success)
     defer delete(fileContent)
 	hr := d3d_compiler.Compile(raw_data(fileContent), len(fileContent), strings.unsafe_string_to_cstring(filePath), nil, nil, 
-        "main", "vs_5_0", 0, 0, &blob, nil)
+        "main", "vs_5_0", 0, 0, &blob, &errMessageBlob)
+    if errMessageBlob != nil {
+        panic(string(cstring(errMessageBlob->GetBufferPointer())))
+    } 
     assert(hr == 0)
 
     shader: ^d3d11.IVertexShader
@@ -122,8 +128,14 @@ loadPixelShader :: proc(filePath: string, directXState: ^DirectXState) -> ^d3d11
     blob: ^d3d11.IBlob
     defer blob->Release()
 
+    errMessageBlob: ^d3d11.IBlob = nil
+    defer if errMessageBlob != nil { errMessageBlob->Release() }
+
     hr := d3d_compiler.Compile(raw_data(fileContent), len(fileContent), strings.unsafe_string_to_cstring(filePath), nil, nil, 
-        "main", "ps_5_0", 0, 0, &blob, nil)
+        "main", "ps_5_0", 0, 0, &blob, &errMessageBlob)
+    if errMessageBlob != nil {
+        panic(string(cstring(errMessageBlob->GetBufferPointer())))
+    }
     assert(hr == 0)
 
     shader: ^d3d11.IPixelShader

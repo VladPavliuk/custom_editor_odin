@@ -12,13 +12,16 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx->OMSetRenderTargets(1, &directXState.backBufferView, directXState.depthBufferView)
     ctx->OMSetDepthStencilState(directXState.depthStencilState, 0)
     ctx->RSSetState(directXState.rasterizerState)
+    ctx->OMSetBlendState(directXState.blendState, nil, 0xFFFFFFFF)
 
 	ctx->IASetPrimitiveTopology(d3d11.PRIMITIVE_TOPOLOGY.TRIANGLELIST)
 
     ctx->IASetInputLayout(directXState.inputLayouts[.POSITION_AND_TEXCOORD])
     ctx->VSSetShader(directXState.vertexShaders[.QUAD], nil, 0)
     ctx->PSSetShader(directXState.pixelShaders[.QUAD], nil, 0)
-    
+
+    ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
+
     offsets := [?]u32{ 0 }
     strideSize := [?]u32{directXState.vertexBuffers[.QUAD].strideSize}
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))

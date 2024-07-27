@@ -2,6 +2,7 @@ package main
 
 import "vendor:directx/dxgi"
 import "vendor:directx/d3d11"
+
 import win32 "core:sys/windows"
 
 DirectXState :: struct {
@@ -14,14 +15,16 @@ DirectXState :: struct {
     depthBufferView: ^d3d11.IDepthStencilView,
     rasterizerState: ^d3d11.IRasterizerState,
     depthStencilState: ^d3d11.IDepthStencilState,
+    blendState: ^d3d11.IBlendState,
 
     textures: [TextureType]GpuTexture,
     vertexBuffers: [GpuBufferType]GpuBuffer,
     indexBuffers: [GpuBufferType]GpuBuffer,
 
+    inputLayouts: [InputLayoutType]^d3d11.IInputLayout,
+
     vertexShaders: [VertexShaderType]^d3d11.IVertexShader,
     pixelShaders: [PixelShaderType]^d3d11.IPixelShader,
-    inputLayouts: [InputLayoutType]^d3d11.IInputLayout,
 }
 
 initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
@@ -116,6 +119,26 @@ initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
 	}
 	directXState.device->CreateDepthStencilState(&depthStencilDesc, &directXState.depthStencilState)
 
+    // blending
+    blendTargetDesc := d3d11.RENDER_TARGET_BLEND_DESC{
+        BlendEnable = true,
+        SrcBlend = d3d11.BLEND.SRC_ALPHA,
+        DestBlend = d3d11.BLEND.INV_SRC_ALPHA,
+        BlendOp = d3d11.BLEND_OP.ADD,
+        SrcBlendAlpha = d3d11.BLEND.SRC_ALPHA,
+        DestBlendAlpha = d3d11.BLEND.INV_SRC_ALPHA,
+        BlendOpAlpha = d3d11.BLEND_OP.ADD,
+        RenderTargetWriteMask = u8(d3d11.COLOR_WRITE_ENABLE_ALL),
+    }
+
+    blendDesc := d3d11.BLEND_DESC{
+        IndependentBlendEnable = true,
+    }
+    blendDesc.RenderTarget[0] = blendTargetDesc
+
+	res = directXState->device->CreateBlendState(&blendDesc, &directXState.blendState)
+    assert(res == 0)
+
     return directXState
 }
 
@@ -135,5 +158,27 @@ clearDirectX :: proc(directXState: ^DirectXState) {
     for texture in directXState.textures {
         texture.buffer->Release()
         texture.srv->Release()
+    }
+
+    for buffer in directXState.vertexBuffers {
+        buffer.gpuBuffer->Release()
+        free(buffer.cpuBuffer)
+    }
+
+    for buffer in directXState.indexBuffers {
+        buffer.gpuBuffer->Release()
+        free(buffer.cpuBuffer)
+    }
+
+    for inputLayout in directXState.inputLayouts {
+        inputLayout->Release()
+    }
+
+    for vertexShader in directXState.vertexShaders {
+        vertexShader->Release()
+    }
+
+    for pixelShader in directXState.pixelShaders {
+        pixelShader->Release()
     }
 }
