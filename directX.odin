@@ -20,11 +20,15 @@ DirectXState :: struct {
     textures: [TextureType]GpuTexture,
     vertexBuffers: [GpuBufferType]GpuBuffer,
     indexBuffers: [GpuBufferType]GpuBuffer,
+    constantBuffers: [GpuConstantBufferType]GpuBuffer,
 
     inputLayouts: [InputLayoutType]^d3d11.IInputLayout,
 
     vertexShaders: [VertexShaderType]^d3d11.IVertexShader,
     pixelShaders: [PixelShaderType]^d3d11.IPixelShader,
+
+    // TODO: probably move it somewhere else
+    fontChars: [dynamic]FontChar,
 }
 
 initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
@@ -154,6 +158,7 @@ clearDirectX :: proc(directXState: ^DirectXState) {
     directXState.depthBufferView->Release()
     directXState.rasterizerState->Release()
     directXState.depthStencilState->Release()
+    directXState.blendState->Release()
 
     for texture in directXState.textures {
         texture.buffer->Release()
@@ -170,6 +175,11 @@ clearDirectX :: proc(directXState: ^DirectXState) {
         free(buffer.cpuBuffer)
     }
 
+    for buffer in directXState.constantBuffers {
+        buffer.gpuBuffer->Release()
+        if buffer.cpuBuffer != nil { free(buffer.cpuBuffer) }
+    }
+
     for inputLayout in directXState.inputLayouts {
         inputLayout->Release()
     }
@@ -181,4 +191,6 @@ clearDirectX :: proc(directXState: ^DirectXState) {
     for pixelShader in directXState.pixelShaders {
         pixelShader->Release()
     }
+
+    delete(directXState.fontChars)
 }

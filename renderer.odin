@@ -22,6 +22,8 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
     ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
 
+    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.FONT_GLYPH_LOCATION].gpuBuffer)
+
     offsets := [?]u32{ 0 }
     strideSize := [?]u32{directXState.vertexBuffers[.QUAD].strideSize}
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))

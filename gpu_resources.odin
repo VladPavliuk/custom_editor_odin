@@ -7,6 +7,7 @@ import "vendor:directx/d3d_compiler"
 import "core:fmt"
 import "core:os"
 import "core:strings"
+import "core:mem"
 
 import "core:unicode/utf16"
 
@@ -16,7 +17,8 @@ TextureType :: enum {
 
 GpuTexture :: struct {
     buffer: ^d3d11.ITexture2D,    
-    srv: ^d3d11.IShaderResourceView,    
+    srv: ^d3d11.IShaderResourceView,
+    size: int2,  
 }
 
 GpuBufferType :: enum {
@@ -43,16 +45,17 @@ InputLayoutType :: enum {
     POSITION_AND_TEXCOORD,
 }
 
+GpuConstantBufferType :: enum {
+    FONT_GLYPH_LOCATION,
+}
+
 initGpuResources :: proc(directXState: ^DirectXState) {
     loadTextures(directXState)
 
-    // testing
     vertexShader, blob := loadVertexShader("testVertexShader.hlsl", directXState)
-    //defer vertexShader->Release()
     defer blob->Release()
 
     pixelShader := loadPixelShader("textPixelShader.hlsl", directXState)
-    // defer pixelShader->Release()
 
     inputLayoutDesc := [?]d3d11.INPUT_ELEMENT_DESC{
         { "POSITION", 0, dxgi.FORMAT.R32G32B32_FLOAT, 0, 0, d3d11.INPUT_CLASSIFICATION.VERTEX_DATA, 0 },
@@ -92,10 +95,12 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     //     0,2,3,
     // }
     directXState.indexBuffers[.QUAD] = createIndexBuffer(indices[:], directXState)
+
+    directXState.constantBuffers[.FONT_GLYPH_LOCATION] = createConstantBuffer(FontChar, nil, directXState)
 }
 
 loadTextures :: proc(directXState: ^DirectXState) {
-    directXState.textures[.FONT] = loadFont(directXState)
+    directXState.textures[.FONT], directXState.fontChars = loadFont(directXState)
 }
 
 loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
@@ -197,4 +202,45 @@ createIndexBuffer :: proc(indices: []u32, directXState: ^DirectXState) -> GpuBuf
         strideSize = size_of(u32),
         itemType = typeid_of(u32),
     }
+}
+
+createConstantBuffer :: proc($T: typeid, initialData: ^T, directXState: ^DirectXState) -> GpuBuffer {
+    bufferSize: u32 = size_of(T)
+
+    desc := d3d11.BUFFER_DESC{
+        ByteWidth = bufferSize + (16 - bufferSize % 16),
+        Usage = d3d11.USAGE.DYNAMIC,
+        BindFlags = {d3d11.BIND_FLAG.CONSTANT_BUFFER},
+        CPUAccessFlags = {.WRITE},
+        MiscFlags = {},
+    }
+    
+    data := d3d11.SUBRESOURCE_DATA{}
+
+    hr: d3d11.HRESULT
+    buffer: ^d3d11.IBuffer
+    if (initialData != nil) {
+        data.pSysMem = initialData
+        hr = directXState.device->CreateBuffer(&desc, &data, &buffer)
+    } else {
+        hr = directXState.device->CreateBuffer(&desc, nil, &buffer)
+    }
+    assert(hr == 0)
+
+    return GpuBuffer {
+        gpuBuffer = buffer,
+        cpuBuffer = nil,
+        length = 1,
+        strideSize = desc.ByteWidth,
+        itemType = T,
+    }
+}
+
+updateConstantBuffer :: proc(data: ^$T, buffer: GpuBuffer, directXState: ^DirectXState) {
+    sb: d3d11.MAPPED_SUBRESOURCE
+    hr := directXState.ctx->Map(buffer.gpuBuffer, 0, d3d11.MAP.WRITE_DISCARD, {}, &sb)
+    defer directXState.ctx->Unmap(buffer.gpuBuffer, 0)
+
+    assert(hr == 0)
+    mem.copy(sb.pData, data, size_of(data^))
 }

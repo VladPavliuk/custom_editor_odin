@@ -5,17 +5,37 @@ import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import stbtt "vendor:stb/truetype"
 
-loadFont :: proc(directXState: ^DirectXState) -> GpuTexture {
+FontChar :: struct {
+    rect: Rect,
+    offset: float2,
+    xAdvance: f32,
+}
+
+loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, [dynamic]FontChar) {
     fileContent, success := os.read_entire_file_from_filename("c:/windows/fonts/arial.TTF")
     assert(success)
     defer delete(fileContent)
 
     bitmapSize: int2 = { 512, 512 }
     
+    fontChars := make([dynamic]FontChar)
     charsData: [95]stbtt.bakedchar
     tmpFontBitmap := make([]byte, bitmapSize.x * bitmapSize.y)
     defer delete(tmpFontBitmap)
     overflow := stbtt.BakeFontBitmap(raw_data(fileContent), 0, 64.0, raw_data(tmpFontBitmap), bitmapSize.x, bitmapSize.y, 32, 95, raw_data(charsData[:]))
+
+    for charData in charsData {
+        append(&fontChars, FontChar{
+            rect = Rect{
+                top = f32(charData.y1),
+                bottom = f32(charData.y0),
+                left = f32(charData.x0),
+                right = f32(charData.x1),
+            },
+            offset = { charData.xoff, charData.yoff  },
+            xAdvance = charData.xadvance,
+        })
+    }
 
     textureDesc := d3d11.TEXTURE2D_DESC{
         Width = u32(bitmapSize.x), 
@@ -55,7 +75,7 @@ loadFont :: proc(directXState: ^DirectXState) -> GpuTexture {
     hr = directXState.device->CreateShaderResourceView(texture, &srvDesc, &srv)
     assert(hr == 0)
 
-    return GpuTexture{ texture, srv }
+    return GpuTexture{ texture, srv, bitmapSize }, fontChars
     // font: stbtt.fontinfo
     // res := stbtt.InitFont(&font, raw_data(fileContent[:]), 0)
     // assert(res == true)
@@ -71,5 +91,4 @@ loadFont :: proc(directXState: ^DirectXState) -> GpuTexture {
     // ascent = i32(f32(ascent) * fontScale)
     // descent = i32(f32(descent) * fontScale) 
     // lineGap = i32(f32(lineGap) * fontScale)
-
 }

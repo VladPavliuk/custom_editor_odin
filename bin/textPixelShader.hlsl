@@ -1,3 +1,10 @@
+cbuffer glyphLocationCB : register(b0)
+{
+    float4 glyphLocation;
+    float2 glyphOffset;
+    float glyphXAdvance;
+}
+
 Texture2D<uint> byteObjTexture : TEXTURE : register(t0);
 
 // SamplerState objSamplerState : SAMPLER : register(s0);
@@ -20,8 +27,8 @@ PSOutput main(PSInput input)
     PSOutput output;
 
     uint value = byteObjTexture.Load(int3(
-		512 * input.texcoord.x,
-		512 * input.texcoord.y,
+		(int)glyphLocation.z + ((int)glyphLocation.w - (int)glyphLocation.z) * input.texcoord.x,
+        (int)glyphLocation.x + ((int)glyphLocation.y - (int)glyphLocation.x) * input.texcoord.y,
 	0));
 
     //clip(value == 0 ? -1 : 1);
