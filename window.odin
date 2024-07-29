@@ -1,6 +1,9 @@
 package main
 
 import "vendor:glfw"
+import "vendor:directx/d3d11"
+import "vendor:directx/dxgi"
+
 import win32 "core:sys/windows"
 
 WindowData :: struct {
@@ -12,6 +15,7 @@ createWindow :: proc() -> (glfw.WindowHandle, win32.HWND, ^WindowData) {
 
     glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
     
+    // window := glfw.CreateWindow(1920, 1080, "test", glfw.GetPrimaryMonitor(), nil)
     window := glfw.CreateWindow(800, 800, "test", nil, nil)
 
     glfw.MakeContextCurrent(window)

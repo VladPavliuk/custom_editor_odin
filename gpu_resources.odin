@@ -11,6 +11,8 @@ import "core:mem"
 
 import "core:unicode/utf16"
 
+import "core:math"
+
 TextureType :: enum {
     FONT,
 }
@@ -47,6 +49,8 @@ InputLayoutType :: enum {
 
 GpuConstantBufferType :: enum {
     FONT_GLYPH_LOCATION,
+    PROJECTION,
+    MODEL_TRANSFORMATION,
 }
 
 initGpuResources :: proc(directXState: ^DirectXState) {
@@ -76,10 +80,10 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     }
 
     quadVertices := make([]VertexItem, 4)
-    quadVertices[0] = VertexItem{ {-1.0, -1.0, 0.0}, {0.0, 1.0} } 
-    quadVertices[1] = VertexItem{ {-1.0, 1.0, 0.0}, {0.0, 0.0} } 
+    quadVertices[0] = VertexItem{ {0.0, 0.0, 0.0}, {0.0, 1.0} } 
+    quadVertices[1] = VertexItem{ {0.0, 1.0, 0.0}, {0.0, 0.0} } 
     quadVertices[2] = VertexItem{ {1.0, 1.0, 0.0}, {1.0, 0.0} } 
-    quadVertices[3] = VertexItem{ {1.0, -1.0, 0.0}, {1.0, 1.0} }
+    quadVertices[3] = VertexItem{ {1.0, 0.0, 0.0}, {1.0, 1.0} }
 
     directXState.vertexBuffers[.QUAD] = createVertexBuffer(quadVertices[:], directXState)
     
@@ -97,10 +101,17 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     directXState.indexBuffers[.QUAD] = createIndexBuffer(indices[:], directXState)
 
     directXState.constantBuffers[.FONT_GLYPH_LOCATION] = createConstantBuffer(FontChar, nil, directXState)
+
+    // camera
+    viewMatrix := getOrthoraphicsMatrix(800, 800, 0.1, 10.0)
+    directXState.constantBuffers[.PROJECTION] = createConstantBuffer(mat4, &viewMatrix, directXState)
+
+    //modelMatrix := getScaleMatrix(3, 3, 1) * getTranslationMatrix(20, 0, 0) * getRotationMatrix(math.PI, 0, 0)
+    directXState.constantBuffers[.MODEL_TRANSFORMATION] = createConstantBuffer(mat4, nil, directXState)
 }
 
 loadTextures :: proc(directXState: ^DirectXState) {
-    directXState.textures[.FONT], directXState.fontChars = loadFont(directXState)
+    directXState.textures[.FONT], directXState.fontData = loadFont(directXState)
 }
 
 loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {

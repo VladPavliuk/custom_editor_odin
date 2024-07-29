@@ -1,5 +1,6 @@
 package main
 
+import "core:mem"
 import "core:os"
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
@@ -11,31 +12,56 @@ FontChar :: struct {
     xAdvance: f32,
 }
 
-loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, [dynamic]FontChar) {
+FontData :: struct {
+    //ttfFile: []byte,
+	ascent: i32,
+	descent: i32,
+	lineGap: i32,
+	scale: f32,
+
+    chars: map[rune]FontChar,
+    kerningTable: map[rune]map[rune]f32,
+}
+
+loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
     fileContent, success := os.read_entire_file_from_filename("c:/windows/fonts/arial.TTF")
     assert(success)
-    defer delete(fileContent)
+    // defer delete(fontData.ttfFile)
 
     bitmapSize: int2 = { 512, 512 }
     
-    fontChars := make([dynamic]FontChar)
-    charsData: [95]stbtt.bakedchar
+    // fontChars := make(map[u16]FontChar)
+    // charsData: [95]stbtt.bakedchar
     tmpFontBitmap := make([]byte, bitmapSize.x * bitmapSize.y)
     defer delete(tmpFontBitmap)
-    overflow := stbtt.BakeFontBitmap(raw_data(fileContent), 0, 64.0, raw_data(tmpFontBitmap), bitmapSize.x, bitmapSize.y, 32, 95, raw_data(charsData[:]))
+    // overflow := stbtt.BakeFontBitmap(raw_data(fileContent), 0, 28.0, raw_data(tmpFontBitmap), bitmapSize.x, bitmapSize.y, 32, 95, raw_data(charsData[:]))
 
-    for charData in charsData {
-        append(&fontChars, FontChar{
-            rect = Rect{
-                top = f32(charData.y1),
-                bottom = f32(charData.y0),
-                left = f32(charData.x0),
-                right = f32(charData.x1),
-            },
-            offset = { charData.xoff, charData.yoff  },
-            xAdvance = charData.xadvance,
-        })
-    }
+    alphabet := "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯабвгґдеєжзиіїйклмнопрстуфхцчшщьюя !\"#$%&'()*+,-./0123456789:;<=>?@[\\]^_`{|}~ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"
+    fontData := BakeFontBitmapCustomChars(fileContent, 30.0, tmpFontBitmap, bitmapSize, alphabet)
+
+    // for charData, index in charsData {
+    //     char := u16(32 + index)
+    //     fontChars[char] = FontChar{
+    //         rect = Rect{
+    //             top = f32(charData.y1),
+    //             bottom = f32(charData.y0),
+    //             left = f32(charData.x0),
+    //             right = f32(charData.x1),
+    //         },
+    //         offset = { charData.xoff, charData.yoff  },
+    //         xAdvance = charData.xadvance,
+    //     }
+    //     // append(&fontChars, FontChar{
+    //     //     rect = Rect{
+    //     //         top = f32(charData.y1),
+    //     //         bottom = f32(charData.y0),
+    //     //         left = f32(charData.x0),
+    //     //         right = f32(charData.x1),
+    //     //     },
+    //     //     offset = { charData.xoff, charData.yoff  },
+    //     //     xAdvance = charData.xadvance,
+    //     // })
+    // }
 
     textureDesc := d3d11.TEXTURE2D_DESC{
         Width = u32(bitmapSize.x), 
@@ -75,7 +101,7 @@ loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, [dynamic]FontChar)
     hr = directXState.device->CreateShaderResourceView(texture, &srvDesc, &srv)
     assert(hr == 0)
 
-    return GpuTexture{ texture, srv, bitmapSize }, fontChars
+    return GpuTexture{ texture, srv, bitmapSize }, fontData
     // font: stbtt.fontinfo
     // res := stbtt.InitFont(&font, raw_data(fileContent[:]), 0)
     // assert(res == true)
@@ -91,4 +117,71 @@ loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, [dynamic]FontChar)
     // ascent = i32(f32(ascent) * fontScale)
     // descent = i32(f32(descent) * fontScale) 
     // lineGap = i32(f32(lineGap) * fontScale)
+}
+
+BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte, bitmapSize: int2, charsList: string) -> FontData {
+    x, y, bottomY, i: i32
+    font: stbtt.fontinfo
+    fontData: FontData
+
+    //fontData.chars = make(map[u16]FontChar)
+
+    if !stbtt.InitFont(&font, raw_data(data), 0) {
+        panic("Error font parsing")
+    }
+    x = 1
+    y = 1
+	bottomY = 1
+
+    fontData.scale = stbtt.ScaleForPixelHeight(&font, pixelHeight)
+
+    for char in charsList {
+        advance, lsb, x0, y0, x1, y1, gw, gh: i32
+
+        g := stbtt.FindGlyphIndex(&font, char)
+
+        stbtt.GetGlyphHMetrics(&font, g, &advance, &lsb)
+        stbtt.GetGlyphBitmapBox(&font, g, fontData.scale, fontData.scale, &x0, &y0, &x1, &y1)
+
+        gw = x1 - x0
+        gh = y1 - y0
+        if x + gw + 1 >= bitmapSize.x {
+            y = bottomY
+            x = 1
+        }
+        if y + gh + 1 >= bitmapSize.y {
+            panic("Bitmap size is nout enough to fit font")
+        }
+
+        bitmapOffset := mem.ptr_offset(raw_data(bitmap), x + y * bitmapSize.y)
+        stbtt.MakeGlyphBitmap(&font, bitmapOffset, gw, gh, bitmapSize.x, fontData.scale, fontData.scale, g)
+
+        fontData.chars[char] = FontChar{
+            rect = Rect{
+                top = f32(y + gh),
+                bottom = f32(y),
+                left = f32(x),
+                right = f32(x + gw),
+            },
+            offset = { f32(x0), f32(y0) },
+            xAdvance = fontData.scale * f32(advance),
+        }
+
+        x = x + gw + 1
+        if y + gh + 1 > bottomY {
+            bottomY = y + gh + 1
+        }
+    }
+
+    for aChar in fontData.chars {
+        glyphKernings := make(map[rune]f32)
+
+        for bChar in fontData.chars {
+            glyphKernings[bChar] = f32(stbtt.GetCodepointKernAdvance(&font, aChar, bChar))
+        }
+
+        fontData.kerningTable[aChar] = glyphKernings
+    }
+
+    return fontData
 }

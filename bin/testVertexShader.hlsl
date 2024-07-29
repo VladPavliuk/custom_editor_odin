@@ -1,12 +1,12 @@
-// cbuffer viewProjectionCB : register(b0)
-// {
-//     float4x4 projectionMatrix;
-// };
+cbuffer viewProjectionCB : register(b0)
+{
+    float4x4 projectionMatrix;
+};
 
-// cbuffer transformationCB : register(b1)
-// {
-//     float4x4 transformation;
-// };
+cbuffer transformationCB : register(b1)
+{
+    float4x4 modelTransformation;
+};
 
 // cbuffer objectIdCB : register(b2)
 // {
@@ -32,9 +32,9 @@ VSOutput main(VSInput input)
 
     output.position = float4(input.position, 1.0f);
     
-    // output.position = mul(output.position, transformation);
+    output.position = mul(output.position, modelTransformation);
     
-    // output.position = mul(output.position, projectionMatrix);
+    output.position = mul(output.position, projectionMatrix);
 
     output.texcoord = input.texcoord;
     // output.objectItemId = objectId;

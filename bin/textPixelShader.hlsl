@@ -28,12 +28,12 @@ PSOutput main(PSInput input)
 
     uint value = byteObjTexture.Load(int3(
 		(int)glyphLocation.z + ((int)glyphLocation.w - (int)glyphLocation.z) * input.texcoord.x,
-        (int)glyphLocation.x + ((int)glyphLocation.y - (int)glyphLocation.x) * input.texcoord.y,
+        (int)glyphLocation.y + ((int)glyphLocation.x - (int)glyphLocation.y) * input.texcoord.y,
 	0));
 
     //clip(value == 0 ? -1 : 1);
 
-    output.pixelColor = float4(0.8, 0.9, 1.0, ((float)value) / 255.0f);
+    output.pixelColor = float4(1.0, 1.0, 1.0, ((float)value) / 255.0f);
     
     //output.pixelColor = objTexture.Sample(objSamplerState, input.texcoord.xy).xyzw;
 
