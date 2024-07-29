@@ -14,9 +14,9 @@ FontChar :: struct {
 
 FontData :: struct {
     //ttfFile: []byte,
-	ascent: i32,
-	descent: i32,
-	lineGap: i32,
+	ascent: f32,
+	descent: f32,
+	lineGap: f32,
 	scale: f32,
 
     chars: map[rune]FontChar,
@@ -122,9 +122,6 @@ loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
 BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte, bitmapSize: int2, charsList: string) -> FontData {
     x, y, bottomY, i: i32
     font: stbtt.fontinfo
-    fontData: FontData
-
-    //fontData.chars = make(map[u16]FontChar)
 
     if !stbtt.InitFont(&font, raw_data(data), 0) {
         panic("Error font parsing")
@@ -133,7 +130,16 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
     y = 1
 	bottomY = 1
 
-    fontData.scale = stbtt.ScaleForPixelHeight(&font, pixelHeight)
+    ascent, descent, lineGap: i32
+    stbtt.GetFontVMetrics(&font, &ascent, &descent, &lineGap)
+    
+    scale := stbtt.ScaleForPixelHeight(&font, pixelHeight)
+    fontData := FontData{
+        ascent = f32(ascent) * scale,
+        descent = f32(descent) * scale,
+        lineGap = f32(lineGap) * scale,
+        scale = scale,
+    }
 
     for char in charsList {
         advance, lsb, x0, y0, x1, y1, gw, gh: i32
@@ -154,6 +160,10 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
         }
 
         bitmapOffset := mem.ptr_offset(raw_data(bitmap), x + y * bitmapSize.y)
+        // xtest: f32
+        // ytest: f32
+        // stbtt.MakeGlyphBitmapSubpixelPrefilter(&font, bitmapOffset, gw, gh, bitmapSize.x, fontData.scale, fontData.scale, 2.0, 2.0, 2, 2, &xtest, &ytest, g)
+        // stbtt.MakeGlyphBitmapSubpixel(&font, bitmapOffset, gw, gh, bitmapSize.x, fontData.scale, fontData.scale, 1.0, 1.0, g)
         stbtt.MakeGlyphBitmap(&font, bitmapOffset, gw, gh, bitmapSize.x, fontData.scale, fontData.scale, g)
 
         fontData.chars[char] = FontChar{

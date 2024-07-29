@@ -1,12 +1,14 @@
 package main
 
+import "core:strings"
+
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 
 render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx := directXState.ctx
 
-    ctx->ClearRenderTargetView(directXState.backBufferView, &[?]f32{windowData.a, 0.5, 1.0, 1.0})
+    ctx->ClearRenderTargetView(directXState.backBufferView, &[?]f32{0.0, 0.5, 1.0, 1.0})
     ctx->ClearDepthStencilView(directXState.depthBufferView, { .DEPTH, .STENCIL }, 1.0, 0)
     
     ctx->OMSetRenderTargets(1, &directXState.backBufferView, directXState.depthBufferView)
@@ -30,18 +32,27 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
     
-    _renderTestLine(directXState)
+    _renderTestLine(directXState, windowData)
     // ctx->DrawIndexed(6, 0, 0)
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)
 }
 
-_renderTestLine :: proc(directXState: ^DirectXState) {    
-    testString := "Lorem ipsum dolor sit amet, consectetur adipiscing elit"
-    cursorPosition: float2 = { -350.0, 0.0 }
+_renderTestLine :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+    testString := strings.to_string(windowData.testInputString)
+    // testString := "Lorem ipsum dolor sit amet,\nconsectetur adipiscing elit"
+
+    initialPosition: float2 = { -350.0, 0.0 }
+    cursorPosition := initialPosition
 
     for char, charIndex in testString {
+        if char == '\n' { 
+            cursorPosition.y -= directXState.fontData.ascent - directXState.fontData.descent
+            cursorPosition.x = initialPosition.x
+            continue 
+        }
+
         fontChar := directXState.fontData.chars[char]
 
         updateConstantBuffer(&fontChar, directXState.constantBuffers[.FONT_GLYPH_LOCATION], directXState)
@@ -61,5 +72,6 @@ _renderTestLine :: proc(directXState: ^DirectXState) {
         directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
 
         cursorPosition.x += fontChar.xAdvance + fontChar.offset.x
+
     }
 }

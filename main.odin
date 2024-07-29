@@ -15,8 +15,8 @@ main :: proc() {
     defer clearDirectX(&directXState)
 
     glfw.SetWindowMaximizeCallback(window, windowMaximizeProc)
-    // glfw.Window(window, windowMaximizeProc)
     glfw.SetKeyCallback(window, keyboardHandler)
+    glfw.SetCharCallback(window, keychardCharInputHandler)
     
     initGpuResources(&directXState)
     
@@ -30,17 +30,6 @@ main :: proc() {
         beforeFrameTime = f32(glfw.GetTime())
 
         render(&directXState, windowData)
-
-        // testing
-        // fontCharIndex = (fontCharIndex + 1) % len(directXState.fontChars) 
-        // fontChar := directXState.fontChars['A']
-
-        // updateConstantBuffer(&fontChar, directXState.constantBuffers[.FONT_GLYPH_LOCATION], &directXState)
-
-        // // angle += 1.1 * delta
-        // modelMatrix := getScaleMatrix(3, 3, 1) * getTranslationMatrix(cursorPosition.x, cursorPosition.y, 0) * getRotationMatrix(angle, 0, 0)
-        // updateConstantBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], &directXState)
-        //<
 
         glfw.PollEvents()
 
