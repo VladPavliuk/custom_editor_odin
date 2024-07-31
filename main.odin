@@ -8,15 +8,17 @@ windowMaximizeProc :: proc "c" (window: glfw.WindowHandle, iconified: i32) {
 } 
 
 main :: proc() {
-    window, hwnd, windowData := createWindow()
+    window, hwnd, windowData := createWindow({ 800, 800 })
     defer glfw.DestroyWindow(window)
 
     directXState := initDirectX(hwnd)
+    windowData.directXState = &directXState
     defer clearDirectX(&directXState)
 
     glfw.SetWindowMaximizeCallback(window, windowMaximizeProc)
     glfw.SetKeyCallback(window, keyboardHandler)
     glfw.SetCharCallback(window, keychardCharInputHandler)
+    glfw.SetWindowSizeCallback(window, windowSizeChangedHandler)
     
     initGpuResources(&directXState)
     

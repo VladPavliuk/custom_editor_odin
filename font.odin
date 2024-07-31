@@ -36,7 +36,7 @@ loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
     defer delete(tmpFontBitmap)
     // overflow := stbtt.BakeFontBitmap(raw_data(fileContent), 0, 28.0, raw_data(tmpFontBitmap), bitmapSize.x, bitmapSize.y, 32, 95, raw_data(charsData[:]))
 
-    alphabet := "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯабвгґдеєжзиіїйклмнопрстуфхцчшщьюя !\"#$%&'()*+,-./0123456789:;<=>?@[\\]^_`{|}~ABCDEFGHIJKLMNOPRSTUVWXYZabcdefghijklmnoprstuvwxyz"
+    alphabet := "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯабвгґдеєжзиіїйклмнопрстуфхцчшщьюя !\"#$%&'()*+,-./0123456789:;<=>?@[\\]^_`{|}~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     fontData := BakeFontBitmapCustomChars(fileContent, 30.0, tmpFontBitmap, bitmapSize, alphabet)
 
     // for charData, index in charsData {
