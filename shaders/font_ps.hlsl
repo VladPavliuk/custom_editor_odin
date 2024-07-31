@@ -7,8 +7,6 @@ cbuffer glyphLocationCB : register(b0)
 
 Texture2D<uint> byteObjTexture : TEXTURE : register(t0);
 
-// SamplerState objSamplerState : SAMPLER : register(s0);
-
 struct PSInput
 {
     float4 positionSV : SV_POSITION;
@@ -18,7 +16,7 @@ struct PSInput
 
 struct PSOutput
 {
-    float4 pixelColor : SV_TARGET;
+    float4 pixelColor : SV_TARGET0;
     // float objectItemId : SV_TARGET1;
 };
 
@@ -35,8 +33,6 @@ PSOutput main(PSInput input)
 
     output.pixelColor = float4(1.0, 1.0, 1.0, ((float)value) / 255.0f);
     
-    //output.pixelColor = objTexture.Sample(objSamplerState, input.texcoord.xy).xyzw;
-
     // output.pixelColor = float4(1.0, 0.0, 1.0, 1.0);
     // output.objectItemId = (float) input.objectItemId;
     

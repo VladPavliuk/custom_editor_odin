@@ -33,7 +33,6 @@ VSOutput main(VSInput input)
     output.position = float4(input.position, 1.0f);
     
     output.position = mul(output.position, modelTransformation);
-    
     output.position = mul(output.position, projectionMatrix);
 
     output.texcoord = input.texcoord;

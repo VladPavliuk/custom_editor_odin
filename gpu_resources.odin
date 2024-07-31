@@ -56,10 +56,10 @@ GpuConstantBufferType :: enum {
 initGpuResources :: proc(directXState: ^DirectXState) {
     loadTextures(directXState)
 
-    vertexShader, blob := loadVertexShader("shaders/testVertexShader.fxc", directXState)
+    vertexShader, blob := loadVertexShader("shaders/basic_vs.fxc", directXState)
     defer blob->Release()
 
-    pixelShader := loadPixelShader("shaders/textPixelShader.fxc", directXState)
+    pixelShader := loadPixelShader("shaders/font_ps.fxc", directXState)
 
     inputLayoutDesc := [?]d3d11.INPUT_ELEMENT_DESC{
         { "POSITION", 0, dxgi.FORMAT.R32G32B32_FLOAT, 0, 0, d3d11.INPUT_CLASSIFICATION.VERTEX_DATA, 0 },
