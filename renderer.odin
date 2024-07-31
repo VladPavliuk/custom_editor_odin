@@ -39,11 +39,15 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     assert(hr == 0)
 }
 
+_renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+    
+}
+
 _renderTestLine :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     testString := strings.to_string(windowData.testInputString)
     // testString := "Lorem ipsum dolor sit amet,\nconsectetur adipiscing elit"
 
-    initialPosition: float2 = { -350.0, 0.0 }
+    initialPosition: float2 = { -f32(windowData.size.x) / 2.0, f32(windowData.size.y) / 2.0 - directXState.fontData.ascent }
     cursorPosition := initialPosition
 
     for char, charIndex in testString {

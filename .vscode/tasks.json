@@ -4,9 +4,17 @@
     "version": "2.0.0",
     "tasks": [
         {
+            "label": "compile shaders",
+            "type": "process",
+            "command": "compile_shaders.bat",
+        },
+        {
            "label": "odin build",
            "type": "process",
            "command": "odin",
+           "dependsOn": [
+                "compile shaders",
+            ],
            "args": [
                 "build",
                 ".",

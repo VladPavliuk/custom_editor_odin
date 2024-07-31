@@ -56,10 +56,10 @@ GpuConstantBufferType :: enum {
 initGpuResources :: proc(directXState: ^DirectXState) {
     loadTextures(directXState)
 
-    vertexShader, blob := loadVertexShader("testVertexShader.hlsl", directXState)
+    vertexShader, blob := loadVertexShader("shaders/testVertexShader.fxc", directXState)
     defer blob->Release()
 
-    pixelShader := loadPixelShader("textPixelShader.hlsl", directXState)
+    pixelShader := loadPixelShader("shaders/textPixelShader.fxc", directXState)
 
     inputLayoutDesc := [?]d3d11.INPUT_ELEMENT_DESC{
         { "POSITION", 0, dxgi.FORMAT.R32G32B32_FLOAT, 0, 0, d3d11.INPUT_CLASSIFICATION.VERTEX_DATA, 0 },
@@ -116,17 +116,11 @@ loadTextures :: proc(directXState: ^DirectXState) {
 
 loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
     blob: ^d3d11.IBlob
-    errMessageBlob: ^d3d11.IBlob = nil
-    defer if errMessageBlob != nil { errMessageBlob->Release() }
 
-    fileContent, success := os.read_entire_file_from_filename(filePath)
-    assert(success)
-    defer delete(fileContent)
-	hr := d3d_compiler.Compile(raw_data(fileContent), len(fileContent), strings.unsafe_string_to_cstring(filePath), nil, nil, 
-        "main", "vs_5_0", 0, 0, &blob, &errMessageBlob)
-    if errMessageBlob != nil {
-        panic(string(cstring(errMessageBlob->GetBufferPointer())))
-    } 
+    filePathBuffer: [255]u16
+    utf16.encode_string(filePathBuffer[:], filePath)
+
+    hr := d3d_compiler.ReadFileToBlob(raw_data(filePathBuffer[:]), &blob)
     assert(hr == 0)
 
     shader: ^d3d11.IVertexShader
@@ -137,21 +131,13 @@ loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d
 }
 
 loadPixelShader :: proc(filePath: string, directXState: ^DirectXState) -> ^d3d11.IPixelShader {
-    fileContent, success := os.read_entire_file_from_filename(filePath)
-    assert(success)
-    defer delete(fileContent)
-
     blob: ^d3d11.IBlob
     defer blob->Release()
 
-    errMessageBlob: ^d3d11.IBlob = nil
-    defer if errMessageBlob != nil { errMessageBlob->Release() }
+    filePathBuffer: [255]u16
+    utf16.encode_string(filePathBuffer[:], filePath)
 
-    hr := d3d_compiler.Compile(raw_data(fileContent), len(fileContent), strings.unsafe_string_to_cstring(filePath), nil, nil, 
-        "main", "ps_5_0", 0, 0, &blob, &errMessageBlob)
-    if errMessageBlob != nil {
-        panic(string(cstring(errMessageBlob->GetBufferPointer())))
-    }
+    hr := d3d_compiler.ReadFileToBlob(raw_data(filePathBuffer[:]), &blob)
     assert(hr == 0)
 
     shader: ^d3d11.IPixelShader
