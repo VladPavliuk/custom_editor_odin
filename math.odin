@@ -15,6 +15,12 @@ getOrthoraphicsMatrix :: proc(viewWidth, viewHeight, nearZ, farZ: f32) -> mat4 {
     }
 }
 
+getTransformationMatrix :: proc(position, rotation, scale: float3) -> mat4 {
+    return getScaleMatrix(scale.x, scale.y, scale.z) *
+        getTranslationMatrix(position.x, position.y, position.z) * 
+        getRotationMatrix(rotation.x, rotation.y, rotation.z)
+} 
+
 getTranslationMatrix :: proc(x, y, z: f32) -> mat4 {
     return mat4{
         1, 0, 0, 0,

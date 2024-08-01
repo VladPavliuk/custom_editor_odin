@@ -22,7 +22,6 @@ main :: proc() {
     
     initGpuResources(&directXState)
     
-    // fontCharIndex := 0
     angle: f32 = 0.0
     beforeFrameTime := f32(glfw.GetTime())
     afterFrameTime := beforeFrameTime
@@ -38,4 +37,6 @@ main :: proc() {
         afterFrameTime = f32(glfw.GetTime())
         delta = afterFrameTime - beforeFrameTime
     }
+
+    // edit.destroy(&editState)
 }

@@ -36,11 +36,12 @@ GpuBuffer :: struct {
 }
 
 VertexShaderType :: enum {
-    QUAD,
+    BASIC,
 }
 
 PixelShaderType :: enum {
-    QUAD,
+    SOLID_COLOR,
+    FONT,
 }
 
 InputLayoutType :: enum {
@@ -51,6 +52,7 @@ GpuConstantBufferType :: enum {
     FONT_GLYPH_LOCATION,
     PROJECTION,
     MODEL_TRANSFORMATION,
+    COLOR,
 }
 
 initGpuResources :: proc(directXState: ^DirectXState) {
@@ -58,8 +60,6 @@ initGpuResources :: proc(directXState: ^DirectXState) {
 
     vertexShader, blob := loadVertexShader("shaders/basic_vs.fxc", directXState)
     defer blob->Release()
-
-    pixelShader := loadPixelShader("shaders/font_ps.fxc", directXState)
 
     inputLayoutDesc := [?]d3d11.INPUT_ELEMENT_DESC{
         { "POSITION", 0, dxgi.FORMAT.R32G32B32_FLOAT, 0, 0, d3d11.INPUT_CLASSIFICATION.VERTEX_DATA, 0 },
@@ -70,8 +70,9 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     hr := directXState.device->CreateInputLayout(raw_data(inputLayoutDesc[:]), len(inputLayoutDesc), blob->GetBufferPointer(), blob->GetBufferSize(), &inputLayout)
     assert(hr == 0)
 
-    directXState.vertexShaders[.QUAD] = vertexShader 
-    directXState.pixelShaders[.QUAD] = pixelShader 
+    directXState.vertexShaders[.BASIC] = vertexShader 
+    directXState.pixelShaders[.FONT] = loadPixelShader("shaders/font_ps.fxc", directXState)
+    directXState.pixelShaders[.SOLID_COLOR] = loadPixelShader("shaders/solid_color_ps.fxc", directXState)
     directXState.inputLayouts[.POSITION_AND_TEXCOORD] = inputLayout 
     
     VertexItem :: struct {
@@ -108,6 +109,7 @@ initGpuResources :: proc(directXState: ^DirectXState) {
 
     //modelMatrix := getScaleMatrix(3, 3, 1) * getTranslationMatrix(20, 0, 0) * getRotationMatrix(math.PI, 0, 0)
     directXState.constantBuffers[.MODEL_TRANSFORMATION] = createConstantBuffer(mat4, nil, directXState)
+    directXState.constantBuffers[.COLOR] = createConstantBuffer(float4, &float4{ 0.0, 0.0, 0.0, 1.0 }, directXState)
 }
 
 loadTextures :: proc(directXState: ^DirectXState) {

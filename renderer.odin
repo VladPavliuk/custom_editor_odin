@@ -18,19 +18,13 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
 	ctx->IASetPrimitiveTopology(d3d11.PRIMITIVE_TOPOLOGY.TRIANGLELIST)
     ctx->IASetInputLayout(directXState.inputLayouts[.POSITION_AND_TEXCOORD])
-    
-    ctx->VSSetShader(directXState.vertexShaders[.QUAD], nil, 0)
-    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
-    ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
-
-    ctx->PSSetShader(directXState.pixelShaders[.QUAD], nil, 0)
-    ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
-    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.FONT_GLYPH_LOCATION].gpuBuffer)
 
     offsets := [?]u32{ 0 }
     strideSize := [?]u32{directXState.vertexBuffers[.QUAD].strideSize}
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
+
+    _renderCursor(directXState, windowData)
     
     _renderTestLine(directXState, windowData)
     // ctx->DrawIndexed(6, 0, 0)
@@ -40,10 +34,38 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 }
 
 _renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
-    
+    ctx := directXState.ctx
+
+    ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
+    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+    ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
+
+    ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
+    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
+
+    cursorHeight := directXState.fontData.ascent - directXState.fontData.descent
+    modelMatrix := getTransformationMatrix(
+        { windowData.cursorScreenPosition.x, windowData.cursorScreenPosition.y, 0.0 }, 
+        { 0.0, 0.0, 0.0 }, { 5.0, cursorHeight, 1.0 })
+
+    updateConstantBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
+
+    directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
+    // testColor := float4{}
+    // updateConstantBuffer(&fontChar, directXState.constantBuffers[.COLOR], directXState)
 }
 
 _renderTestLine :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+    ctx := directXState.ctx
+
+    ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
+    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+    ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
+
+    ctx->PSSetShader(directXState.pixelShaders[.FONT], nil, 0)
+    ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
+    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.FONT_GLYPH_LOCATION].gpuBuffer)
+
     testString := strings.to_string(windowData.testInputString)
     // testString := "Lorem ipsum dolor sit amet,\nconsectetur adipiscing elit"
 
@@ -51,7 +73,15 @@ _renderTestLine :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     cursorPosition := initialPosition
 
     for char, charIndex in testString {
+        if cursorPosition.y < -f32(windowData.size.y) / 2 {
+            break
+        }
+
         if char == '\n' { 
+            if (windowData.inputState.selection[0] == charIndex) {
+                windowData.cursorScreenPosition = { cursorPosition.x, cursorPosition.y + directXState.fontData.descent }
+            }
+
             cursorPosition.y -= directXState.fontData.ascent - directXState.fontData.descent
             cursorPosition.x = initialPosition.x
             continue 
@@ -67,15 +97,24 @@ _renderTestLine :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
         }
 
         size: float2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-        modelMatrix := getScaleMatrix(size.x, size.y, 1) *
-            getTranslationMatrix(cursorPosition.x + fontChar.offset.x + kerning, cursorPosition.y - size.y - fontChar.offset.y, 0) * 
-            getRotationMatrix(0, 0, 0)
+        modelMatrix := getTransformationMatrix(
+            { cursorPosition.x + fontChar.offset.x + kerning, cursorPosition.y - size.y - fontChar.offset.y, 0.0 }, 
+            { 0.0, 0.0, 0.0 }, 
+            { size.x, size.y, 1.0 },
+        )
 
         updateConstantBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
 
         directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
 
-        cursorPosition.x += fontChar.xAdvance + fontChar.offset.x
+        if (windowData.inputState.selection[0] == charIndex) {
+            windowData.cursorScreenPosition = { cursorPosition.x, cursorPosition.y + directXState.fontData.descent }
+        }
 
+        cursorPosition.x += fontChar.xAdvance + fontChar.offset.x
+    }
+
+    if (windowData.inputState.selection[0] == len(testString)) {
+        windowData.cursorScreenPosition = { cursorPosition.x, cursorPosition.y + directXState.fontData.descent }
     }
 }
