@@ -4,6 +4,9 @@ import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import "vendor:directx/d3d_compiler"
 
+import "base:runtime"
+import "core:reflect"
+
 import "core:fmt"
 import "core:os"
 import "core:strings"
@@ -27,8 +30,13 @@ GpuBufferType :: enum {
     QUAD,
 }
 
+GpuStructuredBufferType :: enum {
+    GLYPHS_LIST,
+}
+
 GpuBuffer :: struct {
 	gpuBuffer: ^d3d11.IBuffer,
+    srv: ^d3d11.IShaderResourceView,
 	cpuBuffer: rawptr,
     length: u32,
     strideSize: u32,
@@ -37,6 +45,7 @@ GpuBuffer :: struct {
 
 VertexShaderType :: enum {
     BASIC,
+    FONT,
 }
 
 PixelShaderType :: enum {
@@ -71,6 +80,7 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     assert(hr == 0)
 
     directXState.vertexShaders[.BASIC] = vertexShader 
+    directXState.vertexShaders[.FONT], _ = loadVertexShader("shaders/font_vs.fxc", directXState)
     directXState.pixelShaders[.FONT] = loadPixelShader("shaders/font_ps.fxc", directXState)
     directXState.pixelShaders[.SOLID_COLOR] = loadPixelShader("shaders/solid_color_ps.fxc", directXState)
     directXState.inputLayouts[.POSITION_AND_TEXCOORD] = inputLayout 
@@ -107,9 +117,15 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     viewMatrix := getOrthoraphicsMatrix(800, 800, 0.1, 10.0)
     directXState.constantBuffers[.PROJECTION] = createConstantBuffer(mat4, &viewMatrix, directXState)
 
-    //modelMatrix := getScaleMatrix(3, 3, 1) * getTranslationMatrix(20, 0, 0) * getRotationMatrix(math.PI, 0, 0)
     directXState.constantBuffers[.MODEL_TRANSFORMATION] = createConstantBuffer(mat4, nil, directXState)
     directXState.constantBuffers[.COLOR] = createConstantBuffer(float4, &float4{ 0.0, 0.0, 0.0, 1.0 }, directXState)
+
+    fontGlyphs := make([]FontGlyphGpu, 10000)
+    directXState.structuredBuffers[.GLYPHS_LIST] = createStructuredBuffer(fontGlyphs, directXState)
+}
+
+memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T {
+    return transmute([]T)runtime.Raw_Slice{pointer, length}
 }
 
 loadTextures :: proc(directXState: ^DirectXState) {
@@ -235,11 +251,102 @@ createConstantBuffer :: proc($T: typeid, initialData: ^T, directXState: ^DirectX
     }
 }
 
-updateConstantBuffer :: proc(data: ^$T, buffer: GpuBuffer, directXState: ^DirectXState) {
+updateGpuBuffer :: proc{updateGpuBuffer_SingleItem, updateGpuBuffer_ArrayItems}
+
+updateGpuBuffer_SingleItem :: proc(data: ^$T, buffer: GpuBuffer, directXState: ^DirectXState) {
     sb: d3d11.MAPPED_SUBRESOURCE
     hr := directXState.ctx->Map(buffer.gpuBuffer, 0, d3d11.MAP.WRITE_DISCARD, {}, &sb)
     defer directXState.ctx->Unmap(buffer.gpuBuffer, 0)
 
     assert(hr == 0)
     mem.copy(sb.pData, data, size_of(data^))
+}
+
+updateGpuBuffer_ArrayItems :: proc(data: []$T, buffer: GpuBuffer, directXState: ^DirectXState) {
+    sb: d3d11.MAPPED_SUBRESOURCE
+    hr := directXState.ctx->Map(buffer.gpuBuffer, 0, d3d11.MAP.WRITE_DISCARD, {}, &sb)
+    defer directXState.ctx->Unmap(buffer.gpuBuffer, 0)
+
+    assert(hr == 0)
+    mem.copy(sb.pData, raw_data(data[:]), len(data) * size_of(T))
+}
+
+createStructuredBuffer :: proc{createStructuredBuffer_InitData, createStructuredBuffer_NoInitData}
+
+createStructuredBuffer_InitData :: proc(items: []$T, directXState: ^DirectXState) -> GpuBuffer {
+    bufferDesc := d3d11.BUFFER_DESC{
+        ByteWidth = u32(len(items) * size_of(T)),
+        Usage = d3d11.USAGE.DYNAMIC,
+        BindFlags = {d3d11.BIND_FLAG.SHADER_RESOURCE},
+        CPUAccessFlags = {.WRITE},
+        MiscFlags = {.BUFFER_STRUCTURED},
+        StructureByteStride = size_of(T),
+    }
+
+    data := d3d11.SUBRESOURCE_DATA{
+        pSysMem = raw_data(items[:]),
+    }
+
+    buffer: ^d3d11.IBuffer
+    hr := directXState.device->CreateBuffer(&bufferDesc, &data, &buffer)
+    assert(hr == 0)
+
+    srvDesc := d3d11.SHADER_RESOURCE_VIEW_DESC{
+        Format = .UNKNOWN,
+        ViewDimension = .BUFFER,
+        Buffer = {
+            FirstElement = 0,
+            NumElements = u32(len(items)),
+        },
+    }
+
+    srv: ^d3d11.IShaderResourceView
+    hr = directXState->device->CreateShaderResourceView(buffer, &srvDesc, &srv)
+    assert(hr == 0)
+
+    return GpuBuffer{
+        cpuBuffer = raw_data(items),
+        gpuBuffer = buffer,
+        srv = srv,
+        length = u32(len(items)),
+        strideSize = size_of(T),
+        itemType = typeid_of(T),
+    }
+}
+
+createStructuredBuffer_NoInitData :: proc(length: u32, $T: typeid, directXState: ^DirectXState) -> GpuBuffer {
+    bufferDesc := d3d11.BUFFER_DESC{
+        ByteWidth = length * size_of(T),
+        Usage = d3d11.USAGE.DYNAMIC,
+        BindFlags = {d3d11.BIND_FLAG.SHADER_RESOURCE},
+        CPUAccessFlags = {.WRITE},
+        MiscFlags = {.BUFFER_STRUCTURED},
+        StructureByteStride = size_of(T),
+    }
+
+    buffer: ^d3d11.IBuffer
+    hr := directXState.device->CreateBuffer(&bufferDesc, nil, &buffer)
+    assert(hr == 0)
+
+    srvDesc := d3d11.SHADER_RESOURCE_VIEW_DESC{
+        Format = .UNKNOWN,
+        ViewDimension = .BUFFER,
+        Buffer = {
+            FirstElement = 0,
+            NumElements = length,
+        },
+    }
+
+    srv: ^d3d11.IShaderResourceView
+    hr = directXState->device->CreateShaderResourceView(buffer, &srvDesc, &srv)
+    assert(hr == 0)
+
+    return GpuBuffer{
+        cpuBuffer = nil,
+        gpuBuffer = buffer,
+        srv = srv,
+        length = length,
+        strideSize = size_of(T),
+        itemType = typeid_of(T),
+    }
 }

@@ -21,6 +21,7 @@ DirectXState :: struct {
     vertexBuffers: [GpuBufferType]GpuBuffer,
     indexBuffers: [GpuBufferType]GpuBuffer,
     constantBuffers: [GpuConstantBufferType]GpuBuffer,
+    structuredBuffers: [GpuStructuredBufferType]GpuBuffer,
 
     inputLayouts: [InputLayoutType]^d3d11.IInputLayout,
 
@@ -177,6 +178,12 @@ clearDirectX :: proc(directXState: ^DirectXState) {
 
     for buffer in directXState.constantBuffers {
         buffer.gpuBuffer->Release()
+        if buffer.cpuBuffer != nil { free(buffer.cpuBuffer) }
+    }
+
+    for buffer in directXState.structuredBuffers {
+        buffer.gpuBuffer->Release()
+        buffer.srv->Release()
         if buffer.cpuBuffer != nil { free(buffer.cpuBuffer) }
     }
 

@@ -6,6 +6,11 @@ import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import stbtt "vendor:stb/truetype"
 
+FontGlyphGpu :: struct {
+    sourceRect: Rect,
+    targetTransformation: mat4,
+}
+
 FontChar :: struct {
     rect: Rect,
     offset: float2,
@@ -38,30 +43,6 @@ loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
 
     alphabet := "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯабвгґдеєжзиіїйклмнопрстуфхцчшщьюя !\"#$%&'()*+,-./0123456789:;<=>?@[\\]^_`{|}~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     fontData := BakeFontBitmapCustomChars(fileContent, 30.0, tmpFontBitmap, bitmapSize, alphabet)
-
-    // for charData, index in charsData {
-    //     char := u16(32 + index)
-    //     fontChars[char] = FontChar{
-    //         rect = Rect{
-    //             top = f32(charData.y1),
-    //             bottom = f32(charData.y0),
-    //             left = f32(charData.x0),
-    //             right = f32(charData.x1),
-    //         },
-    //         offset = { charData.xoff, charData.yoff  },
-    //         xAdvance = charData.xadvance,
-    //     }
-    //     // append(&fontChars, FontChar{
-    //     //     rect = Rect{
-    //     //         top = f32(charData.y1),
-    //     //         bottom = f32(charData.y0),
-    //     //         left = f32(charData.x0),
-    //     //         right = f32(charData.x1),
-    //     //     },
-    //     //     offset = { charData.xoff, charData.yoff  },
-    //     //     xAdvance = charData.xadvance,
-    //     // })
-    // }
 
     textureDesc := d3d11.TEXTURE2D_DESC{
         Width = u32(bitmapSize.x), 

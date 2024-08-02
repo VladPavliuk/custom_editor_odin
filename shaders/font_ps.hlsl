@@ -1,9 +1,9 @@
-cbuffer glyphLocationCB : register(b0)
-{
-    float4 glyphLocation;
-    float2 glyphOffset;
-    float glyphXAdvance;
-}
+// cbuffer glyphLocationCB : register(b0)
+// {
+//     float4 glyphLocation;
+//     float2 glyphOffset;
+//     float glyphXAdvance;
+// }
 
 Texture2D<uint> byteObjTexture : TEXTURE : register(t0);
 
@@ -11,6 +11,7 @@ struct PSInput
 {
     float4 positionSV : SV_POSITION;
     float2 texcoord : TEXCOORD;
+    float4 glyphLocation : GLYPH_LOCATION;
     //float objectItemId : OBJECT_ID;
 };
 
@@ -22,6 +23,7 @@ struct PSOutput
 
 PSOutput main(PSInput input)
 {
+    float4 glyphLocation = input.glyphLocation;
     PSOutput output;
 
     uint value = byteObjTexture.Load(int3(

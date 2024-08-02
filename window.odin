@@ -11,6 +11,17 @@ import "vendor:directx/dxgi"
 
 import win32 "core:sys/windows"
 
+GlyphItem :: struct {
+    char: rune,
+    index: i64,
+    x: f32,
+    y: f32,
+    width: f32,
+    height: f32,
+    // rect: Rect, // on screen rect
+    // lineIndex: i16,
+}
+
 WindowData :: struct {
     size: int2,
 
@@ -20,6 +31,7 @@ WindowData :: struct {
     isInputMode: bool,
     testInputString: strings.Builder,
     inputState: edit.State,
+    glyphsLayout: [dynamic]GlyphItem,
 
     // cursorIndex: i32, // index in string
     cursorScreenPosition: float2,
@@ -40,39 +52,46 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     windowData := new(WindowData)
     windowData.size = size
     windowData.testInputString = strings.builder_make()
-    testText := `Lorem ipsum dolor sit amet, consectetur adipiscing elit. 
-Donec consequat lorem eget arcu congue, commodo dignissim elit tincidunt. 
-Quisque mattis nisl in orci rutrum feugiat. Proin sed est ipsum. Proin eget ultrices turpis. 
-Aliquam in placerat elit, vitae accumsan dolor. 
-Etiam 
-    lobortis ex eu blandit cursus. In egestas leo magna, vel placerat eros
-bibendum eu.
-
-Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt
-dapibus tellus, sed rhoncus leo gravida ac. Ut dictum elit sit
-amet odio fringilla posuere. Etiam at nulla a risus blandit sodales. 
-Aliquam rutrum felis eros, sed placerat urna sodales at. Nulla eu orci sed dui scelerisque egestas. 
-Fusce nec finibus erat. Morbi sagittis augue et risus tempus pulvinar. Cras vehicula eu nunc ac ultrices. 
-Donec nulla erat, laoreet sed lacus ac, porttitor ultrices orci. Integer vulputate lorem ac imperdiet laoreet. 
-Etiam vitae commodo odio, quis tempus libero. 
-Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-
-Nunc enim augue, maximus quis cursus sit amet, eleifend et nunc. Maecenas et tortor dictum nisi tincidunt rutrum. 
-Curabitur vel dapibus libero, in finibus erat. Curabitur ut libero vitae dolor molestie aliquet. 
-Ut consequat diam vitae odio porta cursus. Nunc hendrerit nisl nec risus tempus ornare. 
-Vestibulum et finibus sapien. 
-Vivamus ipsum est, efficitur lobortis vestibulum finibus, tempor ut est. Sed lacus velit, pretium eget lectus in, euismod convallis sapien. 
-Donec sed rutrum purus. Nunc odio enim, rutrum mattis lorem eu, 
-hendrerit varius enim. Sed fermentum volutpat nibh eu aliquam. 
-Sed nibh urna, tempor eu dolor quis, convallis rhoncus metus. 
-Duis fermentum accumsan scelerisque. 
-Aenean mollis, tellus at luctus vehicula, mauris 
-dolor mattis turpis, at ultricies dui dolor quis sapien.`
+    // around 5k symbols
+    testText := `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Donec consequat lorem eget arcu congue, commodo dignissim elit tincidunt.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Quisque mattis nisl in orci rutrum feugiat. Proin sed est ipsum. Proin eget ultrices turpis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aliquam in placerat elit, vitae accumsan dolor.  Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Etiam Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+lobortis ex eu blandit cursus. In egestas leo magna, vel placerat eros Aenean eu aliquet ex. Cras ultricies do Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+bibendum eu. Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+dapibus tellus, sed rhoncus leo gravida ac. Ut dictum elit sit Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+amet odio fringilla posuere. Etiam at nulla a risus blandit sodales.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aliquam rutrum felis eros, sed placerat urna sodales at. Nulla eu orci sed dui scelerisque egestas.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Fusce nec finibus erat. Morbi sagittis augue et risus tempus pulvinar. Cras vehicula eu nunc ac ultrices. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Donec nulla erat, laoreet sed lacus ac, porttitor ultrices orci. Integer vulputate lorem ac imperdiet laoreet.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Etiam vitae commodo odio, quis tempus libero. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Nunc enim augue, maximus quis cursus sit amet, eleifend et nunc. Maecenas et tortor dictum nisi tincidunt rutrum. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Curabitur vel dapibus libero, in finibus erat. Curabitur ut libero vitae dolor molestie aliquet.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Ut consequat diam vitae odio porta cursus. Nunc hendrerit nisl nec risus tempus ornare. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Vestibulum et finibus sapien. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Vivamus ipsum est, efficitur lobortis vestibulum finibus, tempor ut est. Sed lacus velit, pretium eget lectus in, euismod convallis sapien.  
+Donec sed rutrum purus. Nunc odio enim, rutrum mattis lorem eu, Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+hendrerit varius enim. Sed fermentum volutpat nibh eu aliquam.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Sed nibh urna, tempor eu dolor quis, convallis rhoncus metus.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Duis fermentum accumsan scelerisque. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
+dolor mattis turpis, at ultricies dui dolor quis sapien. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.` 
     strings.write_string(&windowData.testInputString, testText)
     edit.init(&windowData.inputState, context.allocator, context.allocator)
     edit.setup_once(&windowData.inputState, &windowData.testInputString)
     windowData.inputState.selection[0] = 0
 
+    test := len(testText)
     windowData.isInputMode = true
 
     glfw.SetWindowUserPointer(window, windowData)
@@ -189,5 +208,5 @@ windowSizeChangedHandler :: proc "c" (window: glfw.WindowHandle, width, height: 
 
     viewMatrix := getOrthoraphicsMatrix(f32(width), f32(height), 0.1, 10.0)
 
-    updateConstantBuffer(&viewMatrix, directXState.constantBuffers[.PROJECTION], directXState)
+    updateGpuBuffer(&viewMatrix, directXState.constantBuffers[.PROJECTION], directXState)
 }
