@@ -42,7 +42,7 @@ loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
     // overflow := stbtt.BakeFontBitmap(raw_data(fileContent), 0, 28.0, raw_data(tmpFontBitmap), bitmapSize.x, bitmapSize.y, 32, 95, raw_data(charsData[:]))
 
     alphabet := "АБВГҐДЕЄЖЗИІЇЙКЛМНОПРСТУФХЦЧШЩЬЮЯабвгґдеєжзиіїйклмнопрстуфхцчшщьюя !\"#$%&'()*+,-./0123456789:;<=>?@[\\]^_`{|}~ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
-    fontData := BakeFontBitmapCustomChars(fileContent, 30.0, tmpFontBitmap, bitmapSize, alphabet)
+    fontData := BakeFontBitmapCustomChars(fileContent, 20.0, tmpFontBitmap, bitmapSize, alphabet)
 
     textureDesc := d3d11.TEXTURE2D_DESC{
         Width = u32(bitmapSize.x), 

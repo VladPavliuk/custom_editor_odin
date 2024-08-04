@@ -4,6 +4,8 @@ import "base:runtime"
 import "core:strings"
 import "core:fmt"
 import "core:text/edit"
+import "core:os"
+import "core:bytes"
 
 import "vendor:glfw"
 import "vendor:directx/d3d11"
@@ -13,25 +15,31 @@ import win32 "core:sys/windows"
 
 GlyphItem :: struct {
     char: rune,
-    index: i64,
+    indexInString: i64, // char index in source string
+    lineIndex: i16, // line index on screen
     x: f32,
     y: f32,
     width: f32,
     height: f32,
-    // rect: Rect, // on screen rect
-    // lineIndex: i16,
+}
+
+ScreenGlyphs :: struct {
+    cursorIndex: i32,
+    layout: [dynamic]GlyphItem,
+    lines: [dynamic]int, // { start line char index, end char line index }
 }
 
 WindowData :: struct {
     size: int2,
-
+    mousePosition: float2,
+    isLeftMouseButtonDown: bool,
     directXState: ^DirectXState,
 
     linesTopOffset: i32,
     isInputMode: bool,
     testInputString: strings.Builder,
     inputState: edit.State,
-    glyphsLayout: [dynamic]GlyphItem,
+    screenGlyphs: ScreenGlyphs,
 
     // cursorIndex: i32, // index in string
     cursorScreenPosition: float2,
@@ -52,46 +60,16 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     windowData := new(WindowData)
     windowData.size = size
     windowData.testInputString = strings.builder_make()
-    // around 5k symbols
-    testText := `Lorem ipsum dolor sit amet, consectetur adipiscing elit. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Donec consequat lorem eget arcu congue, commodo dignissim elit tincidunt.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Quisque mattis nisl in orci rutrum feugiat. Proin sed est ipsum. Proin eget ultrices turpis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aliquam in placerat elit, vitae accumsan dolor.  Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Etiam Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-lobortis ex eu blandit cursus. In egestas leo magna, vel placerat eros Aenean eu aliquet ex. Cras ultricies do Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-bibendum eu. Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean eu aliquet ex. Cras ultricies dolor in diam vulputate, sit amet placerat velit venenatis. Vestibulum tincidunt Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-dapibus tellus, sed rhoncus leo gravida ac. Ut dictum elit sit Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-amet odio fringilla posuere. Etiam at nulla a risus blandit sodales.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aliquam rutrum felis eros, sed placerat urna sodales at. Nulla eu orci sed dui scelerisque egestas.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Fusce nec finibus erat. Morbi sagittis augue et risus tempus pulvinar. Cras vehicula eu nunc ac ultrices. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Donec nulla erat, laoreet sed lacus ac, porttitor ultrices orci. Integer vulputate lorem ac imperdiet laoreet.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Etiam vitae commodo odio, quis tempus libero. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Nunc enim augue, maximus quis cursus sit amet, eleifend et nunc. Maecenas et tortor dictum nisi tincidunt rutrum. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Curabitur vel dapibus libero, in finibus erat. Curabitur ut libero vitae dolor molestie aliquet.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Ut consequat diam vitae odio porta cursus. Nunc hendrerit nisl nec risus tempus ornare. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Vestibulum et finibus sapien. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Vivamus ipsum est, efficitur lobortis vestibulum finibus, tempor ut est. Sed lacus velit, pretium eget lectus in, euismod convallis sapien.  
-Donec sed rutrum purus. Nunc odio enim, rutrum mattis lorem eu, Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-hendrerit varius enim. Sed fermentum volutpat nibh eu aliquam.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Sed nibh urna, tempor eu dolor quis, convallis rhoncus metus.  Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Duis fermentum accumsan scelerisque. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-Aenean mollis, tellus at luctus vehicula, mauris Donec nisl est, aliquet id accumsan efficitur, luctus eu felis. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.
-dolor mattis turpis, at ultricies dui dolor quis sapien. Donec nisl est, aliquet id accumsan efficitur, luctus eu felis.` 
-    strings.write_string(&windowData.testInputString, testText)
+
+    // fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
+    // testText := string(fileContent[:])
+
+    // strings.write_string(&windowData.testInputString, testText)
+
     edit.init(&windowData.inputState, context.allocator, context.allocator)
     edit.setup_once(&windowData.inputState, &windowData.testInputString)
-    windowData.inputState.selection[0] = 0
+    windowData.inputState.selection = { 0, 0 }
 
-    test := len(testText)
     windowData.isInputMode = true
 
     glfw.SetWindowUserPointer(window, windowData)
@@ -136,6 +114,17 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
         if isKeyDown(glfw.KEY_RIGHT, key, action) || isKeyRepeated(glfw.KEY_RIGHT, key, action) {
             edit.move_to(&windowData.inputState, edit.Translation.Right)
         }
+
+        // test := glfw.GetKeyLock(window, key);
+        // glfw.MOD_NUM_LOCK
+
+        if isKeyDown(glfw.KEY_HOME, key, action) || isKeyRepeated(glfw.KEY_HOME, key, action) {
+            edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
+        }
+
+        if isKeyDown(glfw.KEY_END, key, action) || isKeyRepeated(glfw.KEY_END, key, action) {
+            edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_End)
+        }
     }
 
     if isKeyReleased(glfw.KEY_ESCAPE, key, action) {
@@ -149,6 +138,31 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
     if isKeyReleased(glfw.KEY_A, key, action) {
         // windowData.a -= .1
     }
+}
+
+mousePositionHandler :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
+    context = runtime.default_context()
+    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
+
+    // windowData.mousePosition.x = f32(xpos) - f32(windowData.size.x) / 2
+    // windowData.mousePosition.y = -f32(ypos) + f32(windowData.size.y) / 2
+    windowData.mousePosition.x = f32(xpos)
+    windowData.mousePosition.y = f32(ypos)
+    
+    windowData.mousePosition.x = max(0, windowData.mousePosition.x)
+    windowData.mousePosition.y = max(0, windowData.mousePosition.y)
+    
+    windowData.mousePosition.x = min(f32(windowData.size.x), windowData.mousePosition.x)
+    windowData.mousePosition.y = min(f32(windowData.size.y), windowData.mousePosition.y)
+
+    // fmt.printfln("%f, %f", windowData.mousePosition.x, windowData.mousePosition.y)
+}
+
+mouseClickHandler :: proc "c" (window: glfw.WindowHandle, button, action, mods: i32) {
+    context = runtime.default_context()
+    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
+
+    windowData.isLeftMouseButtonDown = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.PRESS
 }
 
 keychardCharInputHandler :: proc "c" (window: glfw.WindowHandle, codepoint: rune) {
