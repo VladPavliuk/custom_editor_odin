@@ -101,19 +101,43 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
         }
 
         if isKeyDown(glfw.KEY_BACKSPACE, key, action) || isKeyRepeated(glfw.KEY_BACKSPACE, key, action) {
-            edit.perform_command(&windowData.inputState, edit.Command.Backspace)
+            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
+                edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Left)
+            } else {
+                edit.perform_command(&windowData.inputState, edit.Command.Backspace)
+            }
         }
 
         if isKeyDown(glfw.KEY_DELETE, key, action) || isKeyRepeated(glfw.KEY_DELETE, key, action) {
-            edit.perform_command(&windowData.inputState, edit.Command.Delete)
+            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
+                edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Right)
+            } else {
+                edit.perform_command(&windowData.inputState, edit.Command.Delete)
+            }
         }
 
         if isKeyDown(glfw.KEY_LEFT, key, action) || isKeyRepeated(glfw.KEY_LEFT, key, action) {
-            edit.move_to(&windowData.inputState, edit.Translation.Left)
+            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
+                edit.move_to(&windowData.inputState, edit.Translation.Word_Left)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Left)
+            }
         }
 
         if isKeyDown(glfw.KEY_RIGHT, key, action) || isKeyRepeated(glfw.KEY_RIGHT, key, action) {
-            edit.move_to(&windowData.inputState, edit.Translation.Right)
+            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
+                edit.move_to(&windowData.inputState, edit.Translation.Word_Right)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Right)
+            }
+        }
+
+        if isKeyDown(glfw.KEY_UP, key, action) || isKeyRepeated(glfw.KEY_UP, key, action) {
+            edit.move_to(&windowData.inputState, edit.Translation.Up)
+        }
+
+        if isKeyDown(glfw.KEY_DOWN, key, action) || isKeyRepeated(glfw.KEY_DOWN, key, action) {
+            edit.move_to(&windowData.inputState, edit.Translation.Down)
         }
 
         // test := glfw.GetKeyLock(window, key);

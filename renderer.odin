@@ -76,16 +76,45 @@ _updateCusrorData :: proc(directXState: ^DirectXState, windowData: ^WindowData) 
     //<
 
     // find cursor line
-    // cursorLine := 0
+    cursorLine := 0
     cursorIndex := i64(windowData.inputState.selection[0])
-    for line in screenGlyphs.lines {
+    for line, lineIndex in screenGlyphs.lines {
         leftGlyph := screenGlyphs.layout[line.x]
         rightGlyph := screenGlyphs.layout[line.y]
 
         if cursorIndex >= leftGlyph.indexInString && cursorIndex <= rightGlyph.indexInString {
+            cursorLine = lineIndex 
             windowData.inputState.line_start = int(leftGlyph.indexInString)
             windowData.inputState.line_end = int(rightGlyph.indexInString)
             break
+        }
+    }
+
+    cursorPosition := windowData.cursorScreenPosition
+
+    if cursorLine > 0 {
+        previousLine := screenGlyphs.lines[cursorLine - 1]
+
+        windowData.inputState.up_index = int(screenGlyphs.layout[previousLine.y].indexInString)
+
+        for glyphIndex in previousLine.x..<previousLine.y {
+            if cursorPosition.x < screenGlyphs.layout[glyphIndex].x {
+                windowData.inputState.up_index = int(screenGlyphs.layout[glyphIndex].indexInString)
+                break
+            }
+        }
+    }
+
+    if cursorLine < len(screenGlyphs.lines) - 2 {
+        nextLine := screenGlyphs.lines[cursorLine + 1]
+
+        windowData.inputState.down_index = int(screenGlyphs.layout[nextLine.y].indexInString)
+
+        for glyphIndex in nextLine.x..<nextLine.y {
+            if cursorPosition.x < screenGlyphs.layout[glyphIndex].x {
+                windowData.inputState.down_index = int(screenGlyphs.layout[glyphIndex].indexInString)
+                break
+            }
         }
     }
 
