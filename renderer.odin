@@ -6,6 +6,8 @@ import "base:intrinsics"
 
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
+import "core:unicode/utf8"
+
 import "core:time"
 import "core:fmt"
 
@@ -61,29 +63,43 @@ _updateCusrorData :: proc(directXState: ^DirectXState, windowData: ^WindowData) 
     screenGlyphs := windowData.screenGlyphs
 
     //> update cursor position on screen
-    glyph := screenGlyphs.layout[screenGlyphs.cursorIndex]
+    // glyph := screenGlyphs.layout[windowData.inputState.selection[0]]
     
-    windowData.cursorScreenPosition.x = glyph.x
-    windowData.cursorScreenPosition.y = glyph.y
+    // windowData.cursorScreenPosition.x = glyph.x
+    // windowData.cursorScreenPosition.y = glyph.y
 
-    lastGlyph := windowData.screenGlyphs.layout[layoutLength - 1]
-    if i64(windowData.inputState.selection[0]) - 1 == lastGlyph.indexInString {
-        windowData.cursorScreenPosition.x = lastGlyph.x + lastGlyph.width
-        windowData.cursorScreenPosition.y = lastGlyph.y
-    }
+    // lastGlyph := windowData.screenGlyphs.layout[layoutLength - 1]
+    // if i64(windowData.inputState.selection[0]) - 1 == lastGlyph.indexInString {
+    //     windowData.cursorScreenPosition.x = lastGlyph.x + lastGlyph.width
+    //     windowData.cursorScreenPosition.y = lastGlyph.y
+    // }
     //<
 
+    // find cursor line
     // cursorLine := 0
+    cursorIndex := i64(windowData.inputState.selection[0])
+    for line in screenGlyphs.lines {
+        leftGlyph := screenGlyphs.layout[line.x]
+        rightGlyph := screenGlyphs.layout[line.y]
+
+        if cursorIndex >= leftGlyph.indexInString && cursorIndex <= rightGlyph.indexInString {
+            windowData.inputState.line_start = int(leftGlyph.indexInString)
+            windowData.inputState.line_end = int(rightGlyph.indexInString)
+            break
+        }
+    }
+
     // for ;cursorLine < len(screenGlyphs.lines); cursorLine += 1 {
-    //     if screenGlyphs.cursorIndex <= i32(screenGlyphs.lines[cursorLine]) { 
+    //     if screenGlyphs.lines[cursorLine].x <= cursorIndex && cursorIndex <= screenGlyphs.lines[cursorLine].x { 
     //         break 
     //     }
     // }
 
-    // leftIndex := screenGlyphs.lines[cursorLine]
+    // leftLineGlyph := screenGlyphs.lines[cursorLine].x
+    // rightLineGlyph := screenGlyphs.lines[cursorLine].y
     
-    // windowData.inputState.line_start = leftIndex 
-    // windowData.inputState.line_end = rightIndex - 1
+    // windowData.inputState.line_start = int(windowData.screenGlyphs.layout[leftLineGlyph].indexInString)
+    // windowData.inputState.line_end = int(windowData.screenGlyphs.layout[rightLineGlyph].indexInString)
 }
 
 _renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
@@ -114,25 +130,22 @@ _findCursorPosition :: proc(directXState: ^DirectXState, windowData: ^WindowData
 
     lineIndex := i16(windowData.mousePosition.y / lineHeight)
     
-    leftIndex := windowData.screenGlyphs.lines[lineIndex]
-    rightIndex := windowData.screenGlyphs.lines[lineIndex + 1]
+    // if user clicks lower on the screen where text was rendered take last line
+    lineIndex = min(i16(len(windowData.screenGlyphs.lines) - 1), lineIndex)
 
-    windowData.inputState.line_start = leftIndex 
-    windowData.inputState.line_end = rightIndex - 1
-    // fmt.printfln("%d %d", leftIndex, rightIndex)
+    leftIndex := windowData.screenGlyphs.lines[lineIndex].x
+    rightIndex := windowData.screenGlyphs.lines[lineIndex].y
+    
+    // by default move the cursor to the last glyph
+    lastGlyph := windowData.screenGlyphs.layout[int(rightIndex)]
+    windowData.inputState.selection = {int(lastGlyph.indexInString), int(lastGlyph.indexInString)}
 
-    foundCursorPosition := false
     for i in leftIndex..<rightIndex {
-        glyph := windowData.screenGlyphs.layout[i]
+        glyph := windowData.screenGlyphs.layout[int(i)]
         if windowData.mousePosition.x - f32(windowData.size.x / 2) < glyph.x {
-            foundCursorPosition = true
             windowData.inputState.selection = {int(glyph.indexInString), int(glyph.indexInString)}
             break
         }
-    }
-
-    if !foundCursorPosition {
-        windowData.inputState.selection = {int(rightIndex - 1), int(rightIndex - 1)}
     }
 }
 
@@ -142,27 +155,31 @@ _calculateTextLayout :: proc(directXState: ^DirectXState, windowData: ^WindowDat
     clear(&windowData.screenGlyphs.layout)
     clear(&windowData.screenGlyphs.lines)
 
+    // stringToRender := windowData.testInputString.buf
     stringToRender := strings.to_string(windowData.testInputString)
 
     lineHeight := directXState.fontData.ascent - directXState.fontData.descent
     initialPosition: float2 = { -f32(windowData.size.x) / 2.0, f32(windowData.size.y) / 2.0 - lineHeight }
     cursorPosition := initialPosition
-    lineIndex: i16 = 0
+    lineBoundaryIndexes: int2 = { 0, 0 }
 
     startFromIndex: int = 0
-    append(&windowData.screenGlyphs.lines, startFromIndex)
+    // append(&windowData.screenGlyphs.lines, startFromIndex)
 
-    // test := "KUSS"
-    // test2 := len(test)
+    stringLength := len(stringToRender)
+    charIndex := startFromIndex
+    charSize := 1
+    runeIndex := 0
+    for ;charIndex < stringLength; charIndex += charSize {
+        defer runeIndex += 1
+        char: rune
+        char, charSize = utf8.decode_rune(stringToRender[charIndex:])
 
-    for char, charIndex in stringToRender {
+        // defer { charIndex += size }
+
         // if cursor moves outside of the screen, stop layout generation
         if cursorPosition.y < -f32(windowData.size.y) / 2 {
             break
-        }
-
-        if i64(windowData.inputState.selection[0]) == i64(charIndex) {
-            windowData.screenGlyphs.cursorIndex = i32(charIndex)
         }
 
         if char == '\n' {
@@ -175,10 +192,12 @@ _calculateTextLayout :: proc(directXState: ^DirectXState, windowData: ^WindowDat
                 height = -1,
             })
 
-            lineIndex += 1
             cursorPosition.y -= lineHeight
             cursorPosition.x = initialPosition.x
-            append(&windowData.screenGlyphs.lines, charIndex)
+            
+            lineBoundaryIndexes.y = i32(runeIndex)
+            append(&windowData.screenGlyphs.lines, lineBoundaryIndexes)
+            lineBoundaryIndexes.x = lineBoundaryIndexes.y + 1
             continue 
         }
 
@@ -194,10 +213,13 @@ _calculateTextLayout :: proc(directXState: ^DirectXState, windowData: ^WindowDat
 
         // text wrapping
         if glyphPosition.x + glyphSize.x >= f32(windowData.size.x) / 2 {
-            lineIndex += 1
             cursorPosition.y -= lineHeight
             cursorPosition.x = initialPosition.x
-            append(&windowData.screenGlyphs.lines, charIndex)
+
+            // since we do text wrapping, line should end on the previous symbol
+            lineBoundaryIndexes.y = i32(runeIndex) - 1
+            append(&windowData.screenGlyphs.lines, lineBoundaryIndexes)
+            lineBoundaryIndexes.x = lineBoundaryIndexes.y + 1
 
             glyphPosition = { cursorPosition.x + fontChar.offset.x + kerning, cursorPosition.y - glyphSize.y - fontChar.offset.y }
         }
@@ -205,7 +227,6 @@ _calculateTextLayout :: proc(directXState: ^DirectXState, windowData: ^WindowDat
         append(&windowData.screenGlyphs.layout, GlyphItem{
             char = char,
             indexInString = i64(charIndex),
-            lineIndex = lineIndex,
             x = glyphPosition.x,
             y = glyphPosition.y,
             width = glyphSize.x,
@@ -214,6 +235,19 @@ _calculateTextLayout :: proc(directXState: ^DirectXState, windowData: ^WindowDat
         
         cursorPosition.x += fontChar.xAdvance + fontChar.offset.x
     }
+
+    // add artificial glyph at the end of layout, so cursor can be rendered
+    append(&windowData.screenGlyphs.layout, GlyphItem{
+        char = ' ',
+        indexInString = i64(len(stringToRender)),
+        x = cursorPosition.x,
+        y = cursorPosition.y,
+        width = -1,
+        height = -1,
+    })
+
+    lineBoundaryIndexes.y = i32(runeIndex)
+    append(&windowData.screenGlyphs.lines, lineBoundaryIndexes)
 }
 
 // BENCHMARKS:
@@ -245,6 +279,11 @@ _renderTestLine :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
         fontsList[index] = FontGlyphGpu{
             sourceRect = fontChar.rect,
             targetTransformation = intrinsics.transpose(modelMatrix), 
+        }
+
+        if glyphItem.indexInString == i64(windowData.inputState.selection[0]) {
+            windowData.cursorScreenPosition.x = glyphItem.x
+            windowData.cursorScreenPosition.y = glyphItem.y
         }
     }
 

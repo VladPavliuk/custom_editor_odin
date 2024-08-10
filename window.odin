@@ -15,8 +15,9 @@ import win32 "core:sys/windows"
 
 GlyphItem :: struct {
     char: rune,
+    // runeIndex: i32,
     indexInString: i64, // char index in source string
-    lineIndex: i16, // line index on screen
+    // lineIndex: i16, // line index on screen
     x: f32,
     y: f32,
     width: f32,
@@ -24,9 +25,9 @@ GlyphItem :: struct {
 }
 
 ScreenGlyphs :: struct {
-    cursorIndex: i32,
+    // cursorIndex: i32,
     layout: [dynamic]GlyphItem,
-    lines: [dynamic]int, // { start line char index, end char line index }
+    lines: [dynamic]int2, // { start line char index, end char line index }
 }
 
 WindowData :: struct {
@@ -61,10 +62,10 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     windowData.size = size
     windowData.testInputString = strings.builder_make()
 
-    // fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
-    // testText := string(fileContent[:])
-
-    // strings.write_string(&windowData.testInputString, testText)
+    //TODO: add handling Window's \r\n staff
+    fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
+    testText := string(fileContent[:])
+    strings.write_string(&windowData.testInputString, testText)
 
     edit.init(&windowData.inputState, context.allocator, context.allocator)
     edit.setup_once(&windowData.inputState, &windowData.testInputString)
@@ -118,7 +119,12 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
         // test := glfw.GetKeyLock(window, key);
         // glfw.MOD_NUM_LOCK
 
-        if isKeyDown(glfw.KEY_HOME, key, action) || isKeyRepeated(glfw.KEY_HOME, key, action) {
+        // if isKeyDown(glfw.KEY_HOME, key, action) || isKeyRepeated(glfw.KEY_HOME, key, action) {
+        //     edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
+        // }
+
+        // TODO: for now it's TAB button, since if home button is on numlock keyboard it's not that easy to catch it 
+        if isKeyDown(glfw.KEY_TAB, key, action) || isKeyRepeated(glfw.KEY_TAB, key, action) {
             edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
         }
 
@@ -144,18 +150,15 @@ mousePositionHandler :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
     context = runtime.default_context()
     windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
 
-    // windowData.mousePosition.x = f32(xpos) - f32(windowData.size.x) / 2
-    // windowData.mousePosition.y = -f32(ypos) + f32(windowData.size.y) / 2
     windowData.mousePosition.x = f32(xpos)
     windowData.mousePosition.y = f32(ypos)
     
+    // make sure that mouse position is not out of window box
     windowData.mousePosition.x = max(0, windowData.mousePosition.x)
     windowData.mousePosition.y = max(0, windowData.mousePosition.y)
     
     windowData.mousePosition.x = min(f32(windowData.size.x), windowData.mousePosition.x)
     windowData.mousePosition.y = min(f32(windowData.size.y), windowData.mousePosition.y)
-
-    // fmt.printfln("%f, %f", windowData.mousePosition.x, windowData.mousePosition.y)
 }
 
 mouseClickHandler :: proc "c" (window: glfw.WindowHandle, button, action, mods: i32) {
@@ -170,11 +173,7 @@ keychardCharInputHandler :: proc "c" (window: glfw.WindowHandle, codepoint: rune
     windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
 
     if windowData.isInputMode {
-        // edit.begin(&windowData.inputState, 1, &windowData.testInputString)
         edit.input_rune(&windowData.inputState, codepoint)
-        // edit.end(&windowData.inputState)
-
-        // strings.write_rune(&windowData.testInputString, codepoint)
     }
 }
 
