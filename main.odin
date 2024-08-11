@@ -31,7 +31,7 @@ main :: proc() {
     glfw.SetCursorPosCallback(window, mousePositionHandler)
     glfw.SetMouseButtonCallback(window, mouseClickHandler)
     
-    initGpuResources(&directXState)
+    initGpuResources(&directXState, windowData)
     
     angle: f32 = 0.0
     beforeFrameTime := f32(glfw.GetTime())

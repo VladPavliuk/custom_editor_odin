@@ -40,11 +40,14 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
     timer: time.Stopwatch
     time.stopwatch_start(&timer)
-    calculateTextLayout(directXState, windowData)
-    findCursorPosition(directXState, windowData)
-    updateCusrorData(directXState, windowData)
+    calculateLines(windowData)
+    calculateLayout(windowData)
 
-    _renderText(directXState, windowData)    
+    // calculateTextLayout(directXState, windowData)
+    findCursorPosition(windowData)
+    updateCusrorData(windowData)
+
+    renderText(directXState, windowData)    
     
     time.stopwatch_stop(&timer)
     elapsed := time.duration_microseconds(timer._accumulation)
@@ -66,10 +69,9 @@ _renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
     ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    cursorHeight := directXState.fontData.ascent - directXState.fontData.descent
     modelMatrix := getTransformationMatrix(
         { windowData.cursorScreenPosition.x, windowData.cursorScreenPosition.y, 0.0 }, 
-        { 0.0, 0.0, 0.0 }, { 3.0, cursorHeight, 1.0 })
+        { 0.0, 0.0, 0.0 }, { 3.0, windowData.font.lineHeight, 1.0 })
 
     updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
 
@@ -81,7 +83,7 @@ _renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 // BENCHMARKS:
 // +-20000 microseconds with -speed build option without instancing
 // +-750 microseconds with -speed build option with instancing
-_renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx := directXState.ctx
 
     ctx->VSSetShader(directXState.vertexShaders[.FONT], nil, 0)
@@ -96,7 +98,7 @@ _renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
     for glyphItem, index in windowData.screenGlyphs.layout {
         assert(u32(index) < fontListBuffer.length, "Number of glyphs on screen exceeded the threshold")
-        fontChar := directXState.fontData.chars[glyphItem.char]
+        fontChar := windowData.font.chars[glyphItem.char]
 
         modelMatrix := getTransformationMatrix(
             { glyphItem.x, glyphItem.y, 0.0 }, 

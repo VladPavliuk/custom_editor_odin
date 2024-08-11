@@ -26,6 +26,9 @@ GlyphItem :: struct {
 
 ScreenGlyphs :: struct {
     // cursorIndex: i32,
+    lineIndex: i32,
+    cursorLineIndex: i32,
+    lineHeight: i32,
     layout: [dynamic]GlyphItem,
     lines: [dynamic]int2, // { start line char index, end char line index }
 }
@@ -36,13 +39,14 @@ WindowData :: struct {
     isLeftMouseButtonDown: bool,
     directXState: ^DirectXState,
 
+    font: FontData,
+
     linesTopOffset: i32,
     isInputMode: bool,
     testInputString: strings.Builder,
     inputState: edit.State,
     screenGlyphs: ScreenGlyphs,
 
-    // cursorIndex: i32, // index in string
     cursorScreenPosition: float2,
 }
 
@@ -62,9 +66,18 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     windowData.size = size
     windowData.testInputString = strings.builder_make()
 
-    //TODO: add handling Window's \r\n staff
+    windowData.screenGlyphs.lineIndex = 0
     fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
-    testText := string(fileContent[:])
+    originalFileText := string(fileContent[:])
+   
+    //TODO: add handling Window's \r\n staff
+    testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
+
+    if wasNewAllocation {
+        delete(fileContent)
+    }
+
+    // testText := "ів\na\nф"
     strings.write_string(&windowData.testInputString, testText)
 
     edit.init(&windowData.inputState, context.allocator, context.allocator)
@@ -133,10 +146,22 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
         }
 
         if isKeyDown(glfw.KEY_UP, key, action) || isKeyRepeated(glfw.KEY_UP, key, action) {
+            if windowData.screenGlyphs.cursorLineIndex <= windowData.screenGlyphs.lineIndex {
+                windowData.screenGlyphs.lineIndex -= 1
+                windowData.screenGlyphs.lineIndex = max(0, windowData.screenGlyphs.lineIndex)
+            }
+
             edit.move_to(&windowData.inputState, edit.Translation.Up)
         }
 
         if isKeyDown(glfw.KEY_DOWN, key, action) || isKeyRepeated(glfw.KEY_DOWN, key, action) {
+            maxLinesOnScreen := i32(f32(windowData.size.y) / windowData.font.lineHeight)
+
+            if windowData.screenGlyphs.cursorLineIndex >= windowData.screenGlyphs.lineIndex + maxLinesOnScreen - 1 {
+                windowData.screenGlyphs.lineIndex += 1
+                // windowData.screenGlyphs.lineIndex = max(windowData.screenGlyphs.lineIndex + maxLinesOnScreen, windowData.screenGlyphs.lineIndex)
+            }
+
             edit.move_to(&windowData.inputState, edit.Translation.Down)
         }
 

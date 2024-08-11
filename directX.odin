@@ -29,7 +29,7 @@ DirectXState :: struct {
     pixelShaders: [PixelShaderType]^d3d11.IPixelShader,
 
     // TODO: probably move it somewhere else
-    fontData: FontData,
+    //fontData: FontData,
 }
 
 initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {

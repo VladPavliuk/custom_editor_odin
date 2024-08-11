@@ -22,6 +22,7 @@ FontData :: struct {
 	ascent: f32,
 	descent: f32,
 	lineGap: f32,
+    lineHeight: f32,
 	scale: f32,
 
     chars: map[rune]FontChar,
@@ -121,6 +122,7 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
         lineGap = f32(lineGap) * scale,
         scale = scale,
     }
+    fontData.lineHeight = fontData.ascent - fontData.descent
 
     for char in charsList {
         advance, lsb, x0, y0, x1, y1, gw, gh: i32

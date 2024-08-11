@@ -64,8 +64,8 @@ GpuConstantBufferType :: enum {
     COLOR,
 }
 
-initGpuResources :: proc(directXState: ^DirectXState) {
-    loadTextures(directXState)
+initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+    loadTextures(directXState, windowData)
 
     vertexShader, blob := loadVertexShader("shaders/basic_vs.fxc", directXState)
     defer blob->Release()
@@ -120,7 +120,7 @@ initGpuResources :: proc(directXState: ^DirectXState) {
     directXState.constantBuffers[.MODEL_TRANSFORMATION] = createConstantBuffer(mat4, nil, directXState)
     directXState.constantBuffers[.COLOR] = createConstantBuffer(float4, &float4{ 0.0, 0.0, 0.0, 1.0 }, directXState)
 
-    fontGlyphs := make([]FontGlyphGpu, 10000)
+    fontGlyphs := make([]FontGlyphGpu, 15000)
     directXState.structuredBuffers[.GLYPHS_LIST] = createStructuredBuffer(fontGlyphs, directXState)
 }
 
@@ -128,8 +128,8 @@ memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T 
     return transmute([]T)runtime.Raw_Slice{pointer, length}
 }
 
-loadTextures :: proc(directXState: ^DirectXState) {
-    directXState.textures[.FONT], directXState.fontData = loadFont(directXState)
+loadTextures :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+    directXState.textures[.FONT], windowData.font = loadFont(directXState)
 }
 
 loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
