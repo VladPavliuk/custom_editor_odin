@@ -31,7 +31,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
     _renderCursor(directXState, windowData)
-
+    
     @(static)
     timeElapsedTotal: f64 = 0.0
     
@@ -40,20 +40,21 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
     timer: time.Stopwatch
     time.stopwatch_start(&timer)
+    
     calculateLines(windowData)
-    calculateLayout(windowData)
-
-    // calculateTextLayout(directXState, windowData)
-    findCursorPosition(windowData)
-    updateCusrorData(windowData)
-
-    renderText(directXState, windowData)    
     
     time.stopwatch_stop(&timer)
     elapsed := time.duration_microseconds(timer._accumulation)
     timeElapsedTotal += elapsed
     timeElapsedCount += 1
     fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
+
+    calculateLayout(windowData)
+
+    findCursorPosition(windowData)
+    updateCusrorData(windowData)
+
+    renderText(directXState, windowData)    
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)

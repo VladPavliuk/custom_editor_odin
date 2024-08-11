@@ -67,7 +67,7 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     windowData.testInputString = strings.builder_make()
 
     windowData.screenGlyphs.lineIndex = 0
-    fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
+    fileContent := os.read_entire_file_from_filename("../medium_text_size.txt") or_else panic("Failed to read file")
     originalFileText := string(fileContent[:])
    
     //TODO: add handling Window's \r\n staff
