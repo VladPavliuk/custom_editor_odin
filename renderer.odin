@@ -29,8 +29,6 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     strideSize := [?]u32{directXState.vertexBuffers[.QUAD].strideSize}
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
-
-    _renderCursor(directXState, windowData)
     
     @(static)
     timeElapsedTotal: f64 = 0.0
@@ -39,46 +37,75 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     timeElapsedCount: i32 = 0
 
     timer: time.Stopwatch
-    time.stopwatch_start(&timer)
-    
+    time.stopwatch_start(&timer)    
+
     calculateLines(windowData)
+    calculateLayout(windowData)
+
+    findCursorPosition(windowData)
+    updateCusrorData(windowData)
     
     time.stopwatch_stop(&timer)
     elapsed := time.duration_microseconds(timer._accumulation)
     timeElapsedTotal += elapsed
     timeElapsedCount += 1
     fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
-
-    calculateLayout(windowData)
-
-    findCursorPosition(windowData)
-    updateCusrorData(windowData)
-
+    
+    renderCursor(directXState, windowData)
     renderText(directXState, windowData)    
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)
 }
 
-_renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
-    ctx := directXState.ctx
+renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+    drawCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, indexIndexLayout: i32) {
+        assert(indexIndexLayout != -1)
+        assert(indexIndexLayout < i32(len(windowData.screenGlyphs.layout)))
+        ctx := directXState.ctx
 
-    ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
-    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
-    ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
+        ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
+        ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+        ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
+    
+        ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
+        ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
+    
+        cursorScreenPosition := windowData.screenGlyphs.layout[indexIndexLayout]
+    
+        modelMatrix := getTransformationMatrix(
+            { cursorScreenPosition.x, cursorScreenPosition.y, 0.0 }, 
+            { 0.0, 0.0, 0.0 }, { 3.0, windowData.font.lineHeight, 1.0 })
+    
+        updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
+    
+        directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
+        
+        // testColor := float4{}
+        // updateConstantBuffer(&fontChar, directXState.constantBuffers[.COLOR], directXState)
+    }
 
-    ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
-    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
+    selection := windowData.screenGlyphs.cursorLayoutSelection
 
-    modelMatrix := getTransformationMatrix(
-        { windowData.cursorScreenPosition.x, windowData.cursorScreenPosition.y, 0.0 }, 
-        { 0.0, 0.0, 0.0 }, { 3.0, windowData.font.lineHeight, 1.0 })
+    // selection is outside of layout
+    if selection.x == -1 && selection.y == -1 { return }
 
-    updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
+    // selection start "before" layout
+    if selection.x == -1 && selection.y >= 0 {
+        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.y)
+    }
 
-    directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
-    // testColor := float4{}
-    // updateConstantBuffer(&fontChar, directXState.constantBuffers[.COLOR], directXState)
+    // selection end "after" layout
+    if selection.x >= 0 && selection.y == -1 {
+        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.x)
+    }
+    
+    // selection "inside" layout
+    if selection.x >= 0 && selection.y >= 0 {
+        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.x)
+        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.y)
+    }
+    
 }
 
 // BENCHMARKS:
@@ -110,11 +137,6 @@ renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
         fontsList[index] = FontGlyphGpu{
             sourceRect = fontChar.rect,
             targetTransformation = intrinsics.transpose(modelMatrix), 
-        }
-
-        if glyphItem.indexInString == i64(windowData.inputState.selection[0]) {
-            windowData.cursorScreenPosition.x = glyphItem.x
-            windowData.cursorScreenPosition.y = glyphItem.y
         }
     }
 

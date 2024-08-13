@@ -80,6 +80,7 @@ updateCusrorData :: proc(windowData: ^WindowData) {
 
     cursorLineIndex := windowData.screenGlyphs.cursorLineIndex
 
+    // calculate line above cursor position if user clicks UP
     if cursorLineIndex > 0 {
         previousLine := screenGlyphs.lines[cursorLineIndex - 1]
 
@@ -99,8 +100,11 @@ updateCusrorData :: proc(windowData: ^WindowData) {
                 break
             }
         }
+    } else {
+        windowData.inputState.up_index = windowData.inputState.selection[0]
     }
 
+    // calculate line below cursor position if user clicks DOWN
     if cursorLineIndex < i32(len(screenGlyphs.lines) - 1) {
         nextLine := screenGlyphs.lines[cursorLineIndex + 1]
 
@@ -120,6 +124,8 @@ updateCusrorData :: proc(windowData: ^WindowData) {
                 break
             }
         }
+    } else {
+        windowData.inputState.down_index = windowData.inputState.selection[0]
     }
 }
 
@@ -166,6 +172,7 @@ calculateLines :: proc(windowData: ^WindowData) {
 
 calculateLayout :: proc(windowData: ^WindowData) {
     clear(&windowData.screenGlyphs.layout)
+    windowData.screenGlyphs.cursorLayoutSelection = { -1, -1 }
 
     stringToRender := strings.to_string(windowData.testInputString)
 
@@ -200,6 +207,14 @@ calculateLayout :: proc(windowData: ^WindowData) {
                 height = glyphSize.y,
             })
 
+            if byteIndex == i32(windowData.inputState.selection[0]) {
+                windowData.screenGlyphs.cursorLayoutSelection.x = i32(len(windowData.screenGlyphs.layout) - 1)
+            }
+    
+            if byteIndex == i32(windowData.inputState.selection[1]) {
+                windowData.screenGlyphs.cursorLayoutSelection.y = i32(len(windowData.screenGlyphs.layout) - 1)
+            }
+
             leftOffset += fontChar.xAdvance
         }
 
@@ -212,6 +227,14 @@ calculateLayout :: proc(windowData: ^WindowData) {
             width = -1,
             height = -1,
         })
+
+        if toByte == i32(windowData.inputState.selection[0]) {
+            windowData.screenGlyphs.cursorLayoutSelection.x = i32(len(windowData.screenGlyphs.layout) - 1)
+        }
+
+        if toByte == i32(windowData.inputState.selection[1]) {
+            windowData.screenGlyphs.cursorLayoutSelection.y = i32(len(windowData.screenGlyphs.layout) - 1)
+        }
 
         topOffset -= windowData.font.lineHeight
     }

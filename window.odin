@@ -31,6 +31,7 @@ ScreenGlyphs :: struct {
     lineHeight: i32,
     layout: [dynamic]GlyphItem,
     lines: [dynamic]int2, // { start line char index, end char line index }
+    cursorLayoutSelection: int2, // cursor from/to indexes in glyph layout
 }
 
 WindowData :: struct {
@@ -67,7 +68,7 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     windowData.testInputString = strings.builder_make()
 
     windowData.screenGlyphs.lineIndex = 0
-    fileContent := os.read_entire_file_from_filename("../medium_text_size.txt") or_else panic("Failed to read file")
+    fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
     originalFileText := string(fileContent[:])
    
     //TODO: add handling Window's \r\n staff
@@ -77,12 +78,14 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
         delete(fileContent)
     }
 
-    // testText := "ів\na\nф"
+    // testText := "test"
     strings.write_string(&windowData.testInputString, testText)
-
+    
     edit.init(&windowData.inputState, context.allocator, context.allocator)
     edit.setup_once(&windowData.inputState, &windowData.testInputString)
     windowData.inputState.selection = { 0, 0 }
+    windowData.inputState.selection[0] = 1
+    windowData.inputState.selection[1] = 3
 
     windowData.isInputMode = true
 
@@ -131,17 +134,33 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
 
         if isKeyDown(glfw.KEY_LEFT, key, action) || isKeyRepeated(glfw.KEY_LEFT, key, action) {
             if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
-                edit.move_to(&windowData.inputState, edit.Translation.Word_Left)
+                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Left)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Word_Left)
+                }
             } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Left)
+                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Left)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Left)
+                }
             }
         }
 
         if isKeyDown(glfw.KEY_RIGHT, key, action) || isKeyRepeated(glfw.KEY_RIGHT, key, action) {
             if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
-                edit.move_to(&windowData.inputState, edit.Translation.Word_Right)
+                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Right)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Word_Right)
+                }
             } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Right)
+                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Right)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Right)
+                }
             }
         }
 
