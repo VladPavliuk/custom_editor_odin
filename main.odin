@@ -30,6 +30,7 @@ main :: proc() {
     glfw.SetCharCallback(window, keychardCharInputHandler)
     glfw.SetWindowSizeCallback(window, windowSizeChangedHandler)
     glfw.SetCursorPosCallback(window, mousePositionHandler)
+    glfw.SetScrollCallback(window, scrollHandler)
     glfw.SetMouseButtonCallback(window, mouseClickHandler)
     
     initGpuResources(&directXState, windowData)

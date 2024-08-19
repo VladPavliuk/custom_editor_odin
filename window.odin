@@ -164,9 +164,9 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
         }
 
         if isKeyDown(glfw.KEY_UP, key, action) || isKeyRepeated(glfw.KEY_UP, key, action) {
-            if windowData.screenGlyphs.cursorLineIndex <= windowData.screenGlyphs.lineIndex {
+            if windowData.screenGlyphs.cursorLineIndex <= windowData.screenGlyphs.lineIndex && 
+                windowData.screenGlyphs.lineIndex > 0 {
                 windowData.screenGlyphs.lineIndex -= 1
-                windowData.screenGlyphs.lineIndex = max(0, windowData.screenGlyphs.lineIndex)
             }
 
             if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
@@ -244,6 +244,17 @@ mouseClickHandler :: proc "c" (window: glfw.WindowHandle, button, action, mods: 
     
     windowData.wasLeftMouseButtonDown = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.PRESS
     windowData.wasLeftMouseButtonUp = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.RELEASE
+}
+
+scrollHandler :: proc "c" (window: glfw.WindowHandle, xoffset, yoffset: f64) {
+    context = runtime.default_context()
+    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
+
+    if yoffset > 0.02 && windowData.screenGlyphs.lineIndex > 0 {
+        windowData.screenGlyphs.lineIndex -= 1
+    } else if yoffset < -0.02 {
+        windowData.screenGlyphs.lineIndex += 1
+    }
 }
 
 keychardCharInputHandler :: proc "c" (window: glfw.WindowHandle, codepoint: rune) {
