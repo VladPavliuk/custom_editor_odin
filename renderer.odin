@@ -14,7 +14,7 @@ import "core:fmt"
 render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx := directXState.ctx
 
-    ctx->ClearRenderTargetView(directXState.backBufferView, &[?]f32{0.0, 0.5, 1.0, 1.0})
+    ctx->ClearRenderTargetView(directXState.backBufferView, &[?]f32{0.0, 0.25, 0.5, 1.0})
     ctx->ClearDepthStencilView(directXState.depthBufferView, { .DEPTH, .STENCIL }, 1.0, 0)
     
     ctx->OMSetRenderTargets(1, &directXState.backBufferView, directXState.depthBufferView)
@@ -94,7 +94,8 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     selectionRange: int2 = {
         i32(min(windowData.inputState.selection[0], windowData.inputState.selection[1])),
         i32(max(windowData.inputState.selection[0], windowData.inputState.selection[1])),
-     }
+    }
+    
     for lineIndex in topLine..<bottomLine {
         if topOffset < -f32(windowData.size.y) / 2 {
             break

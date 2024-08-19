@@ -5,36 +5,45 @@ import "core:unicode/utf8"
 import "core:fmt"
 
 findCursorPosition :: proc(windowData: ^WindowData) {
-    if !windowData.isLeftMouseButtonDown { return }
-    
-    stringToRender := strings.to_string(windowData.testInputString)
+    getCursorPosition :: proc(windowData: ^WindowData) -> int {
+        stringToRender := strings.to_string(windowData.testInputString)
 
-    lineIndex := i16(windowData.mousePosition.y / windowData.font.lineHeight) + i16(windowData.screenGlyphs.lineIndex)
-    
-    // if user clicks lower on the screen where text was rendered take last line
-    lineIndex = min(i16(len(windowData.screenGlyphs.lines) - 1), lineIndex)
-
-    fromByte := windowData.screenGlyphs.lines[lineIndex].x
-    toByte := windowData.screenGlyphs.lines[lineIndex].y
-    
-    // by default move the cursor to the last glyph
-    windowData.inputState.selection = {int(toByte), int(toByte)}
-
-    cursor: f32 = 0.0
-    for byteIndex := fromByte; byteIndex < toByte; {
-        char, charSize := utf8.decode_rune(stringToRender[byteIndex:])
-        defer byteIndex += i32(charSize)
+        lineIndex := i16(windowData.mousePosition.y / windowData.font.lineHeight) + i16(windowData.screenGlyphs.lineIndex)
         
-        fontChar := windowData.font.chars[char]
+        // if user clicks lower on the screen where text was rendered take last line
+        lineIndex = min(i16(len(windowData.screenGlyphs.lines) - 1), lineIndex)
+    
+        fromByte := windowData.screenGlyphs.lines[lineIndex].x
+        toByte := windowData.screenGlyphs.lines[lineIndex].y
         
-        glyphWidth: f32 = fontChar.rect.right - fontChar.rect.left
-
-        if windowData.mousePosition.x < cursor {
-            windowData.inputState.selection = {int(byteIndex), int(byteIndex)}
-            break
+        cursor: f32 = 0.0
+        for byteIndex := fromByte; byteIndex < toByte; {
+            char, charSize := utf8.decode_rune(stringToRender[byteIndex:])
+            defer byteIndex += i32(charSize)
+            
+            fontChar := windowData.font.chars[char]
+            
+            glyphWidth: f32 = fontChar.rect.right - fontChar.rect.left
+    
+            if windowData.mousePosition.x < cursor {
+                return int(byteIndex)
+            }
+    
+            cursor += fontChar.xAdvance
         }
 
-        cursor += fontChar.xAdvance
+        // if no glyph found move the cursor to the last glyph
+        return int(toByte)
+    }
+
+    if windowData.wasLeftMouseButtonDown {
+        pos := getCursorPosition(windowData)
+        windowData.inputState.selection = { pos, pos }
+        return
+    }
+
+    if windowData.isLeftMouseButtonDown { 
+        windowData.inputState.selection[0] = getCursorPosition(windowData)
     }
 }
 

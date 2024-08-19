@@ -3,6 +3,7 @@ package main
 import "core:unicode/utf8"
 
 import "vendor:glfw"
+import "core:fmt"
 
 windowMaximizeProc :: proc "c" (window: glfw.WindowHandle, iconified: i32) {
     test := iconified
@@ -43,6 +44,8 @@ main :: proc() {
 
         render(&directXState, windowData)
 
+        windowData.wasLeftMouseButtonDown = false
+        windowData.wasLeftMouseButtonUp = false
         glfw.PollEvents()
 
         afterFrameTime = f32(glfw.GetTime())

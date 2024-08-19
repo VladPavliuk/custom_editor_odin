@@ -36,6 +36,9 @@ WindowData :: struct {
     size: int2,
     mousePosition: float2,
     isLeftMouseButtonDown: bool,
+    wasLeftMouseButtonDown: bool,
+    wasLeftMouseButtonUp: bool,
+
     directXState: ^DirectXState,
 
     font: FontData,
@@ -238,6 +241,9 @@ mouseClickHandler :: proc "c" (window: glfw.WindowHandle, button, action, mods: 
     windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
 
     windowData.isLeftMouseButtonDown = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.PRESS
+    
+    windowData.wasLeftMouseButtonDown = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.PRESS
+    windowData.wasLeftMouseButtonUp = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.RELEASE
 }
 
 keychardCharInputHandler :: proc "c" (window: glfw.WindowHandle, codepoint: rune) {
