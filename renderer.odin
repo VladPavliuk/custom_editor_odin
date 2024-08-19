@@ -40,10 +40,11 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     time.stopwatch_start(&timer)    
 
     calculateLines(windowData)
-    calculateLayout(windowData)
+    //calculateLayout(windowData)
 
     findCursorPosition(windowData)
     updateCusrorData(windowData)
+    glyphsCount := fillTextBuffer(directXState, windowData)
     
     time.stopwatch_stop(&timer)
     elapsed := time.duration_microseconds(timer._accumulation)
@@ -51,68 +52,101 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     timeElapsedCount += 1
     fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
     
-    renderCursor(directXState, windowData)
-    renderText(directXState, windowData)    
+    renderText(directXState, windowData, glyphsCount)
+    // renderCursor(directXState, windowData)
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)
 }
 
-renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
-    drawCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, indexIndexLayout: i32) {
-        assert(indexIndexLayout != -1)
-        assert(indexIndexLayout < i32(len(windowData.screenGlyphs.layout)))
-        ctx := directXState.ctx
+renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, position: float2) {
+    ctx := directXState.ctx
 
-        ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
-        ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
-        ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
-    
-        ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
-        ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
-    
-        cursorScreenPosition := windowData.screenGlyphs.layout[indexIndexLayout]
-    
-        modelMatrix := getTransformationMatrix(
-            { cursorScreenPosition.x, cursorScreenPosition.y, 0.0 }, 
-            { 0.0, 0.0, 0.0 }, { 3.0, windowData.font.lineHeight, 1.0 })
-    
-        updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
-    
-        directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
+    ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
+    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+    ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
+
+    ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
+    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
+
+    modelMatrix := getTransformationMatrix(
+        { position.x, position.y, 0.0 }, 
+        { 0.0, 0.0, 0.0 }, { 3.0, windowData.font.lineHeight, 1.0 })
+
+    updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
+
+    directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
+}
+
+fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> i32 {
+    stringToRender := strings.to_string(windowData.testInputString)
+
+    fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
+    fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
+
+    topLine := windowData.screenGlyphs.lineIndex
+    bottomLine := i32(len(windowData.screenGlyphs.lines))
+
+    topOffset := f32(windowData.size.y) / 2.0 - windowData.font.lineHeight
+
+    glyphsCount := 0
+    hasSelection := windowData.inputState.selection[0] != windowData.inputState.selection[1]
+    selectionRange: int2 = {
+        i32(min(windowData.inputState.selection[0], windowData.inputState.selection[1])),
+        i32(max(windowData.inputState.selection[0], windowData.inputState.selection[1])),
+     }
+    for lineIndex in topLine..<bottomLine {
+        if topOffset < -f32(windowData.size.y) / 2 {
+            break
+        }
+        line := windowData.screenGlyphs.lines[lineIndex]
+
+        leftOffset: f32 = -f32(windowData.size.x) / 2.0
+        for byteIndex in line.x..=line.y {
+            // defer glyphsCount += 1
+            // TODO: add RUNE_ERROR hndling
+            char, _ := utf8.decode_rune(stringToRender[byteIndex:])
+
+            fontChar := windowData.font.chars[char]
+
+            glyphSize: float2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
+            glyphPosition: float2 = { leftOffset + fontChar.offset.x, topOffset - glyphSize.y - fontChar.offset.y }
+
+            if int(byteIndex) == windowData.inputState.selection[0] {
+                renderCursor(directXState, windowData, glyphPosition)
+            }
+
+            if hasSelection && byteIndex >= selectionRange.x && byteIndex < selectionRange.y  {
+                // panic("asd")
+            } else {
+                modelMatrix := getTransformationMatrix(
+                    { glyphPosition.x, glyphPosition.y, 0.0 }, 
+                    { 0.0, 0.0, 0.0 }, 
+                    { glyphSize.x, glyphSize.y, 1.0 },
+                )
+                
+                fontsList[glyphsCount] = FontGlyphGpu{
+                    sourceRect = fontChar.rect,
+                    targetTransformation = intrinsics.transpose(modelMatrix), 
+                }
+                glyphsCount += 1
+            }
+            leftOffset += fontChar.xAdvance
+        }
         
-        // testColor := float4{}
-        // updateConstantBuffer(&fontChar, directXState.constantBuffers[.COLOR], directXState)
+        topOffset -= windowData.font.lineHeight
     }
 
-    selection := windowData.screenGlyphs.cursorLayoutSelection
-
-    // selection is outside of layout
-    if selection.x == -1 && selection.y == -1 { return }
-
-    // selection start "before" layout
-    if selection.x == -1 && selection.y >= 0 {
-        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.y)
-    }
-
-    // selection end "after" layout
-    if selection.x >= 0 && selection.y == -1 {
-        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.x)
-    }
-    
-    // selection "inside" layout
-    if selection.x >= 0 && selection.y >= 0 {
-        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.x)
-        drawCursor(directXState, windowData, windowData.screenGlyphs.cursorLayoutSelection.y)
-    }
-    
+    return i32(glyphsCount)
 }
 
 // BENCHMARKS:
 // +-20000 microseconds with -speed build option without instancing
 // +-750 microseconds with -speed build option with instancing
-renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData, glyphsCount: i32) {
     ctx := directXState.ctx
+    fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
+    fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
 
     ctx->VSSetShader(directXState.vertexShaders[.FONT], nil, 0)
     ctx->VSSetShaderResources(0, 1, &directXState.structuredBuffers[.GLYPHS_LIST].srv)
@@ -121,25 +155,6 @@ renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx->PSSetShader(directXState.pixelShaders[.FONT], nil, 0)
     ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
 
-    fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
-    fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
-
-    for glyphItem, index in windowData.screenGlyphs.layout {
-        assert(u32(index) < fontListBuffer.length, "Number of glyphs on screen exceeded the threshold")
-        fontChar := windowData.font.chars[glyphItem.char]
-
-        modelMatrix := getTransformationMatrix(
-            { glyphItem.x, glyphItem.y, 0.0 }, 
-            { 0.0, 0.0, 0.0 }, 
-            { glyphItem.width, glyphItem.height, 1.0 },
-        )
-
-        fontsList[index] = FontGlyphGpu{
-            sourceRect = fontChar.rect,
-            targetTransformation = intrinsics.transpose(modelMatrix), 
-        }
-    }
-
     updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST], directXState)
-    directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(len(windowData.screenGlyphs.layout)), 0, 0, 0)
+    directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(glyphsCount), 0, 0, 0)
 }

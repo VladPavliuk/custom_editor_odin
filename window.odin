@@ -25,13 +25,11 @@ GlyphItem :: struct {
 }
 
 ScreenGlyphs :: struct {
-    // cursorIndex: i32,
-    lineIndex: i32,
+    lineIndex: i32, // top line index from which text is rendered
     cursorLineIndex: i32,
     lineHeight: i32,
-    layout: [dynamic]GlyphItem,
+    linesCountOnScreen: i32,
     lines: [dynamic]int2, // { start line char index, end char line index }
-    cursorLayoutSelection: int2, // cursor from/to indexes in glyph layout
 }
 
 WindowData :: struct {
@@ -84,8 +82,6 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     edit.init(&windowData.inputState, context.allocator, context.allocator)
     edit.setup_once(&windowData.inputState, &windowData.testInputString)
     windowData.inputState.selection = { 0, 0 }
-    windowData.inputState.selection[0] = 1
-    windowData.inputState.selection[1] = 3
 
     windowData.isInputMode = true
 
@@ -170,7 +166,11 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
                 windowData.screenGlyphs.lineIndex = max(0, windowData.screenGlyphs.lineIndex)
             }
 
-            edit.move_to(&windowData.inputState, edit.Translation.Up)
+            if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
+                edit.perform_command(&windowData.inputState, edit.Command.Select_Up)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Up)
+            }
         }
 
         if isKeyDown(glfw.KEY_DOWN, key, action) || isKeyRepeated(glfw.KEY_DOWN, key, action) {
@@ -181,7 +181,11 @@ keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, m
                 // windowData.screenGlyphs.lineIndex = max(windowData.screenGlyphs.lineIndex + maxLinesOnScreen, windowData.screenGlyphs.lineIndex)
             }
 
-            edit.move_to(&windowData.inputState, edit.Translation.Down)
+            if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
+                edit.perform_command(&windowData.inputState, edit.Command.Select_Down)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Down)
+            }
         }
 
         // test := glfw.GetKeyLock(window, key);
