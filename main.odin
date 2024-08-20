@@ -11,13 +11,6 @@ windowMaximizeProc :: proc "c" (window: glfw.WindowHandle, iconified: i32) {
 } 
 
 main :: proc() {
-    // test := "іabc"
-    // testLength := len(test)
-    
-    // test4: = test[0:2]
-    // test2 := utf8.string_to_runes(test[:])
-    // test2Length := len(test2)
-
     window, hwnd, windowData := createWindow({ 800, 800 })
     defer glfw.DestroyWindow(window)
 
@@ -32,6 +25,7 @@ main :: proc() {
     glfw.SetCursorPosCallback(window, mousePositionHandler)
     glfw.SetScrollCallback(window, scrollHandler)
     glfw.SetMouseButtonCallback(window, mouseClickHandler)
+    //glfw.SetCallback(window, mouseClickHandler)
     
     initGpuResources(&directXState, windowData)
     

@@ -10,8 +10,24 @@ import "core:bytes"
 import "vendor:glfw"
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
+import "core:unicode/utf16"
 
 import win32 "core:sys/windows"
+
+foreign import user32 "system:user32.lib"
+
+@(default_calling_convention = "std")
+foreign user32 {
+	@(link_name="CreateMenu") CreateMenu :: proc() -> win32.HMENU ---
+}
+
+IDM_FILE_NEW: uintptr = 1
+IDM_FILE_OPEN: uintptr = 2
+IDM_FILE_SAVE: uintptr = 3
+IDM_FILE_SAVE_AS: uintptr = 4
+IDM_FILE_QUIT: uintptr = 5
+
+// win32.SetMenu
 
 GlyphItem :: struct {
     char: rune,
@@ -63,6 +79,26 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     glfw.MakeContextCurrent(window)
     
     hwnd := glfw.GetWin32Window(window)
+    
+    //> create top bar
+    {
+        windowMenubar := CreateMenu()
+        windowFileMenu := CreateMenu()
+
+        assert(windowMenubar != nil)
+        assert(windowFileMenu != nil)
+        
+        wideStringBuffer: [255]u16
+
+        utf16.encode_string(wideStringBuffer[:], "&File")
+        win32.AppendMenuW(windowMenubar, win32.MF_POPUP, uintptr(windowFileMenu), raw_data(wideStringBuffer[:]))
+
+        utf16.encode_string(wideStringBuffer[:], "&Open..")
+        win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_OPEN, raw_data(wideStringBuffer[:]))
+
+        win32.SetMenu(hwnd, windowMenubar)           
+    }
+    //<
 
     windowData := new(WindowData)
     windowData.size = size
