@@ -1,0 +1,3 @@
+For now it's an editor...
+
+![Screenshot 2024-08-21 212329](https://github.com/user-attachments/assets/08958d5e-de7f-4d96-b313-078745ccfdb2)
