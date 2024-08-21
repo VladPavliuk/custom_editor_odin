@@ -69,10 +69,10 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
 
     windowData := new(WindowData)
     mem.zero(windowData, size_of(WindowData))
-
+    
     // TODO: is it good approach?
     win32.SetProcessDpiAwarenessContext(win32.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE)
-
+    
     // TODO: it won't work with utf-16 symbols in the title
     windowTitle := "Editor"
     
