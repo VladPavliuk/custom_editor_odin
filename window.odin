@@ -5,9 +5,9 @@ import "core:strings"
 import "core:fmt"
 import "core:text/edit"
 import "core:os"
+import "core:mem"
 import "core:bytes"
 
-import "vendor:glfw"
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import "core:unicode/utf16"
@@ -15,10 +15,13 @@ import "core:unicode/utf16"
 import win32 "core:sys/windows"
 
 foreign import user32 "system:user32.lib"
+foreign import kernel32 "system:kernel32.lib"
+foreign import gdi32 "system:Gdi32.lib"
 
 @(default_calling_convention = "std")
 foreign user32 {
 	@(link_name="CreateMenu") CreateMenu :: proc() -> win32.HMENU ---
+	@(link_name="DrawMenuBar") DrawMenuBar :: proc(win32.HWND) ---
 }
 
 IDM_FILE_NEW: uintptr = 1
@@ -26,8 +29,6 @@ IDM_FILE_OPEN: uintptr = 2
 IDM_FILE_SAVE: uintptr = 3
 IDM_FILE_SAVE_AS: uintptr = 4
 IDM_FILE_QUIT: uintptr = 5
-
-// win32.SetMenu
 
 GlyphItem :: struct {
     char: rune,
@@ -49,11 +50,14 @@ ScreenGlyphs :: struct {
 }
 
 WindowData :: struct {
+    windowCreated: bool,
     size: int2,
     mousePosition: float2,
     isLeftMouseButtonDown: bool,
     wasLeftMouseButtonDown: bool,
     wasLeftMouseButtonUp: bool,
+
+    wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
     directXState: ^DirectXState,
 
@@ -68,17 +72,255 @@ WindowData :: struct {
     cursorScreenPosition: float2,
 }
 
-createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData) {
-    assert(i32(glfw.Init()) != 0)
+winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARAM, lParam: win32.LPARAM) -> win32.LRESULT {
+    context = runtime.default_context()
 
-    glfw.WindowHint(glfw.CLIENT_API, glfw.NO_API)
-    
-    // window := glfw.CreateWindow(1920, 1080, "test", glfw.GetPrimaryMonitor(), nil)
-    window := glfw.CreateWindow(size.x, size.y, "test", nil, nil)
+    switch msg {
+    case win32.WM_NCCREATE:
+        windowData := (^WindowData)(((^win32.CREATESTRUCTW)(uintptr(lParam))).lpCreateParams)
 
-    glfw.MakeContextCurrent(window)
+        win32.SetWindowLongPtrW(hwnd, win32.GWLP_USERDATA, win32.LONG_PTR(uintptr(windowData)))
+    case win32.WM_MOUSEMOVE:
+        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+
+	    xMouse := win32.GET_X_LPARAM(lParam)
+		yMouse := win32.GET_Y_LPARAM(lParam)
+
+        windowData.mousePosition = { f32(xMouse), f32(yMouse) }
+
+        windowData.mousePosition.x = max(0, windowData.mousePosition.x)
+        windowData.mousePosition.y = max(0, windowData.mousePosition.y)
+
+        windowData.mousePosition.x = min(f32(windowData.size.x), windowData.mousePosition.x)
+        windowData.mousePosition.y = min(f32(windowData.size.y), windowData.mousePosition.y)
+    case win32.WM_LBUTTONDOWN:
+        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+
+		windowData.isLeftMouseButtonDown = true
+		windowData.wasLeftMouseButtonDown = true
+
+		win32.SetCapture(hwnd)
+    case win32.WM_LBUTTONUP:
+        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+
+        windowData.isLeftMouseButtonDown = false
+        windowData.wasLeftMouseButtonUp = true
+
+        // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
+        win32.ReleaseCapture()
+    case win32.WM_SIZE:
+        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+
+        if !windowData.windowCreated { break }
+
+        if wParam == win32.SIZE_MINIMIZED { break }
+
+        clientRect: win32.RECT
+        win32.GetClientRect(hwnd, &clientRect)
+
+        // width := win32.LOWORD(u32(lParam))
+        // height := win32.HIWORD(u32(lParam))
+
+        windowSizeChangedHandler(windowData, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top)
+
+        // NOTE: while resizing we only get resize message, so we can't redraw from main loop, so we do it explicitlly
+        render(windowData.directXState, windowData)
+    case win32.WM_KEYDOWN:
+        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        
+        isValidSymbol := false
+
+        validInputSymbols := []int{
+            win32.VK_SPACE,
+            win32.VK_OEM_PLUS,
+            win32.VK_OEM_COMMA,
+            win32.VK_OEM_MINUS,
+            win32.VK_OEM_PERIOD,
+            win32.VK_OEM_1, // ;:
+            win32.VK_OEM_2, // /?
+            win32.VK_OEM_3, // `~
+            win32.VK_OEM_4, // [{
+            win32.VK_OEM_5, // \|
+            win32.VK_OEM_6, // ]}
+            win32.VK_OEM_7, // '"
+            win32.VK_ADD,
+            win32.VK_SUBTRACT,
+            win32.VK_MULTIPLY,
+            win32.VK_DIVIDE,
+            win32.VK_DECIMAL,
+        }
+        
+        for symbol in validInputSymbols {
+            if symbol == int(wParam) {
+                isValidSymbol = true
+                break
+            }
+        }
+
+        isValidSymbol = isValidSymbol || wParam >= 0x60 && wParam <= 0x69 // numpad
+        isValidSymbol = isValidSymbol || wParam >= 0x41 && wParam <= 0x5A || wParam >= 0x30 && wParam <= 0x39
+
+        windowData.wasInputSymbolTyped = isValidSymbol
+
+        if isValidSymbol { break }
+
+        switch wParam {
+        case win32.VK_RETURN:
+            edit.perform_command(&windowData.inputState, edit.Command.New_Line)
+        case win32.VK_LEFT:
+            if isCtrlPressed() {
+                if isShiftPressed() {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Left)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Word_Left)
+                }
+            } else {
+                if isShiftPressed() {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Left)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Left)
+                }
+            }
+        case win32.VK_RIGHT:
+            if isCtrlPressed() {
+                if isShiftPressed() {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Right)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Word_Right)
+                }
+            } else {
+                if isShiftPressed() {
+                    edit.perform_command(&windowData.inputState, edit.Command.Select_Right)
+                } else {
+                    edit.move_to(&windowData.inputState, edit.Translation.Right)
+                }
+            }
+        case win32.VK_UP:
+            if windowData.screenGlyphs.cursorLineIndex <= windowData.screenGlyphs.lineIndex && 
+                windowData.screenGlyphs.lineIndex > 0 {
+                windowData.screenGlyphs.lineIndex -= 1
+            }
+
+            if isShiftPressed() {
+                edit.perform_command(&windowData.inputState, edit.Command.Select_Up)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Up)
+            }
+        case win32.VK_DOWN:
+            maxLinesOnScreen := i32(f32(windowData.size.y) / windowData.font.lineHeight)
+
+            if windowData.screenGlyphs.cursorLineIndex >= windowData.screenGlyphs.lineIndex + maxLinesOnScreen - 1 {
+                windowData.screenGlyphs.lineIndex += 1
+                // windowData.screenGlyphs.lineIndex = max(windowData.screenGlyphs.lineIndex + maxLinesOnScreen, windowData.screenGlyphs.lineIndex)
+            }
+
+            if isShiftPressed() {
+                edit.perform_command(&windowData.inputState, edit.Command.Select_Down)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Down)
+            }
+        case win32.VK_BACK:
+            if isCtrlPressed() {
+                edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Left)
+            } else {
+                edit.perform_command(&windowData.inputState, edit.Command.Backspace)
+            }
+        case win32.VK_DELETE:
+            if isCtrlPressed() {
+                edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Right)
+            } else {
+                edit.perform_command(&windowData.inputState, edit.Command.Delete)
+            }
+        case win32.VK_HOME:
+            if isShiftPressed() {
+                edit.perform_command(&windowData.inputState, edit.Command.Select_Line_Start)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
+            }
+        case win32.VK_END:
+            if isShiftPressed() {
+                edit.perform_command(&windowData.inputState, edit.Command.Select_Line_End)
+            } else {
+                edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_End)
+            }
+        }
+    case win32.WM_CHAR:
+        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+
+        if windowData.wasInputSymbolTyped && windowData.isInputMode {
+            edit.input_rune(&windowData.inputState, rune(wParam))
+        }
+    case win32.WM_MOUSEWHEEL:
+        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+
+        yoffset := win32.GET_WHEEL_DELTA_WPARAM(wParam)
+
+        if yoffset > 10 && windowData.screenGlyphs.lineIndex > 0 {
+            windowData.screenGlyphs.lineIndex -= 1
+        } else if yoffset < -10 {
+            windowData.screenGlyphs.lineIndex += 1
+        }
+    case win32.WM_DESTROY:
+        win32.PostQuitMessage(0)
+    }
+
+    return win32.DefWindowProcA(hwnd, msg, wParam, lParam)
+}
+
+@(private="file") 
+isShiftPressed :: proc() -> bool {
+    return uint(win32.GetKeyState(win32.VK_SHIFT)) & 0x8000 == 0x8000
+}
+
+@(private="file") 
+isCtrlPressed :: proc() -> bool {
+    return uint(win32.GetKeyState(win32.VK_LCONTROL)) & 0x8000 == 0x8000
+}
+
+createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
+    hInstance := win32.HINSTANCE(win32.GetModuleHandleA(nil))
     
-    hwnd := glfw.GetWin32Window(window)
+    wndClassName := win32.utf8_to_wstring("class")
+    wndClass: win32.WNDCLASSW = {
+        hInstance = hInstance,
+        lpszClassName = wndClassName,
+        lpfnWndProc = winProc,
+        style = win32.CS_DBLCLKS,
+        hCursor = win32.LoadCursorA(nil, win32.IDC_ARROW),
+        //hbrBackground = win32.CreateSolidBrush(win32.GetSysColor(win32.COLOR_MENU)),
+    }
+
+    win32.RegisterClassW(&wndClass)
+
+    windowData := new(WindowData)
+    mem.zero(windowData, size_of(WindowData))
+    
+    // TODO: is it good approach?
+    win32.SetProcessDpiAwarenessContext(win32.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE)
+
+    // TODO: it won't work with utf-16 symbols in the title
+    windowTitle := transmute(win32.wstring)strings.unsafe_string_to_cstring("Editor")
+    
+    hwnd := win32.CreateWindowExW(
+        0 /*win32.WS_EX_NOREDIRECTIONBITMAP*/,
+        wndClassName,
+        windowTitle,
+        win32.WS_OVERLAPPEDWINDOW /*| win32.CS_HREDRAW | win32.CS_VREDRAW*/,
+        win32.CW_USEDEFAULT, win32.CW_USEDEFAULT, 
+        size.x, size.y,
+        nil, nil,
+        hInstance,
+        windowData,
+    )
+
+    assert(hwnd != nil)
+
+    win32.ShowWindow(hwnd, win32.SW_SHOWDEFAULT)
+
+    clientRect: win32.RECT
+    win32.GetClientRect(hwnd, &clientRect)
+
+    windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
     
     //> create top bar
     {
@@ -96,12 +338,10 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
         utf16.encode_string(wideStringBuffer[:], "&Open..")
         win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_OPEN, raw_data(wideStringBuffer[:]))
 
-        win32.SetMenu(hwnd, windowMenubar)           
+        win32.SetMenu(hwnd, windowMenubar)
     }
     //<
 
-    windowData := new(WindowData)
-    windowData.size = size
     windowData.testInputString = strings.builder_make()
 
     windowData.screenGlyphs.lineIndex = 0
@@ -123,194 +363,18 @@ createWindow :: proc(size: int2) -> (glfw.WindowHandle, win32.HWND, ^WindowData)
     windowData.inputState.selection = { 0, 0 }
 
     windowData.isInputMode = true
+    windowData.windowCreated = true
 
-    glfw.SetWindowUserPointer(window, windowData)
-
-    return window, hwnd, windowData
+    return hwnd, windowData
 }
 
-isKeyDown :: proc "c" (keyToCheck: i32, key: i32, action: i32) -> bool {
-    return action == glfw.PRESS && keyToCheck == key
-}
-
-isKeyRepeated :: proc(keyToCheck: i32, key: i32, action: i32) -> bool {
-    return action == glfw.REPEAT && keyToCheck == key
-}
-
-isKeyReleased :: proc(keyToCheck: i32, key: i32, action: i32) -> bool {
-    return action == glfw.RELEASE && keyToCheck == key
-}
-
-keyboardHandler :: proc "c" (window: glfw.WindowHandle, key, scancode, action, mods: i32) {
+windowSizeChangedHandler :: proc "c" (windowData: ^WindowData, width, height: i32) {
     context = runtime.default_context()
-    
-    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
-
-    if windowData.isInputMode {
-        if isKeyDown(glfw.KEY_ENTER, key, action) || isKeyRepeated(glfw.KEY_ENTER, key, action) {
-            edit.perform_command(&windowData.inputState, edit.Command.New_Line)
-        }
-
-        if isKeyDown(glfw.KEY_BACKSPACE, key, action) || isKeyRepeated(glfw.KEY_BACKSPACE, key, action) {
-            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
-                edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Left)
-            } else {
-                edit.perform_command(&windowData.inputState, edit.Command.Backspace)
-            }
-        }
-
-        if isKeyDown(glfw.KEY_DELETE, key, action) || isKeyRepeated(glfw.KEY_DELETE, key, action) {
-            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
-                edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Right)
-            } else {
-                edit.perform_command(&windowData.inputState, edit.Command.Delete)
-            }
-        }
-
-        if isKeyDown(glfw.KEY_LEFT, key, action) || isKeyRepeated(glfw.KEY_LEFT, key, action) {
-            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
-                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
-                    edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Left)
-                } else {
-                    edit.move_to(&windowData.inputState, edit.Translation.Word_Left)
-                }
-            } else {
-                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
-                    edit.perform_command(&windowData.inputState, edit.Command.Select_Left)
-                } else {
-                    edit.move_to(&windowData.inputState, edit.Translation.Left)
-                }
-            }
-        }
-
-        if isKeyDown(glfw.KEY_RIGHT, key, action) || isKeyRepeated(glfw.KEY_RIGHT, key, action) {
-            if (mods & glfw.MOD_CONTROL) == glfw.MOD_CONTROL {
-                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
-                    edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Right)
-                } else {
-                    edit.move_to(&windowData.inputState, edit.Translation.Word_Right)
-                }
-            } else {
-                if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
-                    edit.perform_command(&windowData.inputState, edit.Command.Select_Right)
-                } else {
-                    edit.move_to(&windowData.inputState, edit.Translation.Right)
-                }
-            }
-        }
-
-        if isKeyDown(glfw.KEY_UP, key, action) || isKeyRepeated(glfw.KEY_UP, key, action) {
-            if windowData.screenGlyphs.cursorLineIndex <= windowData.screenGlyphs.lineIndex && 
-                windowData.screenGlyphs.lineIndex > 0 {
-                windowData.screenGlyphs.lineIndex -= 1
-            }
-
-            if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
-                edit.perform_command(&windowData.inputState, edit.Command.Select_Up)
-            } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Up)
-            }
-        }
-
-        if isKeyDown(glfw.KEY_DOWN, key, action) || isKeyRepeated(glfw.KEY_DOWN, key, action) {
-            maxLinesOnScreen := i32(f32(windowData.size.y) / windowData.font.lineHeight)
-
-            if windowData.screenGlyphs.cursorLineIndex >= windowData.screenGlyphs.lineIndex + maxLinesOnScreen - 1 {
-                windowData.screenGlyphs.lineIndex += 1
-                // windowData.screenGlyphs.lineIndex = max(windowData.screenGlyphs.lineIndex + maxLinesOnScreen, windowData.screenGlyphs.lineIndex)
-            }
-
-            if (mods & glfw.MOD_SHIFT) == glfw.MOD_SHIFT {
-                edit.perform_command(&windowData.inputState, edit.Command.Select_Down)
-            } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Down)
-            }
-        }
-
-        // test := glfw.GetKeyLock(window, key);
-        // glfw.MOD_NUM_LOCK
-
-        // if isKeyDown(glfw.KEY_HOME, key, action) || isKeyRepeated(glfw.KEY_HOME, key, action) {
-        //     edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
-        // }
-
-        // TODO: for now it's TAB button, since if home button is on numlock keyboard it's not that easy to catch it 
-        if isKeyDown(glfw.KEY_TAB, key, action) || isKeyRepeated(glfw.KEY_TAB, key, action) {
-            edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
-        }
-
-        if isKeyDown(glfw.KEY_END, key, action) || isKeyRepeated(glfw.KEY_END, key, action) {
-            edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_End)
-        }
-    }
-
-    if isKeyReleased(glfw.KEY_ESCAPE, key, action) {
-        glfw.SetWindowShouldClose(window, true)
-    }
-
-    if isKeyDown(glfw.KEY_A, key, action) {
-        //windowData.a += 0.1
-    }
-
-    if isKeyReleased(glfw.KEY_A, key, action) {
-        // windowData.a -= .1
-    }
-}
-
-mousePositionHandler :: proc "c" (window: glfw.WindowHandle, xpos, ypos: f64) {
-    context = runtime.default_context()
-    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
-
-    windowData.mousePosition.x = f32(xpos)
-    windowData.mousePosition.y = f32(ypos)
-    
-    // make sure that mouse position is not out of window box
-    windowData.mousePosition.x = max(0, windowData.mousePosition.x)
-    windowData.mousePosition.y = max(0, windowData.mousePosition.y)
-    
-    windowData.mousePosition.x = min(f32(windowData.size.x), windowData.mousePosition.x)
-    windowData.mousePosition.y = min(f32(windowData.size.y), windowData.mousePosition.y)
-}
-
-mouseClickHandler :: proc "c" (window: glfw.WindowHandle, button, action, mods: i32) {
-    context = runtime.default_context()
-    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
-
-    windowData.isLeftMouseButtonDown = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.PRESS
-    
-    windowData.wasLeftMouseButtonDown = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.PRESS
-    windowData.wasLeftMouseButtonUp = button == glfw.MOUSE_BUTTON_LEFT && action == glfw.RELEASE
-}
-
-scrollHandler :: proc "c" (window: glfw.WindowHandle, xoffset, yoffset: f64) {
-    context = runtime.default_context()
-    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
-
-    if yoffset > 0.02 && windowData.screenGlyphs.lineIndex > 0 {
-        windowData.screenGlyphs.lineIndex -= 1
-    } else if yoffset < -0.02 {
-        windowData.screenGlyphs.lineIndex += 1
-    }
-}
-
-keychardCharInputHandler :: proc "c" (window: glfw.WindowHandle, codepoint: rune) {
-    context = runtime.default_context()
-    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
-
-    if windowData.isInputMode {
-        edit.input_rune(&windowData.inputState, codepoint)
-    }
-}
-
-windowSizeChangedHandler :: proc "c" (window: glfw.WindowHandle, width, height: i32) {
-    context = runtime.default_context()
-    windowData := (^WindowData)(glfw.GetWindowUserPointer(window))
 
     windowData.size = { width, height }
     directXState := windowData.directXState
 
-    nullViews := []^d3d11.IRenderTargetView{ nil }
-    directXState.ctx->OMSetRenderTargets(1, raw_data(nullViews), nil)
+    directXState.ctx->OMSetRenderTargets(0, nil, nil)
     directXState.backBufferView->Release()
     directXState.backBuffer->Release()
     directXState.depthBufferView->Release()

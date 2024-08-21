@@ -15,6 +15,7 @@ import "core:mem"
 import "core:unicode/utf16"
 
 import "core:math"
+import win32 "core:sys/windows"
 
 TextureType :: enum {
     FONT,
@@ -114,7 +115,7 @@ initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     directXState.constantBuffers[.FONT_GLYPH_LOCATION] = createConstantBuffer(FontChar, nil, directXState)
 
     // camera
-    viewMatrix := getOrthoraphicsMatrix(800, 800, 0.1, 10.0)
+    viewMatrix := getOrthoraphicsMatrix(f32(windowData.size.x), f32(windowData.size.y), 0.1, 10.0)
     directXState.constantBuffers[.PROJECTION] = createConstantBuffer(mat4, &viewMatrix, directXState)
 
     directXState.constantBuffers[.MODEL_TRANSFORMATION] = createConstantBuffer(mat4, nil, directXState)
@@ -134,11 +135,8 @@ loadTextures :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
 loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
     blob: ^d3d11.IBlob
-
-    filePathBuffer: [255]u16
-    utf16.encode_string(filePathBuffer[:], filePath)
-
-    hr := d3d_compiler.ReadFileToBlob(raw_data(filePathBuffer[:]), &blob)
+    
+    hr := d3d_compiler.ReadFileToBlob(win32.utf8_to_wstring(filePath), &blob)
     assert(hr == 0)
 
     shader: ^d3d11.IVertexShader

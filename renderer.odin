@@ -10,6 +10,7 @@ import "core:unicode/utf8"
 
 import "core:time"
 import "core:fmt"
+import "core:math"
 
 render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx := directXState.ctx
@@ -87,7 +88,7 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     topLine := windowData.screenGlyphs.lineIndex
     bottomLine := i32(len(windowData.screenGlyphs.lines))
 
-    topOffset := f32(windowData.size.y) / 2.0 - windowData.font.lineHeight
+    topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight)
 
     glyphsCount := 0
     hasSelection := windowData.inputState.selection[0] != windowData.inputState.selection[1]
@@ -103,10 +104,12 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
         line := windowData.screenGlyphs.lines[lineIndex]
 
         leftOffset: f32 = -f32(windowData.size.x) / 2.0
-        for byteIndex in line.x..=line.y {
-            // defer glyphsCount += 1
+        byteIndex := line.x
+        for byteIndex <= line.y {
             // TODO: add RUNE_ERROR hndling
-            char, _ := utf8.decode_rune(stringToRender[byteIndex:])
+            char, charSize := utf8.decode_rune(stringToRender[byteIndex:])
+
+            defer byteIndex += i32(charSize)
 
             fontChar := windowData.font.chars[char]
 
@@ -116,6 +119,9 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
             if int(byteIndex) == windowData.inputState.selection[0] {
                 renderCursor(directXState, windowData, glyphPosition)
             }
+
+            // NOTE: last symbol in string is EOF which has 0 length
+            if charSize == 0 { break }
 
             if hasSelection && byteIndex >= selectionRange.x && byteIndex < selectionRange.y  {
                 // panic("asd")
@@ -132,6 +138,7 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
                 }
                 glyphsCount += 1
             }
+            
             leftOffset += fontChar.xAdvance
         }
         
