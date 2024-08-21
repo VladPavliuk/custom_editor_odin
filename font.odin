@@ -102,7 +102,7 @@ loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
 }
 
 BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte, bitmapSize: int2, charsList: string) -> FontData {
-    x, y, bottomY, i: i32
+    x, y, bottomY: i32
     font: stbtt.fontinfo
 
     if !stbtt.InitFont(&font, raw_data(data), 0) {

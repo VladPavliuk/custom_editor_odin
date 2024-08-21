@@ -2,7 +2,6 @@ package main
 
 import "core:strings"
 import "core:unicode/utf8"
-import "core:fmt"
 
 findCursorPosition :: proc(windowData: ^WindowData) {
     getCursorPosition :: proc(windowData: ^WindowData) -> int {
@@ -23,8 +22,6 @@ findCursorPosition :: proc(windowData: ^WindowData) {
             
             fontChar := windowData.font.chars[char]
             
-            glyphWidth: f32 = fontChar.rect.right - fontChar.rect.left
-    
             if windowData.mousePosition.x < cursor {
                 return int(byteIndex)
             }
@@ -83,7 +80,6 @@ updateCusrorData :: proc(windowData: ^WindowData) {
         if cursorIndex == charIndex { break }
 
         fontChar := windowData.font.chars[char]
-        glyphWidth: f32 = fontChar.rect.right - fontChar.rect.left
         cursorLeftOffset += fontChar.xAdvance
     }
 
@@ -95,14 +91,13 @@ updateCusrorData :: proc(windowData: ^WindowData) {
 
         windowData.inputState.up_index = int(previousLine.y)
 
-        charIndex := previousLine.x
+        charIndex = previousLine.x
         leftOffset: f32 = 0.0
         for charIndex < previousLine.y {
             char, charSize := utf8.decode_rune(stringToRender[charIndex:])
             defer charIndex += i32(charSize)
             
             fontChar := windowData.font.chars[char]
-            glyphWidth: f32 = fontChar.rect.right - fontChar.rect.left
             leftOffset += fontChar.xAdvance
             if leftOffset > cursorLeftOffset {
                 windowData.inputState.up_index = int(charIndex)
@@ -119,14 +114,13 @@ updateCusrorData :: proc(windowData: ^WindowData) {
 
         windowData.inputState.down_index = int(nextLine.y)
 
-        charIndex := nextLine.x
+        charIndex = nextLine.x
         leftOffset: f32 = 0.0
         for charIndex < nextLine.y {
             char, charSize := utf8.decode_rune(stringToRender[charIndex:])
             defer charIndex += i32(charSize)
             
             fontChar := windowData.font.chars[char]
-            glyphWidth: f32 = fontChar.rect.right - fontChar.rect.left
             leftOffset += fontChar.xAdvance
             if leftOffset > cursorLeftOffset {
                 windowData.inputState.down_index = int(charIndex)
@@ -161,7 +155,6 @@ calculateLines :: proc(windowData: ^WindowData) {
         }
 
         fontChar := windowData.font.chars[char]
-        glyphWidth: f32 = fontChar.rect.right - fontChar.rect.left
         cursor += fontChar.xAdvance
 
         // text wrapping

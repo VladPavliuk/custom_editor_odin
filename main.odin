@@ -1,14 +1,6 @@
 package main
 
-import "core:unicode/utf8"
-
-import "core:fmt"
 import win32 "core:sys/windows"
-
-// windowMaximizeProc :: proc "c" (window: glfw.WindowHandle, iconified: i32) {
-//     test := iconified
-//     // /assert(true)
-// } 
 
 main :: proc() {
     hwnd, windowData := createWindow({ 800, 800 })

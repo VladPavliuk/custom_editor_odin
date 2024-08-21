@@ -5,16 +5,11 @@ import "vendor:directx/dxgi"
 import "vendor:directx/d3d_compiler"
 
 import "base:runtime"
-import "core:reflect"
 
-import "core:fmt"
-import "core:os"
-import "core:strings"
 import "core:mem"
 
 import "core:unicode/utf16"
 
-import "core:math"
 import win32 "core:sys/windows"
 
 TextureType :: enum {
