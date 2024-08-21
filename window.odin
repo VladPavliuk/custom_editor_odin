@@ -74,6 +74,7 @@ WindowData :: struct {
 
 winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARAM, lParam: win32.LPARAM) -> win32.LRESULT {
     context = runtime.default_context()
+    getWindowData := proc(hwnd: win32.HWND) -> ^WindowData { return (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA))) }
 
     switch msg {
     case win32.WM_NCCREATE:
@@ -81,7 +82,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         win32.SetWindowLongPtrW(hwnd, win32.GWLP_USERDATA, win32.LONG_PTR(uintptr(windowData)))
     case win32.WM_MOUSEMOVE:
-        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        windowData := getWindowData(hwnd)
 
 	    xMouse := win32.GET_X_LPARAM(lParam)
 		yMouse := win32.GET_Y_LPARAM(lParam)
@@ -94,14 +95,14 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         windowData.mousePosition.x = min(f32(windowData.size.x), windowData.mousePosition.x)
         windowData.mousePosition.y = min(f32(windowData.size.y), windowData.mousePosition.y)
     case win32.WM_LBUTTONDOWN:
-        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        windowData := getWindowData(hwnd)
 
 		windowData.isLeftMouseButtonDown = true
 		windowData.wasLeftMouseButtonDown = true
 
 		win32.SetCapture(hwnd)
     case win32.WM_LBUTTONUP:
-        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        windowData := getWindowData(hwnd)
 
         windowData.isLeftMouseButtonDown = false
         windowData.wasLeftMouseButtonUp = true
@@ -109,7 +110,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
         win32.ReleaseCapture()
     case win32.WM_SIZE:
-        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        windowData := getWindowData(hwnd)
 
         if !windowData.windowCreated { break }
 
@@ -126,7 +127,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         // NOTE: while resizing we only get resize message, so we can't redraw from main loop, so we do it explicitlly
         render(windowData.directXState, windowData)
     case win32.WM_KEYDOWN:
-        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        windowData := getWindowData(hwnd)
         
         isValidSymbol := false
 
@@ -245,13 +246,13 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
             }
         }
     case win32.WM_CHAR:
-        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        windowData := getWindowData(hwnd)
 
         if windowData.wasInputSymbolTyped && windowData.isInputMode {
             edit.input_rune(&windowData.inputState, rune(wParam))
         }
     case win32.WM_MOUSEWHEEL:
-        windowData := (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA)))
+        windowData := getWindowData(hwnd)
 
         yoffset := win32.GET_WHEEL_DELTA_WPARAM(wParam)
 
