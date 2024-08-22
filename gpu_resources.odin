@@ -65,7 +65,7 @@ GpuConstantBufferType :: enum {
 initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     loadTextures(directXState, windowData)
 
-    vertexShader, blob := loadVertexShader("shaders/basic_vs.fxc", directXState)
+    vertexShader, blob := compileVertexShader(#load("./shaders/basic_vs.hlsl"), directXState)
     defer blob->Release()
 
     inputLayoutDesc := [?]d3d11.INPUT_ELEMENT_DESC{
@@ -78,10 +78,10 @@ initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     assert(hr == 0)
 
     directXState.vertexShaders[.BASIC] = vertexShader 
-    directXState.vertexShaders[.FONT], _ = loadVertexShader("shaders/font_vs.fxc", directXState)
-    directXState.vertexShaders[.MULTIPLE_RECTS], _ = loadVertexShader("shaders/multiple_rects_vs.fxc", directXState)
-    directXState.pixelShaders[.FONT] = loadPixelShader("shaders/font_ps.fxc", directXState)
-    directXState.pixelShaders[.SOLID_COLOR] = loadPixelShader("shaders/solid_color_ps.fxc", directXState)
+    directXState.vertexShaders[.FONT], _ = compileVertexShader(#load("./shaders/font_vs.hlsl"), directXState)
+    directXState.vertexShaders[.MULTIPLE_RECTS], _ = compileVertexShader(#load("./shaders/multiple_rects_vs.hlsl"), directXState)
+    directXState.pixelShaders[.FONT] = compilePixelShader(#load("./shaders/font_ps.hlsl"), directXState)
+    directXState.pixelShaders[.SOLID_COLOR] = compilePixelShader(#load("./shaders/solid_color_ps.hlsl"), directXState)
     directXState.inputLayouts[.POSITION_AND_TEXCOORD] = inputLayout 
     
     VertexItem :: struct {
@@ -134,33 +134,41 @@ loadTextures :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     directXState.textures[.FONT], windowData.font = loadFont(directXState)
 }
 
-loadVertexShader :: proc(filePath: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
+compileVertexShader :: proc(fileContent: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
     blob: ^d3d11.IBlob
-    
-    hr := d3d_compiler.ReadFileToBlob(win32.utf8_to_wstring(filePath), &blob)
+    errMessageBlob: ^d3d11.IBlob = nil
+    defer if errMessageBlob != nil { errMessageBlob->Release() }
+
+	hr := d3d_compiler.Compile(raw_data(fileContent), len(fileContent), nil, nil, nil, 
+        "main", "vs_5_0", 0, 0, &blob, &errMessageBlob)
+    if errMessageBlob != nil {
+        panic(string(cstring(errMessageBlob->GetBufferPointer())))
+    } 
     assert(hr == 0)
 
     shader: ^d3d11.IVertexShader
     hr = directXState.device->CreateVertexShader(blob->GetBufferPointer(), blob->GetBufferSize(), nil, &shader)
     assert(hr == 0)
-
     return shader, blob
 }
 
-loadPixelShader :: proc(filePath: string, directXState: ^DirectXState) -> ^d3d11.IPixelShader {
+compilePixelShader :: proc(fileContent: string, directXState: ^DirectXState) -> ^d3d11.IPixelShader {
     blob: ^d3d11.IBlob
     defer blob->Release()
 
-    filePathBuffer: [255]u16
-    utf16.encode_string(filePathBuffer[:], filePath)
+    errMessageBlob: ^d3d11.IBlob = nil
+    defer if errMessageBlob != nil { errMessageBlob->Release() }
 
-    hr := d3d_compiler.ReadFileToBlob(raw_data(filePathBuffer[:]), &blob)
+    hr := d3d_compiler.Compile(raw_data(fileContent), len(fileContent), nil, nil, nil, 
+        "main", "ps_5_0", 0, 0, &blob, &errMessageBlob)
+    if errMessageBlob != nil {
+        panic(string(cstring(errMessageBlob->GetBufferPointer())))
+    }
     assert(hr == 0)
 
     shader: ^d3d11.IPixelShader
     hr = directXState.device->CreatePixelShader(blob->GetBufferPointer(), blob->GetBufferSize(), nil, &shader)
     assert(hr == 0)
-
     return shader   
 }
 

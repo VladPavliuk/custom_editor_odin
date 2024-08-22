@@ -19,7 +19,6 @@ struct VSOutput
 {
     float4 position : SV_POSITION;
     float2 texcoord : TEXCOORD;
-    float4 glyphLocation : GLYPH_LOCATION;
 };
 
 VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
