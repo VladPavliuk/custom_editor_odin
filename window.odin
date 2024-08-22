@@ -135,17 +135,17 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
     windowData.testInputString = strings.builder_make()
 
     windowData.screenGlyphs.lineIndex = 0
-    fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
-    originalFileText := string(fileContent[:])
+    // fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
+    // originalFileText := string(fileContent[:])
    
-    //TODO: add handling Window's \r\n staff
-    testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
+    // //TODO: add handling Window's \r\n staff
+    // testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
 
-    if wasNewAllocation {
-        delete(fileContent)
-    }
+    // if wasNewAllocation {
+    //     delete(fileContent)
+    // }
 
-    strings.write_string(&windowData.testInputString, testText)
+    // strings.write_string(&windowData.testInputString, testText)
     
     edit.init(&windowData.inputState, context.allocator, context.allocator)
     edit.setup_once(&windowData.inputState, &windowData.testInputString)
@@ -444,6 +444,8 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         edit.perform_command(&windowData.inputState, edit.Command.Paste)
     case win32.VK_X:
         edit.perform_command(&windowData.inputState, edit.Command.Cut)
+    case win32.VK_Z:
+        edit.perform_command(&windowData.inputState, edit.Command.Undo)
     }
 }
 

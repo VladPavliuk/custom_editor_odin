@@ -2,6 +2,8 @@ package main
 
 import win32 "core:sys/windows"
 
+import "core:text/edit"
+
 main :: proc() {
     hwnd, windowData := createWindow({ 800, 800 })
 
@@ -19,6 +21,7 @@ main :: proc() {
             continue
         }
         
+        edit.update_time(&windowData.inputState)
         render(&directXState, windowData)
 
         windowData.wasLeftMouseButtonDown = false

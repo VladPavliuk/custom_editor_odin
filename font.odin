@@ -6,7 +6,8 @@ import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import stbtt "vendor:stb/truetype"
 
-FontGlyphGpu :: struct {
+// NOTE: struct is packed, because for GPU no padding allowed
+FontGlyphGpu :: struct #packed {
     sourceRect: Rect,
     targetTransformation: mat4,
 }
