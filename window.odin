@@ -12,12 +12,27 @@ import "core:unicode/utf16"
 import win32 "core:sys/windows"
 
 foreign import user32 "system:user32.lib"
+foreign import kernel32 "system:kernel32.lib"
 
 @(default_calling_convention = "std")
 foreign user32 {
 	@(link_name="CreateMenu") CreateMenu :: proc() -> win32.HMENU ---
 	@(link_name="DrawMenuBar") DrawMenuBar :: proc(win32.HWND) ---
+	@(link_name="IsClipboardFormatAvailable") IsClipboardFormatAvailable :: proc(uint) -> bool ---
+	@(link_name="OpenClipboard") OpenClipboard :: proc(win32.HWND) -> bool ---
+	@(link_name="EmptyClipboard") EmptyClipboard :: proc() -> bool ---
+	@(link_name="SetClipboardData") SetClipboardData :: proc(uint, win32.HANDLE) -> win32.HANDLE ---
+	@(link_name="GetClipboardData") GetClipboardData :: proc(uint) -> win32.HANDLE ---
+	@(link_name="CloseClipboard") CloseClipboard :: proc() -> bool ---
 }
+
+@(default_calling_convention = "std")
+foreign user32 {
+    @(link_name="GlobalLock") GlobalLock :: proc(win32.HGLOBAL) -> win32.LPVOID ---
+    @(link_name="GlobalUnlock") GlobalUnlock :: proc(win32.HGLOBAL) -> bool ---
+}
+
+WIN32_CF_UNICODETEXT :: 13
 
 IDM_FILE_NEW :: 1
 IDM_FILE_OPEN :: 2
@@ -135,6 +150,10 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
     edit.init(&windowData.inputState, context.allocator, context.allocator)
     edit.setup_once(&windowData.inputState, &windowData.testInputString)
     windowData.inputState.selection = { 0, 0 }
+
+    windowData.inputState.set_clipboard = putTextIntoClipboard
+    windowData.inputState.get_clipboard = getTextFromClipboard
+    windowData.inputState.clipboard_user_data = &windowData.parentHwnd
 
     windowData.parentHwnd = hwnd
 
@@ -298,9 +317,11 @@ isCtrlPressed :: proc() -> bool {
 }
 
 handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData: ^WindowData) {
-    isValidSymbol := false
-
+    windowData.wasInputSymbolTyped = false
+    
     if !isCtrlPressed() {
+        isValidSymbol := false
+
         validInputSymbols := []int{
             win32.VK_SPACE,
             win32.VK_OEM_PLUS,
@@ -417,6 +438,12 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         }
     case win32.VK_A:
         edit.perform_command(&windowData.inputState, edit.Command.Select_All)
+    case win32.VK_C:
+        edit.perform_command(&windowData.inputState, edit.Command.Copy)
+    case win32.VK_V:
+        edit.perform_command(&windowData.inputState, edit.Command.Paste)
+    case win32.VK_X:
+        edit.perform_command(&windowData.inputState, edit.Command.Cut)
     }
 }
 
@@ -463,4 +490,59 @@ windowSizeChangedHandler :: proc "c" (windowData: ^WindowData, width, height: i3
     viewMatrix := getOrthoraphicsMatrix(f32(width), f32(height), 0.1, 10.0)
 
     updateGpuBuffer(&viewMatrix, directXState.constantBuffers[.PROJECTION], directXState)
+}
+
+getTextFromClipboard :: proc(user_data: rawptr) -> (text: string, ok: bool) {
+    assert(user_data != nil)
+
+    hwnd := (^win32.HWND)(user_data)^
+
+    if !IsClipboardFormatAvailable(WIN32_CF_UNICODETEXT) || !OpenClipboard(hwnd) {
+        return
+    }
+
+    clipboardHandle := (win32.HGLOBAL)(GetClipboardData(WIN32_CF_UNICODETEXT))
+
+    if uintptr(clipboardHandle) == uintptr(0) {
+        return
+    }
+
+    globalMemory := GlobalLock(clipboardHandle)
+    
+	GlobalUnlock(clipboardHandle)
+	CloseClipboard()
+
+    textStr, err := win32.wstring_to_utf8(win32.wstring(globalMemory), -1)
+
+    return textStr, err == nil
+}
+
+putTextIntoClipboard :: proc(user_data: rawptr, text: string) -> (ok: bool) {
+    assert(user_data != nil)
+
+    hwnd := (^win32.HWND)(user_data)^
+
+    if !IsClipboardFormatAvailable(WIN32_CF_UNICODETEXT) || !OpenClipboard(hwnd) {
+        return false
+    }
+
+    if !EmptyClipboard() {
+        return false
+    }
+
+    wideText := win32.utf8_to_utf16(text)
+    wideTextLength := 2 * (len(wideText) + 1)
+    globalMemoryHandler := (win32.HGLOBAL)(win32.GlobalAlloc(win32.GMEM_MOVEABLE, uint(wideTextLength)))
+
+    globalMemory := GlobalLock(globalMemoryHandler)
+
+    mem.copy(globalMemory, raw_data(wideText), wideTextLength)
+
+    defer GlobalUnlock(globalMemoryHandler)
+
+    SetClipboardData(WIN32_CF_UNICODETEXT, (win32.HANDLE)(globalMemoryHandler))
+
+    defer CloseClipboard()
+
+    return true
 }
