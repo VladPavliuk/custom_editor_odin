@@ -300,39 +300,41 @@ isCtrlPressed :: proc() -> bool {
 handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData: ^WindowData) {
     isValidSymbol := false
 
-    validInputSymbols := []int{
-        win32.VK_SPACE,
-        win32.VK_OEM_PLUS,
-        win32.VK_OEM_COMMA,
-        win32.VK_OEM_MINUS,
-        win32.VK_OEM_PERIOD,
-        win32.VK_OEM_1, // ;:
-        win32.VK_OEM_2, // /?
-        win32.VK_OEM_3, // `~
-        win32.VK_OEM_4, // [{
-        win32.VK_OEM_5, // \|
-        win32.VK_OEM_6, // ]}
-        win32.VK_OEM_7, // '"
-        win32.VK_ADD,
-        win32.VK_SUBTRACT,
-        win32.VK_MULTIPLY,
-        win32.VK_DIVIDE,
-        win32.VK_DECIMAL,
-    }
-    
-    for symbol in validInputSymbols {
-        if symbol == int(wParam) {
-            isValidSymbol = true
-            break
+    if !isCtrlPressed() {
+        validInputSymbols := []int{
+            win32.VK_SPACE,
+            win32.VK_OEM_PLUS,
+            win32.VK_OEM_COMMA,
+            win32.VK_OEM_MINUS,
+            win32.VK_OEM_PERIOD,
+            win32.VK_OEM_1, // ;:
+            win32.VK_OEM_2, // /?
+            win32.VK_OEM_3, // `~
+            win32.VK_OEM_4, // [{
+            win32.VK_OEM_5, // \|
+            win32.VK_OEM_6, // ]}
+            win32.VK_OEM_7, // '"
+            win32.VK_ADD,
+            win32.VK_SUBTRACT,
+            win32.VK_MULTIPLY,
+            win32.VK_DIVIDE,
+            win32.VK_DECIMAL,
         }
+        
+        for symbol in validInputSymbols {
+            if symbol == int(wParam) {
+                isValidSymbol = true
+                break
+            }
+        }
+
+        isValidSymbol = isValidSymbol || wParam >= 0x60 && wParam <= 0x69 // numpad
+        isValidSymbol = isValidSymbol || wParam >= 0x41 && wParam <= 0x5A || wParam >= 0x30 && wParam <= 0x39
+
+        windowData.wasInputSymbolTyped = isValidSymbol
+
+        if isValidSymbol { return }
     }
-
-    isValidSymbol = isValidSymbol || wParam >= 0x60 && wParam <= 0x69 // numpad
-    isValidSymbol = isValidSymbol || wParam >= 0x41 && wParam <= 0x5A || wParam >= 0x30 && wParam <= 0x39
-
-    windowData.wasInputSymbolTyped = isValidSymbol
-
-    if isValidSymbol { return }
 
     switch wParam {
     case win32.VK_RETURN:
@@ -413,6 +415,8 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         } else {
             edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_End)
         }
+    case win32.VK_A:
+        edit.perform_command(&windowData.inputState, edit.Command.Select_All)
     }
 }
 

@@ -28,6 +28,7 @@ GpuBufferType :: enum {
 
 GpuStructuredBufferType :: enum {
     GLYPHS_LIST,
+    RECTS_LIST,
 }
 
 GpuBuffer :: struct {
@@ -41,6 +42,7 @@ GpuBuffer :: struct {
 
 VertexShaderType :: enum {
     BASIC,
+    MULTIPLE_RECTS,
     FONT,
 }
 
@@ -77,6 +79,7 @@ initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
     directXState.vertexShaders[.BASIC] = vertexShader 
     directXState.vertexShaders[.FONT], _ = loadVertexShader("shaders/font_vs.fxc", directXState)
+    directXState.vertexShaders[.MULTIPLE_RECTS], _ = loadVertexShader("shaders/multiple_rects_vs.fxc", directXState)
     directXState.pixelShaders[.FONT] = loadPixelShader("shaders/font_ps.fxc", directXState)
     directXState.pixelShaders[.SOLID_COLOR] = loadPixelShader("shaders/solid_color_ps.fxc", directXState)
     directXState.inputLayouts[.POSITION_AND_TEXCOORD] = inputLayout 
@@ -118,6 +121,9 @@ initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 
     fontGlyphs := make([]FontGlyphGpu, 15000)
     directXState.structuredBuffers[.GLYPHS_LIST] = createStructuredBuffer(fontGlyphs, directXState)
+
+    rectsList := make([]mat4, 15000)
+    directXState.structuredBuffers[.RECTS_LIST] = createStructuredBuffer(rectsList, directXState)
 }
 
 memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T {

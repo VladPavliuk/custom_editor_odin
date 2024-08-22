@@ -2,8 +2,6 @@ package main
 
 import "core:math"
 
-mat4 :: distinct matrix[4, 4]f32
-
 getOrthoraphicsMatrix :: proc(viewWidth, viewHeight, nearZ, farZ: f32) -> mat4 {
     range := 1.0 / (farZ - nearZ)
 

@@ -7,7 +7,7 @@ if not exist bin\shaders (
     mkdir bin\shaders
 )
 
-set vertex_shaders=basic_vs font_vs
+set vertex_shaders=basic_vs font_vs multiple_rects_vs
 set pixel_shaders=font_ps solid_color_ps
 
 (for %%s in (%vertex_shaders%) do ( 
