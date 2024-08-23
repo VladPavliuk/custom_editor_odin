@@ -127,8 +127,11 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
         utf16.encode_string(wideStringBuffer[:], "&File")
         win32.AppendMenuW(windowMenubar, win32.MF_POPUP, uintptr(windowFileMenu), raw_data(wideStringBuffer[:]))
 
-        utf16.encode_string(wideStringBuffer[:], "&Open..")
+        utf16.encode_string(wideStringBuffer[:], "&Open...")
         win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_OPEN, raw_data(wideStringBuffer[:]))
+        
+        utf16.encode_string(wideStringBuffer[:], "&Save as...")
+        win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_SAVE_AS, raw_data(wideStringBuffer[:]))
 
         win32.SetMenu(hwnd, windowMenubar)
     }
@@ -261,12 +264,48 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
             edit.setup_once(&windowData.inputState, &windowData.testInputString)
             windowData.inputState.selection = { 0, 0 }
             windowData.screenGlyphs.lineIndex = 0
+        case IDM_FILE_SAVE_AS:
+            ok := ShowSaveAsFileDialog(windowData)
+
+            if !ok { break }
         }
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
     }
 
     return win32.DefWindowProcA(hwnd, msg, wParam, lParam)
+}
+
+ShowSaveAsFileDialog :: proc(windowData: ^WindowData) -> (success: bool) {
+    hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
+    assert(hr == 0)
+    defer win32.CoUninitialize()
+
+    pFileSave: ^win32.IFileSaveDialog
+    hr = win32.CoCreateInstance(win32.CLSID_FileSaveDialog, nil, 
+        win32.CLSCTX_INPROC_SERVER | win32.CLSCTX_INPROC_HANDLER | win32.CLSCTX_LOCAL_SERVER | win32.CLSCTX_REMOTE_SERVER, 
+        win32.IID_IFileSaveDialog, 
+        cast(^win32.LPVOID)(&pFileSave))
+    assert(hr == 0)
+    defer pFileSave->Release()
+
+    hr = pFileSave->Show(windowData.parentHwnd)
+    if hr != 0 { return false }
+
+    shellItem: ^win32.IShellItem
+    pFileSave->GetResult(&shellItem)
+    defer shellItem->Release()
+
+    filePathW: win32.LPWSTR
+    shellItem->GetDisplayName(win32.SIGDN.FILESYSPATH, &filePathW)
+    defer win32.CoTaskMemFree(filePathW)
+
+    filePath, _ := win32.wstring_to_utf8(filePathW, -1)
+
+    err := os.write_entire_file_or_err(filePath, windowData.testInputString.buf[:])
+    assert(err == nil)
+
+    return true
 }
 
 ShowOpenFileDialog :: proc(windowData: ^WindowData) -> (res: string, success: bool) {
