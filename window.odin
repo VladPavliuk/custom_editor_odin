@@ -465,7 +465,11 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
     case win32.VK_X:
         edit.perform_command(&windowData.inputState, edit.Command.Cut)
     case win32.VK_Z:
-        edit.perform_command(&windowData.inputState, edit.Command.Undo)
+        if isShiftPressed() {
+            edit.perform_command(&windowData.inputState, edit.Command.Redo)
+        } else {
+            edit.perform_command(&windowData.inputState, edit.Command.Undo)
+        }
     }
 }
 
