@@ -53,6 +53,9 @@ WindowData :: struct {
     parentHwnd: win32.HWND,
 
     size: int2,
+
+    openedFilePath: string,
+
     mousePosition: float2,
     isLeftMouseButtonDown: bool,
     wasLeftMouseButtonDown: bool,
@@ -129,6 +132,9 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
 
         utf16.encode_string(wideStringBuffer[:], "&Open...")
         win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_OPEN, raw_data(wideStringBuffer[:]))
+        
+        utf16.encode_string(wideStringBuffer[:], "&Save")
+        win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_SAVE, raw_data(wideStringBuffer[:]))
         
         utf16.encode_string(wideStringBuffer[:], "&Save as...")
         win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_SAVE_AS, raw_data(wideStringBuffer[:]))
@@ -247,6 +253,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
             filePath, ok := ShowOpenFileDialog(windowData)
             if !ok { break }
 
+            windowData.openedFilePath = filePath
             fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
             originalFileText := string(fileContent[:])
         
@@ -268,12 +275,25 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
             ok := ShowSaveAsFileDialog(windowData)
 
             if !ok { break }
+        case IDM_FILE_SAVE:
+            SaveToOpenedFile(windowData)
         }
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
     }
 
     return win32.DefWindowProcA(hwnd, msg, wParam, lParam)
+}
+
+SaveToOpenedFile :: proc(windowData: ^WindowData) -> (success: bool) {
+    if len(windowData.openedFilePath) > 0 {
+        err := os.write_entire_file_or_err(windowData.openedFilePath, windowData.testInputString.buf[:])
+        assert(err == nil)
+    } else {
+        ShowSaveAsFileDialog(windowData)
+    }
+
+    return true
 }
 
 ShowSaveAsFileDialog :: proc(windowData: ^WindowData) -> (success: bool) {
@@ -304,6 +324,8 @@ ShowSaveAsFileDialog :: proc(windowData: ^WindowData) -> (success: bool) {
 
     err := os.write_entire_file_or_err(filePath, windowData.testInputString.buf[:])
     assert(err == nil)
+
+    windowData.openedFilePath = filePath
 
     return true
 }
@@ -509,6 +531,8 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         } else {
             edit.perform_command(&windowData.inputState, edit.Command.Undo)
         }
+    case win32.VK_S:
+        SaveToOpenedFile(windowData)
     }
 }
 
