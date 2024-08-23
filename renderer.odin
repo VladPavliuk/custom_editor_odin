@@ -50,7 +50,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     elapsed := time.duration_microseconds(timer._accumulation)
     timeElapsedTotal += elapsed
     timeElapsedCount += 1
-    fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
+    // fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
     
     renderText(directXState, windowData, glyphsCount, selectionsCount)
     // renderCursor(directXState, windowData)
