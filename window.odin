@@ -361,7 +361,25 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
 
     switch wParam {
     case win32.VK_RETURN:
+        // NOTE: if there's any whitespace at the beginning of the line, copy it to the new line
+        lineStart := windowData.inputState.line_start
+        whiteSpacesCount := 0
+        for i in lineStart..<windowData.inputState.line_end {
+            char := windowData.testInputString.buf[i]
+
+            if char != ' ' && char != '\t' {
+                break
+            }
+            whiteSpacesCount += 1
+        }
+
         edit.perform_command(&windowData.inputState, edit.Command.New_Line)
+
+        if whiteSpacesCount > 0 {
+            edit.input_text(&windowData.inputState, string(windowData.testInputString.buf[lineStart:][:whiteSpacesCount]))
+        }
+    case win32.VK_TAB:
+        edit.input_rune(&windowData.inputState, rune('\t'))
     case win32.VK_LEFT:
         if isCtrlPressed() {
             if isShiftPressed() {

@@ -50,7 +50,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     elapsed := time.duration_microseconds(timer._accumulation)
     timeElapsedTotal += elapsed
     timeElapsedCount += 1
-    // fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
+    fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
     
     renderText(directXState, windowData, glyphsCount, selectionsCount)
     // renderCursor(directXState, windowData)
@@ -120,10 +120,30 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
 
             defer byteIndex += i32(charSize)
 
-            fontChar := windowData.font.chars[char]
+            xOffsetToNextChar: f32
+            glyphSize: float2
+            glyphPosition: float2
+            fontBitmapRect: Rect
 
-            glyphSize: float2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-            glyphPosition: float2 = { leftOffset + fontChar.offset.x, topOffset - glyphSize.y - fontChar.offset.y }
+            switch char {
+            case '\t':
+                fontChar := windowData.font.chars[' ']
+                xOffsetToNextChar = fontChar.xAdvance
+                xOffsetToNextChar *= 4.0
+
+                glyphSize = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
+                glyphSize.x *= 4.0
+
+                glyphPosition = { leftOffset + fontChar.offset.x, topOffset - glyphSize.y - fontChar.offset.y }
+                fontBitmapRect = fontChar.rect
+            case:
+                fontChar := windowData.font.chars[char]
+                xOffsetToNextChar = fontChar.xAdvance
+
+                glyphSize = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
+                glyphPosition = { leftOffset + fontChar.offset.x, topOffset - glyphSize.y - fontChar.offset.y }
+                fontBitmapRect = fontChar.rect
+            }
 
             if int(byteIndex) == windowData.inputState.selection[0] {
                 renderCursor(directXState, windowData, glyphPosition)
@@ -137,7 +157,7 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
                 rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
                     { leftOffset, topOffset, 1.0 }, 
                     { 0.0, 0.0, 0.0 }, 
-                    { fontChar.xAdvance, windowData.font.lineHeight, 1.0 },
+                    { xOffsetToNextChar, windowData.font.lineHeight + windowData.font.descent, 1.0 },
                 ))
                 selectionsCount += 1
             }
@@ -149,12 +169,12 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
             )
             
             fontsList[glyphsCount] = FontGlyphGpu{
-                sourceRect = fontChar.rect,
+                sourceRect = fontBitmapRect,
                 targetTransformation = intrinsics.transpose(modelMatrix), 
             }
             glyphsCount += 1
         
-            leftOffset += fontChar.xAdvance
+            leftOffset += xOffsetToNextChar
         }
         
         topOffset -= windowData.font.lineHeight
