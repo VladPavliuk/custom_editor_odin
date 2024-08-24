@@ -42,6 +42,8 @@ IDM_FILE_SAVE :: 3
 IDM_FILE_SAVE_AS :: 4
 IDM_FILE_QUIT :: 5
 
+IDI_ICON :: 101 // copied from resources/resource.rc file
+
 ScreenGlyphs :: struct {
     lineIndex: i32, // top line index from which text is rendered
     cursorLineIndex: i32,
@@ -77,15 +79,22 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
     hInstance := win32.HINSTANCE(win32.GetModuleHandleA(nil))
     
     wndClassName := win32.utf8_to_wstring("class")
-    wndClass: win32.WNDCLASSW = {
+    
+    resourceIcon := win32.LoadImageW(hInstance, win32.MAKEINTRESOURCEW(IDI_ICON), 
+        win32.IMAGE_ICON, 256, 256, win32.LR_DEFAULTCOLOR)
+
+    wndClass: win32.WNDCLASSEXW = {
+        cbSize = size_of(win32.WNDCLASSEXW),
         hInstance = hInstance,
         lpszClassName = wndClassName,
         lpfnWndProc = winProc,
         style = win32.CS_DBLCLKS,
         hCursor = win32.LoadCursorA(nil, win32.IDC_ARROW),
+        hIcon = (win32.HICON)(resourceIcon),
     }
 
-    win32.RegisterClassW(&wndClass)
+    res := win32.RegisterClassExW(&wndClass)
+    assert(res != 0)
 
     windowData := new(WindowData)
     mem.zero(windowData, size_of(WindowData))
