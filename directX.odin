@@ -29,8 +29,8 @@ DirectXState :: struct {
     pixelShaders: [PixelShaderType]^d3d11.IPixelShader,
 }
 
-initDirectX :: proc(hwnd: win32.HWND) -> DirectXState {
-    directXState: DirectXState
+initDirectX :: proc(hwnd: win32.HWND) -> ^DirectXState {
+    directXState := new(DirectXState)
 
     baseDevice: ^d3d11.IDevice
 	baseDeviceContext: ^d3d11.IDeviceContext
@@ -196,5 +196,5 @@ clearDirectX :: proc(directXState: ^DirectXState) {
         pixelShader->Release()
     }
 
-    //delete(directXState.fontChars)
+    free(directXState)
 }

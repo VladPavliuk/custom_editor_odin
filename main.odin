@@ -1,18 +1,21 @@
 package main
 
 import win32 "core:sys/windows"
-
+import "core:log"
 import "core:text/edit"
 
-main :: proc() {
-    hwnd, windowData := createWindow({ 800, 800 })
+preCreateWindow :: proc() -> ^WindowData {
+    windowData := createWindow({ 800, 800 })
+
+    directXState := initDirectX(windowData.parentHwnd)
+    windowData.directXState = directXState
     
-    directXState := initDirectX(hwnd)
-    windowData.directXState = &directXState
-    defer clearDirectX(&directXState)
-    
-    initGpuResources(&directXState, windowData)
-    
+    initGpuResources(directXState, windowData)
+
+    return windowData
+}
+
+run :: proc(windowData: ^WindowData) {
     msg: win32.MSG
     for msg.message != win32.WM_QUIT {
         if win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE) {
@@ -22,9 +25,43 @@ main :: proc() {
         }
         
         edit.update_time(&windowData.inputState)
-        render(&directXState, windowData)
+        render(windowData.directXState, windowData)
 
         windowData.wasLeftMouseButtonDown = false
         windowData.wasLeftMouseButtonUp = false
     }
+
+    removeWindowData(windowData)
+    clearDirectX(windowData.directXState)
+}
+
+main :: proc() {
+    windowData := preCreateWindow()
+
+    run(windowData)
+
+    // hwnd, windowData := createWindow({ 800, 800 })
+
+    // directXState := initDirectX(hwnd)
+    // windowData.directXState = directXState
+    
+    // initGpuResources(directXState, windowData)
+    
+    // msg: win32.MSG
+    // for msg.message != win32.WM_QUIT {
+    //     if win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE) {
+    //         win32.TranslateMessage(&msg)
+    //         win32.DispatchMessageW(&msg)
+    //         continue
+    //     }
+        
+    //     edit.update_time(&windowData.inputState)
+    //     render(windowData.directXState, windowData)
+
+    //     windowData.wasLeftMouseButtonDown = false
+    //     windowData.wasLeftMouseButtonUp = false
+    // }
+
+    // removeWindowData(windowData)
+    // clearDirectX(windowData.directXState)
 }

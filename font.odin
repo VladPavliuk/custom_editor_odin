@@ -33,6 +33,7 @@ FontData :: struct {
 loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
     fileContent, success := os.read_entire_file_from_filename("c:/windows/fonts/arial.TTF")
     assert(success)
+    defer delete(fileContent)
     // defer delete(fontData.ttfFile)
 
     bitmapSize: int2 = { 512, 512 }

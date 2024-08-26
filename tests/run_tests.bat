@@ -1,0 +1,1 @@
+odin test . -define:ODIN_TEST_LOG_LEVEL=debug -debug

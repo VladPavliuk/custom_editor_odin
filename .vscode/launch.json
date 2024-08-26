@@ -9,6 +9,7 @@
             "type": "cppvsdbg",
             "request": "launch",
             "program": "${workspaceFolder}/bin/custom_editor_odin.exe",
+            // "program": "${workspaceFolder}/tests/tests.exe", // for testing
             "cwd": "${workspaceFolder}/bin",
             "args": [],
             "preLaunchTask": "odin build"

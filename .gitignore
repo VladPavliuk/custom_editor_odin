@@ -1,2 +1,4 @@
 bin/*.pdb
 bin/shaders/*.fxc
+tests/*.exe
+tests/*.pdb

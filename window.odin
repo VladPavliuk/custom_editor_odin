@@ -99,7 +99,7 @@ WindowData :: struct {
     screenGlyphs: ScreenGlyphs,
 }
 
-createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
+createWindow :: proc(size: int2) -> ^WindowData {
     hInstance := win32.HINSTANCE(win32.GetModuleHandleA(nil))
     
     wndClassName := win32.utf8_to_wstring("class")
@@ -216,7 +216,21 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
     windowData.isInputMode = true
     windowData.windowCreated = true
 
-    return hwnd, windowData
+    return windowData
+}
+
+removeWindowData :: proc(windowData: ^WindowData) {
+    for glyph, kerning in windowData.font.kerningTable {
+        delete(kerning)
+    }
+    delete(windowData.font.kerningTable)
+    delete(windowData.font.chars)
+
+    delete(windowData.screenGlyphs.lines)
+    edit.destroy(&windowData.inputState)
+    strings.builder_destroy(&windowData.testInputString)
+    
+    free(windowData)
 }
 
 winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARAM, lParam: win32.LPARAM) -> win32.LRESULT {
