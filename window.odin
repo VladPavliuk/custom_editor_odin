@@ -15,6 +15,8 @@ import win32 "core:sys/windows"
 foreign import user32 "system:user32.lib"
 foreign import kernel32 "system:kernel32.lib"
 
+WM_UAHDRAWMENU :: 0x0091
+
 @(default_calling_convention = "std")
 foreign user32 {
 	@(link_name="CreateMenu") CreateMenu :: proc() -> win32.HMENU ---
@@ -31,6 +33,28 @@ foreign user32 {
 foreign user32 {
     @(link_name="GlobalLock") GlobalLock :: proc(win32.HGLOBAL) -> win32.LPVOID ---
     @(link_name="GlobalUnlock") GlobalUnlock :: proc(win32.HGLOBAL) -> bool ---
+    @(link_name="GetMenuBarInfo") GetMenuBarInfo :: proc(win32.HWND, u64, win32.LONG, ^WIN32_MENUBARINFO) -> bool ---
+}
+
+WIN32_OBJID_MENU :: 0xFFFFFFFD
+
+WIN32_MENUBARINFO :: struct #packed {
+    cbSize: win32.DWORD,
+    rcBar: win32.RECT,
+    hMenu: win32.HMENU,
+    hwndMenu: win32.HWND,
+    fBarFocused: i32,
+    fFocused: i32,
+    fUnused: i32,
+} 
+
+get_WIN32_MENUBARINFO :: proc() -> WIN32_MENUBARINFO {
+    return WIN32_MENUBARINFO{
+        cbSize = size_of(WIN32_MENUBARINFO),
+        fBarFocused = 1,
+        fFocused = 1,
+        fUnused = 30,
+    }
 }
 
 WIN32_CF_TEXT :: 1
@@ -118,6 +142,18 @@ createWindow :: proc(size: int2) -> (win32.HWND, ^WindowData) {
     )
 
     assert(hwnd != nil)
+
+    //> set instance window show without fade in transition
+    attrib: u32 = 1
+    win32.DwmSetWindowAttribute(hwnd, u32(win32.DWMWINDOWATTRIBUTE.DWMWA_TRANSITIONS_FORCEDISABLED), &attrib, size_of(u32))
+    //<
+
+    //> set window dark mode
+    attrib = 1
+    win32.DwmSetWindowAttribute(hwnd, u32(win32.DWMWINDOWATTRIBUTE.DWMWA_USE_IMMERSIVE_DARK_MODE), &attrib, size_of(u32))
+    darkColor: win32.COLORREF = 0x00505050
+    win32.DwmSetWindowAttribute(hwnd, u32(win32.DWMWINDOWATTRIBUTE.DWMWA_BORDER_COLOR), &darkColor, size_of(win32.COLORREF))
+    //<
 
     win32.ShowWindow(hwnd, win32.SW_SHOWDEFAULT)
 
@@ -287,6 +323,28 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         case IDM_FILE_SAVE:
             SaveToOpenedFile(windowData)
         }
+    // case WM_UAHDRAWMENU:
+    //     // win32.UAHMENU
+    //     menuInfo := get_WIN32_MENUBARINFO()
+
+    //     GetMenuBarInfo(hwnd, WIN32_OBJID_MENU, 0, &menuInfo)
+        
+    //     rcWindow: win32.RECT
+    //     win32.GetWindowRect(hwnd, &rcWindow)
+
+    //     rc := menuInfo.rcBar
+    //     win32.OffsetRect(&rc, -rcWindow.left, -rcWindow.top)
+
+    //     rc.top -= 1
+
+    //     test := win32.CreateSolidBrush(win32.RGB(0,255,0))
+    //     hdc := win32.GetDC(hwnd)
+
+    //     win32.FillRect(hdc, &rc, test)
+    //     win32.DeleteObject(win32.HGDIOBJ(test))
+    //     win32.ReleaseDC(hwnd, hdc)
+
+    //     break
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
     }

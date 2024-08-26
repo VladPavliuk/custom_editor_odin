@@ -6,7 +6,7 @@ import "core:text/edit"
 
 main :: proc() {
     hwnd, windowData := createWindow({ 800, 800 })
-
+    
     directXState := initDirectX(hwnd)
     windowData.directXState = &directXState
     defer clearDirectX(&directXState)
