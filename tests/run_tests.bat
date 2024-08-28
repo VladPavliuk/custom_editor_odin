@@ -1,1 +1,1 @@
-odin test . -define:ODIN_TEST_LOG_LEVEL=debug -debug
+odin test . -debug -define:ODIN_TEST_LOG_LEVEL=debug -define:ODIN_TEST_THREADS=1

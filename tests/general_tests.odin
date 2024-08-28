@@ -1,0 +1,64 @@
+package tests
+
+import "base:intrinsics"
+import "core:testing"
+import "core:sync"
+import "core:thread"
+import "core:log"
+import "core:strings"
+// import "core:debug"
+import "core:os"
+import "core:fmt"
+import "core:time"
+
+import win32 "core:sys/windows"
+
+import main "../"
+
+@(test)
+type_and_save :: proc(t: ^testing.T) {
+    appThread, windowData := startApp()
+
+    text := "all work and no play makes jack a dull boy"
+
+    typeStringOnKeyboard(windowData.parentHwnd, text)
+
+    windowRect: win32.RECT
+    win32.GetWindowRect(windowData.parentHwnd, &windowRect)
+    
+    clickMouse({
+        { windowRect.left + 30, windowRect.top + 50 },
+        { windowRect.left + 30, windowRect.top + 100 },
+    })
+
+    time.sleep(2_000_000_000)
+
+    typeStringOnKeyboard(windowData.parentHwnd, "test1.txt")
+    clickEnter()
+    time.sleep(1_000_000_000)
+
+    testing.expect(t, os.is_file(windowData.openedFilePath), "file was not created")
+    
+    saveFileContent, err := os.read_entire_file_from_filename_or_err(windowData.openedFilePath)
+    testing.expect(t, err == nil, "could not read saved file")
+    defer delete(saveFileContent)
+
+    testing.expect_value(t, string(saveFileContent), text)
+
+    os.remove(windowData.openedFilePath)
+
+    stopApp(appThread, windowData)
+}
+
+@(test)
+just_run_and_close :: proc(t: ^testing.T) {
+    appThread, windowData := startApp()
+
+    text := "all work and no play makes jack a dull boy yeah"
+
+    typeStringOnKeyboard(windowData.parentHwnd, text)
+
+    testing.expect_value(t, strings.to_string(windowData.testInputString), text)
+
+    stopApp(appThread, windowData)
+}

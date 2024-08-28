@@ -102,7 +102,11 @@ WindowData :: struct {
 createWindow :: proc(size: int2) -> ^WindowData {
     hInstance := win32.HINSTANCE(win32.GetModuleHandleA(nil))
     
+    // classNameBuffer: [255]u16
+    // utf16.encode_string(classNameBuffer[:], "class_1")
     wndClassName := win32.utf8_to_wstring("class")
+    // test := "class 1"
+    // wndClassName := cast([^]u16)raw_data(test)
     
     resourceIcon := win32.LoadImageW(hInstance, win32.MAKEINTRESOURCEW(IDI_ICON), 
         win32.IMAGE_ICON, 256, 256, win32.LR_DEFAULTCOLOR)
@@ -118,7 +122,9 @@ createWindow :: proc(size: int2) -> ^WindowData {
     }
 
     res := win32.RegisterClassExW(&wndClass)
-    assert(res != 0)
+   
+    assert(res != 0, fmt.tprintfln("Error: %i", win32.GetLastError()))
+    // defer win32.UnregisterClassW(wndClassName, hInstance)
 
     windowData := new(WindowData)
     mem.zero(windowData, size_of(WindowData))
@@ -229,7 +235,18 @@ removeWindowData :: proc(windowData: ^WindowData) {
     delete(windowData.screenGlyphs.lines)
     edit.destroy(&windowData.inputState)
     strings.builder_destroy(&windowData.testInputString)
-    
+
+    win32.DestroyWindow(windowData.parentHwnd)
+
+    // classNameBuffer: [255]u16
+    // utf16.encode_string(classNameBuffer[:], "class_1")
+    // res := win32.UnregisterClassW(raw_data(classNameBuffer[:]), win32.HINSTANCE(win32.GetModuleHandleA(nil)))
+    // assert(bool(res), fmt.tprintfln("Error: %i", win32.GetLastError()))
+    //test4 := win32.GetLastError()
+
+    res := win32.UnregisterClassW(win32.utf8_to_wstring("class"), win32.HINSTANCE(win32.GetModuleHandleA(nil)))
+    assert(bool(res), fmt.tprintfln("Error: %i", win32.GetLastError()))
+
     free(windowData)
 }
 
