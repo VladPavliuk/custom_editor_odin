@@ -27,13 +27,10 @@ foreign user32 {
 	@(link_name="SetClipboardData") SetClipboardData :: proc(uint, win32.HANDLE) -> win32.HANDLE ---
 	@(link_name="GetClipboardData") GetClipboardData :: proc(uint) -> win32.HANDLE ---
 	@(link_name="CloseClipboard") CloseClipboard :: proc() -> bool ---
-}
-
-@(default_calling_convention = "std")
-foreign user32 {
     @(link_name="GlobalLock") GlobalLock :: proc(win32.HGLOBAL) -> win32.LPVOID ---
     @(link_name="GlobalUnlock") GlobalUnlock :: proc(win32.HGLOBAL) -> bool ---
     @(link_name="GetMenuBarInfo") GetMenuBarInfo :: proc(win32.HWND, u64, win32.LONG, ^WIN32_MENUBARINFO) -> bool ---
+    // @(link_name="CallWndProc") CallWndProc :: proc(int, win32.WPARAM, win32.LPARAM) -> win32.LRESULT ---
 }
 
 WIN32_OBJID_MENU :: 0xFFFFFFFD
@@ -220,7 +217,6 @@ createWindow :: proc(size: int2) -> ^WindowData {
     windowData.parentHwnd = hwnd
 
     windowData.isInputMode = true
-    windowData.windowCreated = true
 
     return windowData
 }
@@ -378,6 +374,9 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
     //     break
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
+    // case win32.WM_ACTIVATEAPP:
+        // win32.SendMessageA(hwnd, 1, 0, 0)
+        // fmt.println(wParam, lParam)
     }
 
     return win32.DefWindowProcA(hwnd, msg, wParam, lParam)

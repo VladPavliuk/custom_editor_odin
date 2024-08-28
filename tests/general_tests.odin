@@ -15,14 +15,44 @@ import win32 "core:sys/windows"
 
 import main "../"
 
-@(test)
-type_and_save :: proc(t: ^testing.T) {
-    appThread, windowData := startApp()
+// @(test)
+// type_and_save :: proc(t: ^testing.T) {
+//     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
+//         return windowData.windowCreated
+//     })
+    
+//     time.sleep(1_000_0000000)
+//     defer stopApp(appThread, windowData.parentHwnd)
+// }
 
-    text := "all work and no play makes jack a dull boy"
+@(test)
+just_run_and_close :: proc(t: ^testing.T) {
+    appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
+        return windowData.windowCreated
+    })
+    defer stopApp(appThread, windowData.parentHwnd)
+
+    text := "all work and no play makes jack a dull boy yeah"
 
     typeStringOnKeyboard(windowData.parentHwnd, text)
 
+    testing.expect_value(t, strings.to_string(windowData.testInputString), text)
+}
+
+@(test)
+type_and_save :: proc(t: ^testing.T) {
+    appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
+        return windowData.windowCreated
+    })
+    defer stopApp(appThread, windowData.parentHwnd)
+
+    text := "all work and no play makes jack a dull boy"
+
+    for i in 0..<4 {
+        
+    typeStringOnKeyboard(windowData.parentHwnd, text)
+
+}
     windowRect: win32.RECT
     win32.GetWindowRect(windowData.parentHwnd, &windowRect)
     
@@ -46,19 +76,5 @@ type_and_save :: proc(t: ^testing.T) {
     testing.expect_value(t, string(saveFileContent), text)
 
     os.remove(windowData.openedFilePath)
-
-    stopApp(appThread, windowData)
 }
 
-@(test)
-just_run_and_close :: proc(t: ^testing.T) {
-    appThread, windowData := startApp()
-
-    text := "all work and no play makes jack a dull boy yeah"
-
-    typeStringOnKeyboard(windowData.parentHwnd, text)
-
-    testing.expect_value(t, strings.to_string(windowData.testInputString), text)
-
-    stopApp(appThread, windowData)
-}

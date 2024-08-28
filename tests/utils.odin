@@ -1,6 +1,7 @@
 package tests
 
 import "base:intrinsics"
+import "base:runtime"
 import "core:testing"
 import "core:sync"
 import "core:thread"
@@ -13,45 +14,86 @@ import "core:time"
 
 import win32 "core:sys/windows"
 
-import main "../"
+foreign import user32 "system:user32.lib"
 
-runApp :: proc(windowDataPtr: ^^main.WindowData, wasWindowCreated: ^bool) {
-    windowData := main.preCreateWindow()
-
-    intrinsics.atomic_store(windowDataPtr, windowData)
-    intrinsics.atomic_store(wasWindowCreated, true)
-    // windowDataPtr^ = windowData
-    // wasWindowCreated^ = true
-
-    main.run(windowData)
+WIN32_CWPSTRUCT :: struct {
+    lParam: win32.LPARAM,
+    wParam: win32.WPARAM,
+    message: win32.UINT,
+    hwnd: win32.HWND,
 }
 
-startApp :: proc() -> (^thread.Thread, ^main.WindowData) {
-    windowData: ^main.WindowData
-    wasWindowCreated := false
-    // fileContent := os.read_entire_file_from_filename_or_err("../test_text_file.txt") or_else panic("Error while reading file")
+@(default_calling_convention = "std")
+foreign user32 {
+    @(link_name="GetWindowThreadProcessId") GetWindowThreadProcessId :: proc(win32.HWND, win32.LPDWORD) ---
+}
 
-    appThread := thread.create_and_start_with_poly_data2(&windowData, &wasWindowCreated, runApp, context)
+import main "../"
 
-    for !intrinsics.atomic_load(&wasWindowCreated) {}
+appWinHook: win32.HHOOK
+isAppActive: bool = true
 
-    windowData = intrinsics.atomic_load(&windowData)
+startApp :: proc(whenReady: proc (^$T) -> bool) -> (^thread.Thread, ^T) {
+    appThread := thread.create_and_start(main.main, context)
+
+    hwnd: win32.HWND = nil
+
+    for hwnd == nil {
+        wndClassName := win32.utf8_to_wstring("class")
+        hwnd = win32.FindWindowW(wndClassName, nil)
+    }
+
+    windowDataPtr := uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA))
+
+    assert(windowDataPtr != 0, "Window related data must be defined")
+
+    windowData := (^T)(windowDataPtr)
+
+    for !whenReady(windowData) {}
+
+    appWinHook = win32.SetWindowsHookExW(win32.WH_CALLWNDPROC, appWinHookCallback, nil, u32(appThread.id))
+
+    // threadId: u32
+    // GetWindowThreadProcessId(hwnd, &threadId)
 
     return appThread, windowData
 }
 
-stopApp :: proc(appThread: ^thread.Thread, windowData: ^main.WindowData) {
-    win32.SendMessageW(windowData.parentHwnd, win32.WM_DESTROY, 0, 0)
+stopApp :: proc(appThread: ^thread.Thread, hwnd: win32.HWND) {
+    win32.UnhookWindowsHookEx(appWinHook)
 
+    win32.SendMessageW(hwnd, win32.WM_DESTROY, 0, 0)
+
+    // win32.DestroyWindow(hwnd)
     for !thread.is_done(appThread) { }
 
     thread.join(appThread)
     thread.destroy(appThread)
 }
 
+appWinHookCallback :: proc "stdcall" (code: win32.c_int, wParam: win32.WPARAM, lParam: win32.LPARAM) -> win32.LRESULT {
+    context = runtime.default_context()
+    
+    if code == 0 {
+        event := (^WIN32_CWPSTRUCT)(uintptr(lParam))
+
+        switch event.message {
+        case win32.WM_ACTIVATE:
+            sync.atomic_store(&isAppActive, event.wParam == 1)
+        case win32.WM_ACTIVATEAPP:
+            sync.atomic_store(&isAppActive, event.wParam == 1)
+        }
+    }
+
+    return win32.CallNextHookEx(appWinHook, code, wParam, lParam)
+}
+
+stopIfAppNotActive :: proc() {
+    if !sync.atomic_load(&isAppActive) { panic("App lost focus!") }
+}
+
 typeStringOnKeyboard :: proc(hwnd: win32.HWND, stringToType: string) {
     for char in stringToType {
-        time.sleep(1_000_000) // if it's less then 1ms, then it seems it's iggnored?
         typeSymbol(hwnd, char)        
     }
     
@@ -67,6 +109,8 @@ clickMouse_Multiple :: proc(points: [][2]i32) {
 }
 
 clickMouse_Single :: proc(x, y: i32) {
+    stopIfAppNotActive()
+    
     screenX := f32(x) * 65536.0 / f32(win32.GetSystemMetrics(win32.SM_CXSCREEN))
     screenY := f32(y) * 65536.0 / f32(win32.GetSystemMetrics(win32.SM_CYSCREEN))
 
@@ -94,6 +138,8 @@ clickMouse_Single :: proc(x, y: i32) {
 }
 
 moveMouse :: proc(x, y: i32) {
+    stopIfAppNotActive()
+
     screenX := f32(x) * 65536.0 / f32(win32.GetSystemMetrics(win32.SM_CXSCREEN))
     screenY := f32(y) * 65536.0 / f32(win32.GetSystemMetrics(win32.SM_CYSCREEN))
 
@@ -140,6 +186,9 @@ typeSymbol :: proc(hwnd: win32.HWND, symbol: rune) {
         },
     }
 
+    time.sleep(10_000_000) // if it's less then 1ms, then it seems it's iggnored?
+    stopIfAppNotActive()
+
     win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
     // 1638401
     // win32.SendMessageW(hwnd, win32.WM_KEYDOWN, (win32.WPARAM)(symbol), 2293761)
@@ -147,6 +196,8 @@ typeSymbol :: proc(hwnd: win32.HWND, symbol: rune) {
 }
 
 clickEnter :: proc() {
+    stopIfAppNotActive()
+
     input := []win32.INPUT {
         {
             type = win32.INPUT_TYPE.KEYBOARD,
