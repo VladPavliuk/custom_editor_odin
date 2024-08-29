@@ -272,7 +272,9 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
     case win32.VK_A:
         edit.perform_command(&windowData.inputState, edit.Command.Select_All)
     case win32.VK_C:
-        edit.perform_command(&windowData.inputState, edit.Command.Copy)
+        if edit.has_selection(&windowData.inputState) {
+            edit.perform_command(&windowData.inputState, edit.Command.Copy)
+        }
     case win32.VK_V:
         edit.perform_command(&windowData.inputState, edit.Command.Paste)
     case win32.VK_X:
