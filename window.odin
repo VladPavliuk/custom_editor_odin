@@ -6,6 +6,7 @@ import "core:text/edit"
 import "core:os"
 import "core:mem"
 import "core:fmt"
+import "core:unicode/utf8"
 
 import "vendor:directx/d3d11"
 import "core:unicode/utf16"
@@ -14,6 +15,7 @@ import win32 "core:sys/windows"
 
 foreign import user32 "system:user32.lib"
 foreign import kernel32 "system:kernel32.lib"
+foreign import shell32 "system:shell32.lib"
 
 WM_UAHDRAWMENU :: 0x0091
 
@@ -31,6 +33,11 @@ foreign user32 {
     @(link_name="GlobalUnlock") GlobalUnlock :: proc(win32.HGLOBAL) -> bool ---
     @(link_name="GetMenuBarInfo") GetMenuBarInfo :: proc(win32.HWND, u64, win32.LONG, ^WIN32_MENUBARINFO) -> bool ---
     // @(link_name="CallWndProc") CallWndProc :: proc(int, win32.WPARAM, win32.LPARAM) -> win32.LRESULT ---
+}
+
+@(default_calling_convention = "std")
+foreign shell32 {
+    SHCreateItemFromParsingName :: proc(win32.PCWSTR, ^win32.IBindCtx, win32.REFIID, rawptr) -> win32.HRESULT ---
 }
 
 WIN32_OBJID_MENU :: 0xFFFFFFFD
@@ -194,7 +201,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
     windowData.testInputString = strings.builder_make()
 
     windowData.screenGlyphs.lineIndex = 0
-    // fileContent := os.read_entire_file_from_filename("../test_text_file.txt") or_else panic("Failed to read file")
+    // fileContent := os.read_entire_file_from_filename("../test_data/test_text_file.txt") or_else panic("Failed to read file")
     // originalFileText := string(fileContent[:])
    
     // //TODO: add handling Window's \r\n staff
@@ -322,7 +329,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         switch menuItemId {
         case IDM_FILE_OPEN:
-            filePath, ok := ShowOpenFileDialog(windowData)
+            filePath, ok := showOpenFileDialog(windowData)
             if !ok { break }
 
             windowData.openedFilePath = filePath
@@ -344,11 +351,11 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
             windowData.inputState.selection = { 0, 0 }
             windowData.screenGlyphs.lineIndex = 0
         case IDM_FILE_SAVE_AS:
-            ok := ShowSaveAsFileDialog(windowData)
+            ok := showSaveAsFileDialog(windowData)
 
             if !ok { break }
         case IDM_FILE_SAVE:
-            SaveToOpenedFile(windowData)
+            saveToOpenedFile(windowData)
         }
     // case WM_UAHDRAWMENU:
     //     // win32.UAHMENU
@@ -380,90 +387,6 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
     }
 
     return win32.DefWindowProcA(hwnd, msg, wParam, lParam)
-}
-
-SaveToOpenedFile :: proc(windowData: ^WindowData) -> (success: bool) {
-    if len(windowData.openedFilePath) > 0 {
-        err := os.write_entire_file_or_err(windowData.openedFilePath, windowData.testInputString.buf[:])
-        assert(err == nil)
-    } else {
-        ShowSaveAsFileDialog(windowData)
-    }
-
-    return true
-}
-
-ShowSaveAsFileDialog :: proc(windowData: ^WindowData) -> (success: bool) {
-    hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
-    assert(hr == 0)
-    defer win32.CoUninitialize()
-
-    pFileSave: ^win32.IFileSaveDialog
-    hr = win32.CoCreateInstance(win32.CLSID_FileSaveDialog, nil, 
-        win32.CLSCTX_INPROC_SERVER | win32.CLSCTX_INPROC_HANDLER | win32.CLSCTX_LOCAL_SERVER | win32.CLSCTX_REMOTE_SERVER, 
-        win32.IID_IFileSaveDialog, 
-        cast(^win32.LPVOID)(&pFileSave))
-    assert(hr == 0)
-    defer pFileSave->Release()
-
-    hr = pFileSave->Show(windowData.parentHwnd)
-    if hr != 0 { return false }
-
-    shellItem: ^win32.IShellItem
-    pFileSave->GetResult(&shellItem)
-    defer shellItem->Release()
-
-    filePathW: win32.LPWSTR
-    shellItem->GetDisplayName(win32.SIGDN.FILESYSPATH, &filePathW)
-    defer win32.CoTaskMemFree(filePathW)
-
-    filePath, _ := win32.wstring_to_utf8(filePathW, -1)
-
-    err := os.write_entire_file_or_err(filePath, windowData.testInputString.buf[:])
-    assert(err == nil)
-
-    windowData.openedFilePath = filePath
-
-    return true
-}
-
-ShowOpenFileDialog :: proc(windowData: ^WindowData) -> (res: string, success: bool) {
-    hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
-    assert(hr == 0)
-    defer win32.CoUninitialize()
-
-    pFileOpen: ^win32.IFileOpenDialog
-    hr = win32.CoCreateInstance(win32.CLSID_FileOpenDialog, nil, 
-        win32.CLSCTX_INPROC_SERVER | win32.CLSCTX_INPROC_HANDLER | win32.CLSCTX_LOCAL_SERVER | win32.CLSCTX_REMOTE_SERVER, 
-        win32.IID_IFileOpenDialog, 
-        cast(^win32.LPVOID)(&pFileOpen))
-    assert(hr == 0)
-    defer pFileOpen->Release()
-
-    fileTypes: []win32.COMDLG_FILTERSPEC = {
-        { win32.utf8_to_wstring("All Files"), win32.utf8_to_wstring("*") },
-        { win32.utf8_to_wstring("Text files (*.txt | *.odin)"), win32.utf8_to_wstring("*.txt;*.odin") },
-    }
-
-    hr = pFileOpen->SetFileTypes(u32(len(fileTypes)), raw_data(fileTypes[:]))
-    assert(hr == 0)
-
-    hr = pFileOpen->Show(windowData.parentHwnd)
-    if hr != 0 { return }
-
-    pItem: ^win32.IShellItem
-    hr = pFileOpen->GetResult(&pItem)
-    assert(hr == 0)
-    defer pItem->Release()
-
-    pszFilePath: ^u16
-    hr = pItem->GetDisplayName(win32.SIGDN.FILESYSPATH, &pszFilePath)
-    assert(hr == 0)
-    defer win32.CoTaskMemFree(pszFilePath)
-    
-    resStr, err := win32.wstring_to_utf8(win32.wstring(pszFilePath), -1)
-
-    return resStr, err == nil
 }
 
 @(private="file") 
@@ -629,7 +552,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
             edit.perform_command(&windowData.inputState, edit.Command.Undo)
         }
     case win32.VK_S:
-        SaveToOpenedFile(windowData)
+        saveToOpenedFile(windowData)
     }
 }
 
