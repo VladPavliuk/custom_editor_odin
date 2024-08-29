@@ -134,7 +134,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
 
     windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
 
-    windowData.editorPadding = { top = 0, bottom = 0, left = 0, right = 0 }
+    windowData.editorPadding = { top = 0, bottom = 0, left = 50, right = 0 }
 
     windowData.text = strings.builder_make()
 
