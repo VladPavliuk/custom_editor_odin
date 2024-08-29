@@ -14,7 +14,7 @@ FontGlyphGpu :: struct #packed {
 
 FontChar :: struct {
     rect: Rect,
-    offset: float2,
+    offset: int2,
     xAdvance: f32,
 }
 
@@ -153,12 +153,12 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
 
         fontData.chars[char] = FontChar{
             rect = Rect{
-                top = f32(y + gh),
-                bottom = f32(y),
-                left = f32(x),
-                right = f32(x + gw),
+                top = y + gh,
+                bottom = y,
+                left = x,
+                right = x + gw,
             },
-            offset = { f32(x0), f32(y0) },
+            offset = { x0, y0 },
             xAdvance = fontData.scale * f32(advance),
         }
 

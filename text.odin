@@ -7,7 +7,11 @@ findCursorPosition :: proc(windowData: ^WindowData) {
     getCursorPosition :: proc(windowData: ^WindowData) -> int {
         stringToRender := strings.to_string(windowData.text)
 
-        lineIndex := i16(windowData.mousePosition.y / windowData.font.lineHeight) + i16(windowData.screenGlyphs.lineIndex)
+        mousePosition: int2 = {
+            i32(windowData.mousePosition.x) - windowData.editorPadding.left,
+            i32(windowData.mousePosition.y) - windowData.editorPadding.top,
+        }
+        lineIndex := i16(f32(mousePosition.y) / windowData.font.lineHeight) + i16(windowData.screenGlyphs.lineIndex)
         
         // if user clicks lower on the screen where text was rendered take last line
         lineIndex = min(i16(len(windowData.screenGlyphs.lines) - 1), lineIndex)
@@ -22,7 +26,7 @@ findCursorPosition :: proc(windowData: ^WindowData) {
             
             fontChar := windowData.font.chars[char]
             
-            if windowData.mousePosition.x < cursor {
+            if f32(mousePosition.x) < cursor {
                 return int(byteIndex)
             }
     
@@ -132,13 +136,28 @@ updateCusrorData :: proc(windowData: ^WindowData) {
     }
 }
 
+validateTopLine :: proc(windowData: ^WindowData) {
+    windowData.screenGlyphs.lineIndex = max(0, windowData.screenGlyphs.lineIndex)
+    windowData.screenGlyphs.lineIndex = min(i32(len(windowData.screenGlyphs.lines) - 1), windowData.screenGlyphs.lineIndex)
+}
+
+jumpToCursor :: proc(windowData: ^WindowData, cursorLineIndex: i32) {
+    maxLinesOnScreen := i32(f32(getEditorSize(windowData).y) / windowData.font.lineHeight)
+
+    if cursorLineIndex < windowData.screenGlyphs.lineIndex {
+        windowData.screenGlyphs.lineIndex = cursorLineIndex
+    } else if cursorLineIndex >= windowData.screenGlyphs.lineIndex + maxLinesOnScreen {
+        windowData.screenGlyphs.lineIndex = cursorLineIndex - maxLinesOnScreen + 1
+    }
+}
+
 calculateLines :: proc(windowData: ^WindowData) {
     clear(&windowData.screenGlyphs.lines)
     stringToRender := strings.to_string(windowData.text)
     stringLength := len(stringToRender)
  
     cursor: f32 = 0.0
-    windowWidth := f32(windowData.size.x)
+    lineWidth := f32(getEditorSize(windowData).x)
     lineBoundaryIndexes: int2 = { 0, 0 }
     
     for charIndex := 0; charIndex < stringLength; {
@@ -158,7 +177,7 @@ calculateLines :: proc(windowData: ^WindowData) {
         cursor += fontChar.xAdvance
 
         // text wrapping
-        if cursor >= windowWidth {
+        if cursor >= lineWidth {
             cursor = 0.0
 
             // since we do text wrapping, line should end on the previous symbol

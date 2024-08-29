@@ -11,8 +11,8 @@ float4 :: distinct [4]f32
 mat4 :: distinct matrix[4, 4]f32
 
 Rect :: struct {
-    top: f32,
-    bottom: f32,
-    left: f32,
-    right: f32,
+    top: i32,
+    bottom: i32,
+    left: i32,
+    right: i32,
 }

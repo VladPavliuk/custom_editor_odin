@@ -57,6 +57,10 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         windowSizeChangedHandler(windowData, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top)
 
+        calculateLines(windowData)
+        updateCusrorData(windowData)
+        validateTopLine(windowData)
+
         // NOTE: while resizing we only get resize message, so we can't redraw from main loop, so we do it explicitlly
         render(windowData.directXState, windowData)
     case win32.WM_KEYDOWN:
@@ -66,17 +70,23 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         if windowData.wasInputSymbolTyped && windowData.isInputMode {
             edit.input_rune(&windowData.inputState, rune(wParam))
+            
+            calculateLines(windowData)
+            updateCusrorData(windowData)
+            jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
         }
     case win32.WM_MOUSEWHEEL:
         windowData := getWindowData(hwnd)
 
         yoffset := win32.GET_WHEEL_DELTA_WPARAM(wParam)
 
-        if yoffset > 10 && windowData.screenGlyphs.lineIndex > 0 {
+        if yoffset > 10 {
             windowData.screenGlyphs.lineIndex -= 1
         } else if yoffset < -10 {
             windowData.screenGlyphs.lineIndex += 1
         }
+
+        validateTopLine(windowData)
     case win32.WM_COMMAND:        
         windowData := getWindowData(hwnd)
 
@@ -220,24 +230,12 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
             }
         }
     case win32.VK_UP:
-        if windowData.screenGlyphs.cursorLineIndex <= windowData.screenGlyphs.lineIndex && 
-            windowData.screenGlyphs.lineIndex > 0 {
-            windowData.screenGlyphs.lineIndex -= 1
-        }
-
         if isShiftPressed() {
             edit.perform_command(&windowData.inputState, edit.Command.Select_Up)
         } else {
             edit.move_to(&windowData.inputState, edit.Translation.Up)
         }
     case win32.VK_DOWN:
-        maxLinesOnScreen := i32(f32(windowData.size.y) / windowData.font.lineHeight)
-
-        if windowData.screenGlyphs.cursorLineIndex >= windowData.screenGlyphs.lineIndex + maxLinesOnScreen - 1 {
-            windowData.screenGlyphs.lineIndex += 1
-            // windowData.screenGlyphs.lineIndex = max(windowData.screenGlyphs.lineIndex + maxLinesOnScreen, windowData.screenGlyphs.lineIndex)
-        }
-
         if isShiftPressed() {
             edit.perform_command(&windowData.inputState, edit.Command.Select_Down)
         } else {
@@ -249,19 +247,23 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         } else {
             edit.perform_command(&windowData.inputState, edit.Command.Backspace)
         }
-    case win32.VK_DELETE:
+    case win32.VK_DELETE:        
         if isCtrlPressed() {
             edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Right)
         } else {
             edit.perform_command(&windowData.inputState, edit.Command.Delete)
         }
     case win32.VK_HOME:
+        jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
+
         if isShiftPressed() {
             edit.perform_command(&windowData.inputState, edit.Command.Select_Line_Start)
         } else {
             edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
         }
     case win32.VK_END:
+        jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
+
         if isShiftPressed() {
             edit.perform_command(&windowData.inputState, edit.Command.Select_Line_End)
         } else {
@@ -284,12 +286,23 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
     case win32.VK_S:
         saveToOpenedFile(windowData)
     }
+
+    switch wParam {
+    case win32.VK_RETURN, win32.VK_TAB,
+        win32.VK_LEFT, win32.VK_RIGHT, win32.VK_UP, win32.VK_DOWN,
+        win32.VK_BACK, win32.VK_DELETE,
+        win32.VK_V, win32.VK_X, win32.VK_Z:
+            calculateLines(windowData)
+            updateCusrorData(windowData)
+            jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
+    }
 }
 
 windowSizeChangedHandler :: proc "c" (windowData: ^WindowData, width, height: i32) {
     context = runtime.default_context()
 
     windowData.size = { width, height }
+
     directXState := windowData.directXState
 
     directXState.ctx->OMSetRenderTargets(0, nil, nil)

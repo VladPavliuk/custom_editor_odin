@@ -4,7 +4,7 @@ cbuffer viewProjectionCB : register(b0)
 };
 
 struct FontGlyph {
-    float4 sourceRect;
+    int4 sourceRect;
     float4x4 targetTransformation;
 };
 

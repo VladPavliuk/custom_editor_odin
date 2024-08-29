@@ -7,6 +7,7 @@ import "base:intrinsics"
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import "core:unicode/utf8"
+import "core:fmt"
 
 import "core:time"
 import "core:math"
@@ -49,10 +50,9 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     elapsed := time.duration_microseconds(timer._accumulation)
     timeElapsedTotal += elapsed
     timeElapsedCount += 1
-    // fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
+    fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
     
     renderText(directXState, windowData, glyphsCount, selectionsCount)
-    // renderCursor(directXState, windowData)
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)
@@ -79,8 +79,8 @@ renderRect :: proc(directXState: ^DirectXState, position, size: float2, zValue: 
     directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
 }
 
-renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, position: float2) {
-    renderRect(directXState, position, { 3.0, windowData.font.lineHeight }, -1.0, { 0.0, 0.0, 0.0, 1.0 })
+renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, position: int2) {
+    renderRect(directXState, { f32(position.x), f32(position.y) }, { 3.0, windowData.font.lineHeight }, -1.0, { 0.0, 0.0, 0.0, 1.0 })
 }
 
 fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> (i32, i32) {
@@ -95,7 +95,9 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     topLine := windowData.screenGlyphs.lineIndex
     bottomLine := i32(len(windowData.screenGlyphs.lines))
 
-    topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight)
+    editorSize := getEditorSize(windowData)
+
+    topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
 
     glyphsCount := 0
     selectionsCount := 0
@@ -106,12 +108,12 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     }
     
     for lineIndex in topLine..<bottomLine {
-        if topOffset < -f32(windowData.size.y) / 2 {
+        if topOffset < -f32(editorSize.y) / 2 {
             break
         }
         line := windowData.screenGlyphs.lines[lineIndex]
 
-        leftOffset: f32 = -f32(windowData.size.x) / 2.0
+        leftOffset: f32 = -f32(windowData.size.x) / 2.0 + f32(windowData.editorPadding.left)
         byteIndex := line.x
         for byteIndex <= line.y {
             // TODO: add RUNE_ERROR hndling
@@ -120,8 +122,8 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
             defer byteIndex += i32(charSize)
 
             xOffsetToNextChar: f32
-            glyphSize: float2
-            glyphPosition: float2
+            glyphSize: int2
+            glyphPosition: int2
             fontBitmapRect: Rect
 
             switch char {
@@ -133,14 +135,14 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
                 glyphSize = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
                 glyphSize.x *= 4.0
 
-                glyphPosition = { leftOffset + fontChar.offset.x, topOffset - glyphSize.y - fontChar.offset.y }
+                glyphPosition = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
                 fontBitmapRect = fontChar.rect
             case:
                 fontChar := windowData.font.chars[char]
                 xOffsetToNextChar = fontChar.xAdvance
 
                 glyphSize = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-                glyphPosition = { leftOffset + fontChar.offset.x, topOffset - glyphSize.y - fontChar.offset.y }
+                glyphPosition = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
                 fontBitmapRect = fontChar.rect
             }
 
@@ -162,9 +164,9 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
             }
 
             modelMatrix := getTransformationMatrix(
-                { glyphPosition.x, glyphPosition.y, 0.0 }, 
+                { f32(glyphPosition.x), f32(glyphPosition.y), 0.0 }, 
                 { 0.0, 0.0, 0.0 }, 
-                { glyphSize.x, glyphSize.y, 1.0 },
+                { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
             )
             
             fontsList[glyphsCount] = FontGlyphGpu{

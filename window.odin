@@ -35,7 +35,10 @@ WindowData :: struct {
     font: FontData,
 
     isInputMode: bool,
+
     text: strings.Builder,
+    editorPadding: Rect,
+
     inputState: edit.State,
     screenGlyphs: ScreenGlyphs,
 }
@@ -100,11 +103,6 @@ createWindow :: proc(size: int2) -> ^WindowData {
 
     win32.ShowWindow(hwnd, win32.SW_SHOWDEFAULT)
 
-    clientRect: win32.RECT
-    win32.GetClientRect(hwnd, &clientRect)
-
-    windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
-    
     //> create top bar
     {
         windowMenubar := CreateMenu()
@@ -130,6 +128,13 @@ createWindow :: proc(size: int2) -> ^WindowData {
         win32.SetMenu(hwnd, windowMenubar)
     }
     //<
+
+    clientRect: win32.RECT
+    win32.GetClientRect(hwnd, &clientRect)
+
+    windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
+
+    windowData.editorPadding = { top = 0, bottom = 0, left = 0, right = 0 }
 
     windowData.text = strings.builder_make()
 
@@ -178,4 +183,11 @@ removeWindowData :: proc(windowData: ^WindowData) {
     assert(bool(res), fmt.tprintfln("Error: %i", win32.GetLastError()))
 
     free(windowData)
+}
+
+getEditorSize :: proc(windowData: ^WindowData) -> int2 {
+    return {
+        windowData.size.x - windowData.editorPadding.left - windowData.editorPadding.right,
+        windowData.size.y - windowData.editorPadding.top - windowData.editorPadding.bottom,
+    }
 }
