@@ -9,7 +9,6 @@ import "vendor:directx/dxgi"
 import "core:unicode/utf8"
 
 import "core:time"
-import "core:fmt"
 import "core:math"
 
 render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {

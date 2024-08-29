@@ -6,7 +6,6 @@ import "core:text/edit"
 import "core:os"
 import "core:mem"
 import "core:fmt"
-import "core:unicode/utf8"
 
 import "vendor:directx/d3d11"
 import "core:unicode/utf16"
@@ -14,7 +13,6 @@ import "core:unicode/utf16"
 import win32 "core:sys/windows"
 
 foreign import user32 "system:user32.lib"
-foreign import kernel32 "system:kernel32.lib"
 foreign import shell32 "system:shell32.lib"
 
 WM_UAHDRAWMENU :: 0x0091
@@ -229,7 +227,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
 }
 
 removeWindowData :: proc(windowData: ^WindowData) {
-    for glyph, kerning in windowData.font.kerningTable {
+    for _, kerning in windowData.font.kerningTable {
         delete(kerning)
     }
     delete(windowData.font.kerningTable)
@@ -240,12 +238,6 @@ removeWindowData :: proc(windowData: ^WindowData) {
     strings.builder_destroy(&windowData.testInputString)
 
     win32.DestroyWindow(windowData.parentHwnd)
-
-    // classNameBuffer: [255]u16
-    // utf16.encode_string(classNameBuffer[:], "class_1")
-    // res := win32.UnregisterClassW(raw_data(classNameBuffer[:]), win32.HINSTANCE(win32.GetModuleHandleA(nil)))
-    // assert(bool(res), fmt.tprintfln("Error: %i", win32.GetLastError()))
-    //test4 := win32.GetLastError()
 
     res := win32.UnregisterClassW(win32.utf8_to_wstring("class"), win32.HINSTANCE(win32.GetModuleHandleA(nil)))
     assert(bool(res), fmt.tprintfln("Error: %i", win32.GetLastError()))
@@ -357,33 +349,8 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         case IDM_FILE_SAVE:
             saveToOpenedFile(windowData)
         }
-    // case WM_UAHDRAWMENU:
-    //     // win32.UAHMENU
-    //     menuInfo := get_WIN32_MENUBARINFO()
-
-    //     GetMenuBarInfo(hwnd, WIN32_OBJID_MENU, 0, &menuInfo)
-        
-    //     rcWindow: win32.RECT
-    //     win32.GetWindowRect(hwnd, &rcWindow)
-
-    //     rc := menuInfo.rcBar
-    //     win32.OffsetRect(&rc, -rcWindow.left, -rcWindow.top)
-
-    //     rc.top -= 1
-
-    //     test := win32.CreateSolidBrush(win32.RGB(0,255,0))
-    //     hdc := win32.GetDC(hwnd)
-
-    //     win32.FillRect(hdc, &rc, test)
-    //     win32.DeleteObject(win32.HGDIOBJ(test))
-    //     win32.ReleaseDC(hwnd, hdc)
-
-    //     break
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
-    // case win32.WM_ACTIVATEAPP:
-        // win32.SendMessageA(hwnd, 1, 0, 0)
-        // fmt.println(wParam, lParam)
     }
 
     return win32.DefWindowProcA(hwnd, msg, wParam, lParam)

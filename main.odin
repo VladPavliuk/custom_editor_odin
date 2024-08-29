@@ -1,7 +1,6 @@
 package main
 
 import win32 "core:sys/windows"
-import "core:log"
 import "core:text/edit"
 
 main :: proc() {

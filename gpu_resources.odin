@@ -8,10 +8,6 @@ import "base:runtime"
 
 import "core:mem"
 
-import "core:unicode/utf16"
-
-import win32 "core:sys/windows"
-
 TextureType :: enum {
     FONT,
 }

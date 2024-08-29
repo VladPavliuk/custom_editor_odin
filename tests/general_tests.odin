@@ -2,13 +2,8 @@ package tests
 
 import "base:intrinsics"
 import "core:testing"
-import "core:sync"
-import "core:thread"
-import "core:log"
 import "core:strings"
-// import "core:debug"
 import "core:os"
-import "core:fmt"
 import "core:time"
 
 import win32 "core:sys/windows"

@@ -2,14 +2,8 @@ package tests
 
 import "base:intrinsics"
 import "base:runtime"
-import "core:testing"
 import "core:sync"
 import "core:thread"
-import "core:log"
-import "core:strings"
-// import "core:debug"
-import "core:os"
-import "core:fmt"
 import "core:time"
 
 import win32 "core:sys/windows"
@@ -130,11 +124,10 @@ clickMouse_Single :: proc(x, y: i32) {
                 dy = win32.LONG(screenY),
                 dwFlags = 0x0001 | 0x0004 | 0x8000, // MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTUP | MOUSEEVENTF_ABSOLUTE
             },
-        }
+        },
     }
 
     win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
-    // assert(res == 0, fmt.tprintfln("Error: %i", win32.GetLastError()))
 }
 
 moveMouse :: proc(x, y: i32) {
@@ -151,24 +144,18 @@ moveMouse :: proc(x, y: i32) {
                 dy = win32.LONG(screenY),
                 dwFlags = 0x0001 | 0x8000, // MOUSEEVENTF_MOVE | MOUSEEVENTF_ABSOLUTE
             },
-        }
+        },
     }
 
     win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
-    // assert(res == 0, fmt.tprintfln("Error: %i", win32.GetLastError()))
 }
 
 typeSymbol :: proc(hwnd: win32.HWND, symbol: rune) {
     char := u16(symbol)
 
-    flags := 0
-    // if char >= 33 && char <= 96 {}
     if char >= 97 && char <= 122 {
         char -= 32
-        // flags
     }
-
-    // win32.VK_SHIFT
 
     input := []win32.INPUT {
         {
@@ -190,9 +177,6 @@ typeSymbol :: proc(hwnd: win32.HWND, symbol: rune) {
     stopIfAppNotActive()
 
     win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
-    // 1638401
-    // win32.SendMessageW(hwnd, win32.WM_KEYDOWN, (win32.WPARAM)(symbol), 2293761)
-    // win32.SendMessageW(hwnd, win32.WM_CHAR, (win32.WPARAM)(symbol), 2293761)
 }
 
 clickEnter :: proc() {
