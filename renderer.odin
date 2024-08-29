@@ -114,37 +114,23 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
         line := windowData.screenGlyphs.lines[lineIndex]
 
         leftOffset: f32 = -f32(windowData.size.x) / 2.0 + f32(windowData.editorPadding.left)
+        
+        if lineIndex == windowData.screenGlyphs.cursorLineIndex {
+            renderRect(directXState, { leftOffset, topOffset }, { f32(editorSize.x), windowData.font.lineHeight }, 2.0, { 1.0, 1.0, 1.0, 0.1 })
+        }
+
         byteIndex := line.x
         for byteIndex <= line.y {
-            // TODO: add RUNE_ERROR hndling
+            // TODO: add RUNE_ERROR handling
             char, charSize := utf8.decode_rune(stringToRender[byteIndex:])
 
             defer byteIndex += i32(charSize)
 
-            xOffsetToNextChar: f32
-            glyphSize: int2
-            glyphPosition: int2
-            fontBitmapRect: Rect
+            fontChar := windowData.font.chars[char]
 
-            switch char {
-            case '\t':
-                fontChar := windowData.font.chars[' ']
-                xOffsetToNextChar = fontChar.xAdvance
-                xOffsetToNextChar *= 4.0
-
-                glyphSize = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-                glyphSize.x *= 4.0
-
-                glyphPosition = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
-                fontBitmapRect = fontChar.rect
-            case:
-                fontChar := windowData.font.chars[char]
-                xOffsetToNextChar = fontChar.xAdvance
-
-                glyphSize = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-                glyphPosition = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
-                fontBitmapRect = fontChar.rect
-            }
+            glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
+            glyphPosition: int2= { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
+            fontBitmapRect := fontChar.rect
 
             if int(byteIndex) == windowData.inputState.selection[0] {
                 renderCursor(directXState, windowData, glyphPosition)
@@ -158,7 +144,7 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
                 rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
                     { leftOffset, topOffset, 1.0 }, 
                     { 0.0, 0.0, 0.0 }, 
-                    { xOffsetToNextChar, windowData.font.lineHeight + windowData.font.descent, 1.0 },
+                    { fontChar.xAdvance, windowData.font.lineHeight, 1.0 },
                 ))
                 selectionsCount += 1
             }
@@ -175,7 +161,7 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
             }
             glyphsCount += 1
         
-            leftOffset += xOffsetToNextChar
+            leftOffset += fontChar.xAdvance
         }
         
         topOffset -= windowData.font.lineHeight

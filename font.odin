@@ -178,5 +178,14 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
         fontData.kerningTable[aChar] = glyphKernings
     }
 
+    // TODO: make this behaviour configurable
+    // NOTE: Since tab symbol has a weird glyph sometimes, just rewrite visual part of it by space glyph
+    tabGlyph := fontData.chars['\t']
+
+    tabGlyph.offset = fontData.chars[' '].offset
+    tabGlyph.rect = fontData.chars[' '].rect
+
+    fontData.chars['\t'] = tabGlyph
+
     return fontData
 }
