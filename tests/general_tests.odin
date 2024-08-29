@@ -48,11 +48,8 @@ type_and_save :: proc(t: ^testing.T) {
 
     text := "all work and no play makes jack a dull boy"
 
-    for i in 0..<4 {
-        
     typeStringOnKeyboard(windowData.parentHwnd, text)
 
-}
     windowRect: win32.RECT
     win32.GetWindowRect(windowData.parentHwnd, &windowRect)
     
