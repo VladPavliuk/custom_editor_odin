@@ -194,10 +194,10 @@ renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) 
     lineNumberStrBuffer: [255]byte
     glyphsCount := 0
     
-    firstNumber := windowData.screenGlyphs.lineIndex
+    firstNumber := windowData.screenGlyphs.lineIndex + 1
     lastNumber := min(i32(len(windowData.screenGlyphs.lines)), windowData.screenGlyphs.lineIndex + maxLinesOnScreen)
 
-    for lineIndex in firstNumber..<lastNumber {
+    for lineIndex in firstNumber..=lastNumber {
         lineNumberStr := strconv.itoa(lineNumberStrBuffer[:], int(lineIndex))
 
         leftOffset := -f32(windowData.size.x) / 2.0
