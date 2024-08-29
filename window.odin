@@ -35,7 +35,7 @@ WindowData :: struct {
     font: FontData,
 
     isInputMode: bool,
-    testInputString: strings.Builder,
+    text: strings.Builder,
     inputState: edit.State,
     screenGlyphs: ScreenGlyphs,
 }
@@ -131,7 +131,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
     }
     //<
 
-    windowData.testInputString = strings.builder_make()
+    windowData.text = strings.builder_make()
 
     windowData.screenGlyphs.lineIndex = 0
     // fileContent := os.read_entire_file_from_filename("../test_data/test_text_file.txt") or_else panic("Failed to read file")
@@ -144,10 +144,10 @@ createWindow :: proc(size: int2) -> ^WindowData {
     //     delete(fileContent)
     // }
 
-    // strings.write_string(&windowData.testInputString, testText)
+    // strings.write_string(&windowData.text, testText)
     
     edit.init(&windowData.inputState, context.allocator, context.allocator)
-    edit.setup_once(&windowData.inputState, &windowData.testInputString)
+    edit.setup_once(&windowData.inputState, &windowData.text)
     windowData.inputState.selection = { 0, 0 }
 
     windowData.inputState.set_clipboard = putTextIntoClipboard
@@ -170,7 +170,7 @@ removeWindowData :: proc(windowData: ^WindowData) {
 
     delete(windowData.screenGlyphs.lines)
     edit.destroy(&windowData.inputState)
-    strings.builder_destroy(&windowData.testInputString)
+    strings.builder_destroy(&windowData.text)
 
     win32.DestroyWindow(windowData.parentHwnd)
 

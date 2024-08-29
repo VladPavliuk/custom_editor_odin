@@ -84,7 +84,7 @@ renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, posit
 }
 
 fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> (i32, i32) {
-    stringToRender := strings.to_string(windowData.testInputString)
+    stringToRender := strings.to_string(windowData.text)
 
     fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)

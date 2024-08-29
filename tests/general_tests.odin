@@ -31,7 +31,7 @@ just_run_and_close :: proc(t: ^testing.T) {
 
     typeStringOnKeyboard(windowData.parentHwnd, text)
 
-    testing.expect_value(t, strings.to_string(windowData.testInputString), text)
+    testing.expect_value(t, strings.to_string(windowData.text), text)
 }
 
 @(test)

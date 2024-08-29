@@ -5,7 +5,7 @@ import "core:unicode/utf8"
 
 findCursorPosition :: proc(windowData: ^WindowData) {
     getCursorPosition :: proc(windowData: ^WindowData) -> int {
-        stringToRender := strings.to_string(windowData.testInputString)
+        stringToRender := strings.to_string(windowData.text)
 
         lineIndex := i16(windowData.mousePosition.y / windowData.font.lineHeight) + i16(windowData.screenGlyphs.lineIndex)
         
@@ -71,7 +71,7 @@ updateCusrorData :: proc(windowData: ^WindowData) {
 
     // find cursor left offset
     cursorLeftOffset: f32 = 0.0
-    stringToRender := strings.to_string(windowData.testInputString)
+    stringToRender := strings.to_string(windowData.text)
     charIndex := cursorLine.x
     for charIndex < cursorLine.y {
         char, charSize := utf8.decode_rune(stringToRender[charIndex:])
@@ -134,7 +134,7 @@ updateCusrorData :: proc(windowData: ^WindowData) {
 
 calculateLines :: proc(windowData: ^WindowData) {
     clear(&windowData.screenGlyphs.lines)
-    stringToRender := strings.to_string(windowData.testInputString)
+    stringToRender := strings.to_string(windowData.text)
     stringLength := len(stringToRender)
  
     cursor: f32 = 0.0

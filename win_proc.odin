@@ -97,12 +97,12 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
                 delete(fileContent)
             }
 
-            strings.builder_reset(&windowData.testInputString)
+            strings.builder_reset(&windowData.text)
 
-            strings.write_string(&windowData.testInputString, testText)
+            strings.write_string(&windowData.text, testText)
             
             edit.init(&windowData.inputState, context.allocator, context.allocator)
-            edit.setup_once(&windowData.inputState, &windowData.testInputString)
+            edit.setup_once(&windowData.inputState, &windowData.text)
             windowData.inputState.selection = { 0, 0 }
             windowData.screenGlyphs.lineIndex = 0
         case IDM_FILE_SAVE_AS:
@@ -176,7 +176,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         lineStart := windowData.inputState.line_start
         whiteSpacesCount := 0
         for i in lineStart..<windowData.inputState.line_end {
-            char := windowData.testInputString.buf[i]
+            char := windowData.text.buf[i]
 
             if char != ' ' && char != '\t' {
                 break
@@ -187,7 +187,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         edit.perform_command(&windowData.inputState, edit.Command.New_Line)
 
         if whiteSpacesCount > 0 {
-            edit.input_text(&windowData.inputState, string(windowData.testInputString.buf[lineStart:][:whiteSpacesCount]))
+            edit.input_text(&windowData.inputState, string(windowData.text.buf[lineStart:][:whiteSpacesCount]))
         }
     case win32.VK_TAB:
         edit.input_rune(&windowData.inputState, rune('\t'))
