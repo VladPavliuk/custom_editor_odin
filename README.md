@@ -1,3 +1,3 @@
-For now it's an editor...
+Editor is making itself step by step!
 
-![Screenshot 2024-08-21 212329](https://github.com/user-attachments/assets/08958d5e-de7f-4d96-b313-078745ccfdb2)
+![Example Screenshot](https://github.com/user-attachments/assets/e86d724f-5f66-41b8-80cd-71d0a712deb6)
