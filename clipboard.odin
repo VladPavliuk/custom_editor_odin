@@ -10,11 +10,11 @@ getTextFromClipboard :: proc(user_data: rawptr) -> (text: string, ok: bool) {
 
     hwnd := (^win32.HWND)(user_data)^
 
-    if !IsClipboardFormatAvailable(WIN32_CF_UNICODETEXT) || !OpenClipboard(hwnd) {
+    if !win32.IsClipboardFormatAvailable(WIN32_CF_UNICODETEXT) || !win32.OpenClipboard(hwnd) {
         return
     }
 
-    clipboardHandle := (win32.HGLOBAL)(GetClipboardData(WIN32_CF_UNICODETEXT))
+    clipboardHandle := (win32.HGLOBAL)(win32.GetClipboardData(WIN32_CF_UNICODETEXT))
 
     if uintptr(clipboardHandle) == uintptr(0) {
         return
@@ -22,8 +22,8 @@ getTextFromClipboard :: proc(user_data: rawptr) -> (text: string, ok: bool) {
 
     globalMemory := GlobalLock(clipboardHandle)
     
-	GlobalUnlock(clipboardHandle)
-	CloseClipboard()
+	win32.GlobalUnlock(clipboardHandle)
+	win32.CloseClipboard()
 
     textStr, err := win32.wstring_to_utf8(win32.wstring(globalMemory), -1)
 
@@ -35,17 +35,17 @@ putTextIntoClipboard :: proc(user_data: rawptr, text: string) -> (ok: bool) {
 
     hwnd := (^win32.HWND)(user_data)^
 
-    if !IsClipboardFormatAvailable(WIN32_CF_UNICODETEXT) {
+    if !win32.IsClipboardFormatAvailable(WIN32_CF_UNICODETEXT) {
         fmt.println("Clipboard is not available, error: ", win32.GetLastError())
         return false
     }
 
-    if !OpenClipboard(hwnd) {
+    if !win32.OpenClipboard(hwnd) {
         fmt.println("Can't open clipboard, error: ", win32.GetLastError())
         return false
     }
 
-    if !EmptyClipboard() {
+    if !win32.EmptyClipboard() {
         fmt.println("Can't empty clipboard, error: ", win32.GetLastError())
         return false
     }
@@ -66,8 +66,8 @@ putTextIntoClipboard :: proc(user_data: rawptr, text: string) -> (ok: bool) {
     
     mem.copy(globalMemory, raw_data(wideText), wideTextLength)
 
-    GlobalUnlock(globalMemoryHandler)
-    SetClipboardData(WIN32_CF_UNICODETEXT, (win32.HANDLE)(globalMemoryHandler))
+    win32.GlobalUnlock(globalMemoryHandler)
+    win32.SetClipboardData(WIN32_CF_UNICODETEXT, (win32.HANDLE)(globalMemoryHandler))
 
-    return CloseClipboard()
+    return win32.CloseClipboard() == true
 }

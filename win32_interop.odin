@@ -9,14 +9,7 @@ foreign import shell32 "system:shell32.lib"
 foreign user32 {
 	@(link_name="CreateMenu") CreateMenu :: proc() -> win32.HMENU ---
 	@(link_name="DrawMenuBar") DrawMenuBar :: proc(win32.HWND) ---
-	@(link_name="IsClipboardFormatAvailable") IsClipboardFormatAvailable :: proc(uint) -> bool ---
-	@(link_name="OpenClipboard") OpenClipboard :: proc(win32.HWND) -> bool ---
-	@(link_name="EmptyClipboard") EmptyClipboard :: proc() -> bool ---
-	@(link_name="SetClipboardData") SetClipboardData :: proc(uint, win32.HANDLE) -> win32.HANDLE ---
-	@(link_name="GetClipboardData") GetClipboardData :: proc(uint) -> win32.HANDLE ---
-	@(link_name="CloseClipboard") CloseClipboard :: proc() -> bool ---
     @(link_name="GlobalLock") GlobalLock :: proc(win32.HGLOBAL) -> win32.LPVOID ---
-    @(link_name="GlobalUnlock") GlobalUnlock :: proc(win32.HGLOBAL) -> bool ---
     @(link_name="GetMenuBarInfo") GetMenuBarInfo :: proc(win32.HWND, u64, win32.LONG, ^WIN32_MENUBARINFO) -> bool ---
 }
 
