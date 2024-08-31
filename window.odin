@@ -134,7 +134,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
 
     windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
 
-    windowData.editorPadding = { top = 0, bottom = 0, left = 50, right = 0 }
+    windowData.editorPadding = { top = 10, bottom = 10, left = 50, right = 15 }
 
     windowData.text = strings.builder_make()
 
@@ -163,8 +163,36 @@ createWindow :: proc(size: int2) -> ^WindowData {
 
     windowData.isInputMode = true
 
+    windowData.windowCreated = true
+
+    // createVerticalScrollBar(windowData)
+
     return windowData
 }
+
+// createVerticalScrollBar :: proc(windowData: ^WindowData) {
+//     rect: win32.RECT
+
+//     win32.GetClientRect(windowData.parentHwnd, &rect)
+
+//     WIN32_SBS_HORZ :: 0x0000
+
+//     sbHeight: i32 = 30
+//     win32.CreateWindowExW(
+//         0,
+//         win32.utf8_to_wstring("SCROLLBAR"),
+//         nil,
+//         win32.WS_CHILD | win32.WS_VISIBLE | WIN32_SBS_HORZ,
+//         rect.left,
+//         rect.bottom - sbHeight, 
+//         rect.right, 
+//         sbHeight,
+//         windowData.parentHwnd,
+//         nil,
+//         win32.HINSTANCE(win32.GetModuleHandleA(nil)),
+//         nil,
+//     )
+// }
 
 removeWindowData :: proc(windowData: ^WindowData) {
     for _, kerning in windowData.font.kerningTable {

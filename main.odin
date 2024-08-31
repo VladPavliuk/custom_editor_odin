@@ -11,8 +11,6 @@ main :: proc() {
     
     initGpuResources(directXState, windowData)
 
-    windowData.windowCreated = true
-
     msg: win32.MSG
     for msg.message != win32.WM_QUIT {
         if win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE) {

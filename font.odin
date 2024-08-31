@@ -31,7 +31,9 @@ FontData :: struct {
 }
 
 loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
+    // "SourceCodePro-Medium"
     fileContent, success := os.read_entire_file_from_filename("c:/windows/fonts/arial.TTF")
+    // fileContent, success := os.read_entire_file_from_filename("SourceCodePro-Medium.TTF")
     assert(success)
     defer delete(fileContent)
     // defer delete(fontData.ttfFile)

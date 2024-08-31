@@ -63,6 +63,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     renderText(directXState, windowData, glyphsCount, selectionsCount)
 
     renderLineNumbers(directXState, windowData)
+    renderVerticalScrollBar(directXState, windowData)
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)
@@ -177,6 +178,26 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     }
 
     return i32(glyphsCount), i32(selectionsCount)
+}
+
+renderVerticalScrollBar :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+    maxLinesOnScreen := f32(getEditorSize(windowData).y) / windowData.font.lineHeight
+    totalLines := f32(len(windowData.screenGlyphs.lines))
+
+    if totalLines == 1 { return }
+
+    // draw background
+    scrollWidth := f32(windowData.editorPadding.right)
+    renderRect(directXState, { f32(windowData.size.x) / 2.0 - scrollWidth, -f32(windowData.size.y) / 2.0 }, 
+        { scrollWidth, f32(windowData.size.y) }, 1.0, float4(LINE_NUMBERS_BG_COLOR))
+
+    scrollHeight := f32(windowData.size.y) * maxLinesOnScreen / (maxLinesOnScreen + (totalLines - 1))
+
+    topOffset := f32(windowData.screenGlyphs.lineIndex) / (maxLinesOnScreen + totalLines) * f32(windowData.size.y)
+
+    // draw scroll
+    renderRect(directXState, { f32(windowData.size.x) / 2.0 - scrollWidth, f32(windowData.size.y) / 2.0 - topOffset - scrollHeight },
+        { scrollWidth, scrollHeight }, 0.5, { 1.0, 1.0, 1.0, 0.7 })
 }
 
 renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
