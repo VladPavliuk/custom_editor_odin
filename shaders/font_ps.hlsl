@@ -7,6 +7,11 @@
 
 Texture2D<uint> byteObjTexture : TEXTURE : register(t0);
 
+cbuffer solidColorCB : register(b0)
+{
+    float4 color;
+}
+
 struct PSInput
 {
     float4 positionSV : SV_POSITION;
@@ -33,7 +38,7 @@ PSOutput main(PSInput input)
 
     //clip(value == 0 ? -1 : 1);
 
-    output.pixelColor = float4(1.0, 1.0, 1.0, ((float)value) / 255.0f);
+    output.pixelColor = float4(color.x, color.y, color.z, color.w * ((float)value) / 255.0f);
     
     // output.pixelColor = float4(1.0, 0.0, 1.0, 1.0);
     // output.objectItemId = (float) input.objectItemId;

@@ -16,3 +16,15 @@ Rect :: struct {
     left: i32,
     right: i32,
 }
+
+getRectSize :: proc(rect: Rect) -> int2 {
+    return {
+        rect.right - rect.left,        
+        rect.top - rect.bottom,        
+    }
+}
+
+isInRect :: proc(rect: Rect, point: int2) -> bool {
+	return point.x >= rect.left && point.x < rect.right && 
+        point.y >= rect.bottom && point.y < rect.top
+}

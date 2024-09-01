@@ -2,6 +2,7 @@ package main
 
 import win32 "core:sys/windows"
 import "core:text/edit"
+import mu "vendor:microui"
 
 main :: proc() {
     windowData := createWindow({ 800, 800 })
@@ -18,7 +19,7 @@ main :: proc() {
             win32.DispatchMessageW(&msg)
             continue
         }
-        
+
         edit.update_time(&windowData.inputState)
         render(windowData.directXState, windowData)
 

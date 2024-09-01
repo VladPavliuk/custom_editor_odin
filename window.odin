@@ -6,6 +6,7 @@ import "core:mem"
 import "core:fmt"
 
 import "core:unicode/utf16"
+import mu "vendor:microui"
 
 import win32 "core:sys/windows"
 
@@ -18,6 +19,7 @@ ScreenGlyphs :: struct {
 WindowData :: struct {
     windowCreated: bool,
     parentHwnd: win32.HWND,
+    // muContext: ^mu.Context,
 
     size: int2,
 

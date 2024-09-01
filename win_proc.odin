@@ -341,7 +341,7 @@ windowSizeChangedHandler :: proc "c" (windowData: ^WindowData, width, height: i3
 
     directXState.ctx->RSSetViewports(1, &viewport)
 
-    viewMatrix := getOrthoraphicsMatrix(f32(width), f32(height), 0.1, 10.0)
+    viewMatrix := getOrthoraphicsMatrix(f32(width), f32(height), 0.1, 100.0)
 
     updateGpuBuffer(&viewMatrix, directXState.constantBuffers[.PROJECTION], directXState)
 }

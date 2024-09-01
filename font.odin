@@ -191,3 +191,20 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
 
     return fontData
 }
+
+getTextHeight :: proc(font: ^FontData) -> f32 {
+    assert(font != nil)
+
+    return font.lineHeight
+}
+
+getTextWidth :: proc(text: string, font: ^FontData) -> f32 {
+    assert(font != nil)
+    width: f32 = 0.0
+
+    for char in text {
+        width += font.chars[char].xAdvance
+    }
+
+    return width
+}
