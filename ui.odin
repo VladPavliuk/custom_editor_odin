@@ -1,8 +1,6 @@
 package main
 
-import "core:fmt"
-
-import "core:math/rand"
+import "base:runtime"
 
 UiCommandRect :: struct {
     rect: Rect,
@@ -18,8 +16,10 @@ UiCommandText :: struct {
     color: float4,
 }
 
-UiCommandOnClick :: struct {
-    onClick: proc(data: rawptr = nil),
+UiCommandAction :: struct {
+    onClick: proc(windowData: ^WindowData = nil),
+    onActive: proc(windowData: ^WindowData = nil),
+    onActiveLost: proc(windowData: ^WindowData = nil),
 }
 
 UiCommandVariant :: union {
@@ -27,69 +27,57 @@ UiCommandVariant :: union {
 	// ^Command_Clip,
 	UiCommandRect,
 	UiCommandText,
-	UiCommandOnClick,
+	UiCommandAction,
 	// ^Command_Icon,
 }
 
+uiId :: runtime.Source_Code_Location
+
 UiCommand :: struct {
-    id: u64,
+    id: uiId,
 	variant: UiCommandVariant,
-	// size:    i32, 
 }
 
-// startUi :: proc() {
-
-// }
 uiCommands := make([dynamic]UiCommand)
-// currentUiZIndex: f32
 
-renderButton :: proc(windowData: ^WindowData, text: string, 
-    position: int2, size: int2, 
-    color: float4, bgColor: float4, hoverBgColor: float4,
-    onClick: proc(data: rawptr)) {
-    textWidth := getTextWidth(text, &windowData.font)
+UiButton :: struct {
+    text: string,
+    position, size: int2,
+    color, bgColor, hoverBgColor: float4,
+    onClick: proc(windowData: ^WindowData), 
+}
+
+renderButton :: proc(windowData: ^WindowData, button: UiButton, loc := #caller_location) {
+    commandsButchId := loc
+    
+    textWidth := getTextWidth(button.text, &windowData.font)
     textHeight := getTextHeight(&windowData.font)
 
-    // mousePosition := screenToDirectXCoords(windowData, { i32(windowData.mousePosition.x), i32(windowData.mousePosition.y) })
-
-    bottomTextPadding := (f32(size.y) - textHeight) / 2.0
-    leftTextPadding := (f32(size.x) - textWidth) / 2.0
-
-    // isHovered := isInRect({ position.y, position.y + size.y, position.x, position.x + size.x }, mousePosition)
-
-    // bgColor := isHovered ? bgColor : hoverBgColor
-
-    // renderRect(windowData.directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, currentUiZIndex, bgColor)
-    // currentUiZIndex -= 0.1
-    // renderLine(windowData.directXState, windowData, text, { i32(leftTextPadding) + position.x, i32(bottomTextPadding) + position.y }, 
-    //     color, currentUiZIndex)
-    // currentUiZIndex -= 0.1
-
-    commandsButchId := rand.uint64()
+    bottomTextPadding := (f32(button.size.y) - textHeight) / 2.0
+    leftTextPadding := (f32(button.size.x) - textWidth) / 2.0
 
     append(&uiCommands, UiCommand{
         id = commandsButchId,
-        variant = UiCommandOnClick{
-            onClick = onClick,
+        variant = UiCommandAction{
+            onClick = button.onClick,
         },
     })
 
     append(&uiCommands, UiCommand{
         id = commandsButchId,
         variant = UiCommandRect{
-            rect = Rect{ position.y + size.y, position.y, position.x, position.x + size.x },
-            color = bgColor,
-            hoverColor = hoverBgColor,
+            rect = Rect{ button.position.y + button.size.y, button.position.y, button.position.x, button.position.x + button.size.x },
+            color = button.bgColor,
+            hoverColor = button.hoverBgColor,
         },
     })
 
     append(&uiCommands, UiCommand{
         id = commandsButchId,
         variant = UiCommandText{
-            text = text,
-            position = { i32(leftTextPadding) + position.x, i32(bottomTextPadding) + position.y },
-            // width = textWidth,
-            color = color,
+            text = button.text,
+            position = { i32(leftTextPadding) + button.position.x, i32(bottomTextPadding) + button.position.y },
+            color = button.color,
         },
     })
 }

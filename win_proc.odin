@@ -23,7 +23,10 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 	    xMouse := win32.GET_X_LPARAM(lParam)
 		yMouse := win32.GET_Y_LPARAM(lParam)
 
+        prevMousePosition := windowData.mousePosition
         windowData.mousePosition = { f32(xMouse), f32(yMouse) }
+
+        windowData.deltaMousePosition = windowData.mousePosition - prevMousePosition
 
         windowData.mousePosition.x = max(0, windowData.mousePosition.x)
         windowData.mousePosition.y = max(0, windowData.mousePosition.y)
@@ -45,6 +48,14 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
         win32.ReleaseCapture()
+    case win32.WM_LBUTTONDBLCLK:
+        windowData := getWindowData(hwnd)
+
+        // NOTE: for simplicity just pretend that WM_LBUTTONDBLCLK message is just WM_LBUTTONDOWN
+		windowData.isLeftMouseButtonDown = true
+		windowData.wasLeftMouseButtonDown = true
+        
+		win32.SetCapture(hwnd)
     case win32.WM_SIZE:
         windowData := getWindowData(hwnd)
 
@@ -141,6 +152,8 @@ isCtrlPressed :: proc() -> bool {
 
 handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData: ^WindowData) {
     windowData.wasInputSymbolTyped = false
+
+    if !windowData.isInputMode { return }
     
     if !isCtrlPressed() {
         isValidSymbol := false
@@ -341,7 +354,7 @@ windowSizeChangedHandler :: proc "c" (windowData: ^WindowData, width, height: i3
 
     directXState.ctx->RSSetViewports(1, &viewport)
 
-    viewMatrix := getOrthoraphicsMatrix(f32(width), f32(height), 0.1, 100.0)
+    viewMatrix := getOrthoraphicsMatrix(f32(width), f32(height), 0.1, windowData.maxZIndex + 1.0)
 
     updateGpuBuffer(&viewMatrix, directXState.constantBuffers[.PROJECTION], directXState)
 }

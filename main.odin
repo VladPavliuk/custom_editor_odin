@@ -2,7 +2,6 @@ package main
 
 import win32 "core:sys/windows"
 import "core:text/edit"
-import mu "vendor:microui"
 
 main :: proc() {
     windowData := createWindow({ 800, 800 })
@@ -25,6 +24,7 @@ main :: proc() {
 
         windowData.wasLeftMouseButtonDown = false
         windowData.wasLeftMouseButtonUp = false
+        windowData.deltaMousePosition = { 0, 0 }
     }
 
     removeWindowData(windowData)

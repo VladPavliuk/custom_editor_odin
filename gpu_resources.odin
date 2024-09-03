@@ -109,7 +109,7 @@ initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     directXState.constantBuffers[.FONT_GLYPH_LOCATION] = createConstantBuffer(FontChar, nil, directXState)
 
     // camera
-    viewMatrix := getOrthoraphicsMatrix(f32(windowData.size.x), f32(windowData.size.y), 0.1, 100.0)
+    viewMatrix := getOrthoraphicsMatrix(f32(windowData.size.x), f32(windowData.size.y), 0.1, windowData.maxZIndex + 1.0)
     directXState.constantBuffers[.PROJECTION] = createConstantBuffer(mat4, &viewMatrix, directXState)
 
     directXState.constantBuffers[.MODEL_TRANSFORMATION] = createConstantBuffer(mat4, nil, directXState)

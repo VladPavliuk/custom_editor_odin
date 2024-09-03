@@ -6,7 +6,6 @@ import "core:mem"
 import "core:fmt"
 
 import "core:unicode/utf16"
-import mu "vendor:microui"
 
 import win32 "core:sys/windows"
 
@@ -22,9 +21,12 @@ WindowData :: struct {
     // muContext: ^mu.Context,
 
     size: int2,
+    activeUiId: uiId,
+    verticalScrollTopOffset: f32,
 
     openedFilePath: string,
 
+    deltaMousePosition: float2,
     mousePosition: float2,
     isLeftMouseButtonDown: bool,
     wasLeftMouseButtonDown: bool,
@@ -33,6 +35,7 @@ WindowData :: struct {
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
     directXState: ^DirectXState,
+    maxZIndex: f32,
 
     font: FontData,
 
@@ -81,7 +84,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
         0,
         wndClassName,
         cast([^]u16)raw_data(windowTitle),
-        win32.WS_OVERLAPPEDWINDOW,
+        win32.WS_OVERLAPPEDWINDOW | win32.CS_DBLCLKS,
         win32.CW_USEDEFAULT, win32.CW_USEDEFAULT, 
         size.x, size.y,
         nil, nil,
@@ -165,6 +168,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
 
     windowData.isInputMode = true
 
+    windowData.maxZIndex = 100.0
     windowData.windowCreated = true
 
     // createVerticalScrollBar(windowData)
