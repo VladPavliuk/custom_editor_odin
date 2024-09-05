@@ -22,12 +22,12 @@ WindowData :: struct {
 
     size: int2,
     activeUiId: uiId,
-    verticalScrollTopOffset: f32,
+    verticalScrollTopOffset: i32,
 
     openedFilePath: string,
 
-    deltaMousePosition: float2,
-    mousePosition: float2,
+    deltaMousePosition: int2,
+    mousePosition: int2,
     isLeftMouseButtonDown: bool,
     wasLeftMouseButtonDown: bool,
     wasLeftMouseButtonUp: bool,

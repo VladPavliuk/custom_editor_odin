@@ -24,15 +24,15 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 		yMouse := win32.GET_Y_LPARAM(lParam)
 
         prevMousePosition := windowData.mousePosition
-        windowData.mousePosition = { f32(xMouse), f32(yMouse) }
+        windowData.mousePosition = { xMouse, yMouse }
 
         windowData.deltaMousePosition = windowData.mousePosition - prevMousePosition
 
         windowData.mousePosition.x = max(0, windowData.mousePosition.x)
         windowData.mousePosition.y = max(0, windowData.mousePosition.y)
 
-        windowData.mousePosition.x = min(f32(windowData.size.x), windowData.mousePosition.x)
-        windowData.mousePosition.y = min(f32(windowData.size.y), windowData.mousePosition.y)
+        windowData.mousePosition.x = min(windowData.size.x, windowData.mousePosition.x)
+        windowData.mousePosition.y = min(windowData.size.y, windowData.mousePosition.y)
     case win32.WM_LBUTTONDOWN:
         windowData := getWindowData(hwnd)
 

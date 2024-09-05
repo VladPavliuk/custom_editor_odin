@@ -321,22 +321,22 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
 }
 
 renderVerticalScrollBar :: proc(directXState: ^DirectXState, windowData: ^WindowData, loc := #caller_location) {
-    maxLinesOnScreen := f32(getEditorSize(windowData).y) / windowData.font.lineHeight
-    totalLines := f32(len(windowData.screenGlyphs.lines))
+    maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
+    totalLines := i32(len(windowData.screenGlyphs.lines))
     commandsButchId := loc
 
     if totalLines == 1 { return }
 
     // draw background
-    scrollWidth := f32(windowData.editorPadding.right)
-    renderRect(directXState, { f32(windowData.size.x) / 2.0 - scrollWidth, -f32(windowData.size.y) / 2.0 }, 
-        { scrollWidth, f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
+    scrollWidth := windowData.editorPadding.right
+    renderRect(directXState, { f32(windowData.size.x) / 2.0 - f32(scrollWidth), -f32(windowData.size.y) / 2.0 }, 
+        { f32(scrollWidth), f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
 
-    scrollHeight := f32(windowData.size.y) * maxLinesOnScreen / (maxLinesOnScreen + (totalLines - 1))
+    scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
 
     // NOTE: disable automatic top offset calculation if vertical scroll is selected by user 
     if windowData.activeUiId != commandsButchId {
-        windowData.verticalScrollTopOffset = f32(windowData.screenGlyphs.lineIndex) / (maxLinesOnScreen + totalLines) * f32(windowData.size.y)
+        windowData.verticalScrollTopOffset = i32(f32(windowData.screenGlyphs.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(windowData.size.y))
     }
 
     append(&uiCommands, UiCommand{
@@ -350,13 +350,13 @@ renderVerticalScrollBar :: proc(directXState: ^DirectXState, windowData: ^Window
                 //> validate correct vertical scroll offset
                 windowData.verticalScrollTopOffset = max(0, windowData.verticalScrollTopOffset)
 
-                maxLinesOnScreen := f32(getEditorSize(windowData).y) / windowData.font.lineHeight
-                totalLines := f32(len(windowData.screenGlyphs.lines))
-                scrollHeight := f32(windowData.size.y) * maxLinesOnScreen / (maxLinesOnScreen + (totalLines - 1))
-                windowData.verticalScrollTopOffset = min(f32(windowData.size.y) - scrollHeight, windowData.verticalScrollTopOffset)
+                maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
+                totalLines := i32(len(windowData.screenGlyphs.lines))
+                scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
+                windowData.verticalScrollTopOffset = min(windowData.size.y - scrollHeight, windowData.verticalScrollTopOffset)
                 //<
 
-                windowData.screenGlyphs.lineIndex = i32(totalLines * (windowData.verticalScrollTopOffset / (f32(windowData.size.y) - scrollHeight)))
+                windowData.screenGlyphs.lineIndex = i32(f32(totalLines) * (f32(windowData.verticalScrollTopOffset) / f32(windowData.size.y - scrollHeight)))
 
                 // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
                 windowData.screenGlyphs.lineIndex = min(i32(totalLines) - 1, windowData.screenGlyphs.lineIndex)
@@ -374,7 +374,7 @@ renderVerticalScrollBar :: proc(directXState: ^DirectXState, windowData: ^Window
         },
     })
 
-    position := float2{ f32(windowData.size.x) / 2.0 - scrollWidth, f32(windowData.size.y) / 2.0 - windowData.verticalScrollTopOffset - scrollHeight }
+    position := int2{ windowData.size.x / 2 - scrollWidth, windowData.size.y / 2 - windowData.verticalScrollTopOffset - scrollHeight }
     append(&uiCommands, UiCommand{
         id = commandsButchId,
         variant = UiCommandRect{
