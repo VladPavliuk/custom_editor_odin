@@ -18,20 +18,26 @@ ScreenGlyphs :: struct {
 WindowData :: struct {
     windowCreated: bool,
     parentHwnd: win32.HWND,
-    // muContext: ^mu.Context,
 
     size: int2,
+
+    //> ui
+    renderedUiIds: [dynamic]uiId,
+    cachedUiRects: map[uiId]Rect,
+
     uiZIndex: f32,
-    
+
     hotUiId: uiId,
     prevHotUiId: uiId,
     hotUiIdChanged: bool,
-
     tmpHotUiId: uiId,
 
     activeUiId: uiId,
     
     verticalScrollTopOffset: i32,
+
+    // testPanelLocation: int2,
+    //<
 
     openedFilePath: string,
 

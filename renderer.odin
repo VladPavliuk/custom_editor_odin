@@ -17,6 +17,7 @@ import "core:strconv"
 RED_COLOR := float4{ 1.0, 0.0, 0.0, 1.0 }
 GREEN_COLOR := float4{ 0.0, 1.0, 0.0, 1.0 }
 BLUE_COLOR := float4{ 0.0, 0.0, 1.0, 1.0 }
+YELLOW_COLOR := float4{ 1.0, 1.0, 0.0, 1.0 }
 WHITE_COLOR := float4{ 1.0, 1.0, 1.0, 1.0 }
 BLACK_COLOR := float4{ 0.0, 0.0, 0.0, 1.0 }
 
@@ -128,7 +129,7 @@ uiStaff :: proc(windowData: ^WindowData) {
     beginUi(windowData)
 
     testingButtons(windowData)
-    
+
     if .ACTIVE in renderVerticalScrollBar(windowData) {
         windowData.verticalScrollTopOffset += windowData.deltaMousePosition.y
 
@@ -147,18 +148,45 @@ uiStaff :: proc(windowData: ^WindowData) {
         windowData.screenGlyphs.lineIndex = min(i32(totalLines) - 1, windowData.screenGlyphs.lineIndex)
     }
     
+    @(static)
+    showPanel := false
+    
+    if .SUBMIT in renderButton(windowData, UiButton{
+        text = "Show/Hide panel",
+        position = { 39, -100 },
+        size = { 150, 30 },
+        color = WHITE_COLOR,
+        bgColor = YELLOW_COLOR,
+        hoverBgColor = BLACK_COLOR,
+    }) { showPanel = !showPanel }
+    
+    if showPanel {
+        renderPanel(windowData, UiPanel{
+            title = "PANEL 1",
+            position = { -250, -100 },
+            size = { 200, 300 },
+            bgColor = RED_COLOR,
+            hoverBgColor = GREEN_COLOR,
+        })
+    }
+
     endUi(windowData)
 
     windowData.isInputMode = windowData.activeUiId == {}
 }
 
-renderRect :: proc{renderRect_Float, renderRect_Int}
+renderRect :: proc{renderRectVec_Float, renderRectVec_Int, renderRect_Int}
 
-renderRect_Int :: proc(directXState: ^DirectXState, position, size: int2, zValue: f32, color: float4) {
-    renderRect_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, color)
+renderRect_Int :: proc(directXState: ^DirectXState, rect: Rect, zValue: f32, color: float4) {
+    renderRectVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
+        { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, color)
 }
 
-renderRect_Float :: proc(directXState: ^DirectXState, position, size: float2, zValue: f32, color: float4) {
+renderRectVec_Int :: proc(directXState: ^DirectXState, position, size: int2, zValue: f32, color: float4) {
+    renderRectVec_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, color)
+}
+
+renderRectVec_Float :: proc(directXState: ^DirectXState, position, size: float2, zValue: f32, color: float4) {
     color := color
     ctx := directXState.ctx
 
@@ -222,7 +250,8 @@ renderLine :: proc(directXState: ^DirectXState, windowData: ^WindowData, text: s
 }
 
 renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, position: int2) {
-    renderRect(directXState, float2{ f32(position.x), f32(position.y) }, float2{ 3.0, windowData.font.lineHeight }, -1.0, CURSOR_COLOR)
+    renderRect(directXState, float2{ f32(position.x), f32(position.y) }, float2{ 3.0, windowData.font.lineHeight }, 
+        windowData.maxZIndex - 3.0, CURSOR_COLOR)
 }
 
 fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> (i32, i32) {
@@ -319,7 +348,7 @@ renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) 
     
     // draw background
     renderRect(directXState, float2{ -f32(windowData.size.x) / 2.0, -f32(windowData.size.y) / 2.0 }, 
-        float2{ f32(windowData.editorPadding.left), f32(windowData.size.y) }, 1.0, LINE_NUMBERS_BG_COLOR)
+        float2{ f32(windowData.editorPadding.left), f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
 
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
     
@@ -341,7 +370,7 @@ renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) 
             glyphPosition: int2 = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
 
             modelMatrix := getTransformationMatrix(
-                { f32(glyphPosition.x), f32(glyphPosition.y), 0.0 }, 
+                { f32(glyphPosition.x), f32(glyphPosition.y), windowData.maxZIndex - 1.0 }, 
                 { 0.0, 0.0, 0.0 }, 
                 { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
             )
