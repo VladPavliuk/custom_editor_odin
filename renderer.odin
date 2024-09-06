@@ -45,7 +45,11 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     strideSize := [?]u32{directXState.vertexBuffers[.QUAD].strideSize}
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
-    
+
+    //> ui testing
+    uiStaff(windowData)
+    //<
+
     @(static)
     timeElapsedTotal: f64 = 0.0
     
@@ -58,10 +62,6 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     glyphsCount, selectionsCount := fillTextBuffer(directXState, windowData)
     time.stopwatch_stop(&timer)
 
-    //> ui testing
-    uiStaff(directXState, windowData)
-    //<
-
     if windowData.isInputMode {
         calculateLines(windowData)
         findCursorPosition(windowData)
@@ -71,7 +71,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     elapsed := time.duration_microseconds(timer._accumulation)
     timeElapsedTotal += elapsed
     timeElapsedCount += 1
-    fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
+    // fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
     
     renderText(directXState, windowData, glyphsCount, selectionsCount)
     renderLineNumbers(directXState, windowData)
@@ -80,94 +80,85 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     assert(hr == 0)
 }
 
-uiStaff :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
-    clear(&uiCommands)
-    renderVerticalScrollBar(directXState, windowData)
-    
-    renderButton(windowData, UiButton{
+testingButtons :: proc(windowData: ^WindowData) {
+    if action := renderButton(windowData, UiButton{
         text = "Test 1",
         position = { 0, 0 },
         size = { 100, 30 },
         color = WHITE_COLOR,
         bgColor = RED_COLOR,
         hoverBgColor = BLACK_COLOR,
-        onClick = proc(data: ^WindowData) {fmt.println("Test 1")},
-    })
-    renderButton(windowData, UiButton{
-        text = "Test 1",
+    }); action != nil {
+        fmt.print("Test 1 - ")
+
+        if .SUBMIT in action { fmt.print("SUBMIT ") }
+        if .HOT in action { fmt.print("HOT ") }
+        if .ACTIVE in action { fmt.print("ACTIVE ") }
+        if .GOT_ACTIVE in action { fmt.print("GOT_ACTIVE ") }
+        if .LOST_ACTIVE in action { fmt.print("LOST_ACTIVE ") }
+        if .MOUSE_ENTER in action { fmt.print("MOUSE_ENTER ") }
+        if .MOUSE_LEAVE in action { fmt.print("MOUSE_LEAVE ") }
+
+        fmt.print('\n')
+    }
+
+    if action := renderButton(windowData, UiButton{
+        text = "Test 2",
         position = { 40, 10 },
         size = { 100, 30 },
         color = WHITE_COLOR,
         bgColor = GREEN_COLOR,
         hoverBgColor = BLACK_COLOR,
-        // onClick = proc(data: ^WindowData) {fmt.println("Test 2")}
-    })
+    }); action != nil {
+        fmt.print("Test 2 - ")
 
-    clickedUiId: uiId
-    hotUiId: uiId
-    activeLostUiId: uiId
+        if .SUBMIT in action { fmt.print("SUBMIT ") }
+        if .HOT in action { fmt.print("HOT ") }
+        if .ACTIVE in action { fmt.print("ACTIVE ") }
+        if .GOT_ACTIVE in action { fmt.print("GOT_ACTIVE ") }
+        if .LOST_ACTIVE in action { fmt.print("LOST_ACTIVE ") }
+        if .MOUSE_ENTER in action { fmt.print("MOUSE_ENTER ") }
+        if .MOUSE_LEAVE in action { fmt.print("MOUSE_LEAVE ") }
 
-    // first iteration, find top rect with mouse hovered on 
-    mousePosition := screenToDirectXCoords(windowData, { i32(windowData.mousePosition.x), i32(windowData.mousePosition.y) })
-    for uiCommand in uiCommands {
-        uiRect, ok := uiCommand.variant.(UiCommandRect)
-        if !ok { continue }
-        isHot := isInRect(uiRect.rect, mousePosition)
-        
-        if isHot {
-            hotUiId = uiCommand.id
-        }
+        fmt.print('\n')
     }
-
-    // second iteration, draw ui staff
-    // mouseEnteredId: uiId
-    for uiCommand, index in uiCommands {
-        zIndex := windowData.maxZIndex / 2.0 - f32(index) / 10.0
-        assert(zIndex > 1.0)
-
-        if windowData.activeUiId == uiCommand.id {
-            if windowData.wasLeftMouseButtonUp {
-                if hotUiId == uiCommand.id {
-                    clickedUiId = uiCommand.id
-                }
-                activeLostUiId = windowData.activeUiId
-                windowData.activeUiId = {}
-            }
-        } else if hotUiId == uiCommand.id {
-            if windowData.wasLeftMouseButtonDown {
-                windowData.activeUiId = uiCommand.id
-            }
-        }
-
-        switch cmd in uiCommand.variant {
-        case UiCommandRect:
-            position := float2{ f32(cmd.rect.left), f32(cmd.rect.bottom) }
-            size := getRectSize(cmd.rect)
-
-            renderRect(windowData.directXState, position, { f32(size.x), f32(size.y) }, zIndex,
-                (uiCommand.id == hotUiId || uiCommand.id == windowData.activeUiId) ? cmd.hoverColor : cmd.color)
-        case UiCommandText:
-            renderLine(windowData.directXState, windowData, cmd.text, cmd.position, cmd.color, zIndex)
-        case UiCommandAction:
-            if uiCommand.id == clickedUiId {
-                if cmd.onClick != nil { cmd.onClick() }
-            }
-            if uiCommand.id == windowData.activeUiId {
-                if cmd.onActive != nil { cmd.onActive(windowData) }
-            }
-            if uiCommand.id == activeLostUiId {
-                if cmd.onActiveLost != nil { cmd.onActiveLost(windowData) }
-            }
-        }
-    }
-    
-    //TODO: move it something else
-    // NOTE: prevent any editor manipulation if any ui element is active
-    defaultId := uiId{}
-    windowData.isInputMode = windowData.activeUiId == defaultId
 }
 
-renderRect :: proc(directXState: ^DirectXState, position, size: float2, zValue: f32, color: float4) {
+uiStaff :: proc(windowData: ^WindowData) {
+    beginUi(windowData)
+
+    testingButtons(windowData)
+    
+    if .ACTIVE in renderVerticalScrollBar(windowData) {
+        windowData.verticalScrollTopOffset += windowData.deltaMousePosition.y
+
+        //> validate correct vertical scroll offset
+        windowData.verticalScrollTopOffset = max(0, windowData.verticalScrollTopOffset)
+
+        maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
+        totalLines := i32(len(windowData.screenGlyphs.lines))
+        scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
+        windowData.verticalScrollTopOffset = min(windowData.size.y - scrollHeight, windowData.verticalScrollTopOffset)
+        //<
+
+        windowData.screenGlyphs.lineIndex = i32(f32(totalLines) * (f32(windowData.verticalScrollTopOffset) / f32(windowData.size.y - scrollHeight)))
+
+        // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
+        windowData.screenGlyphs.lineIndex = min(i32(totalLines) - 1, windowData.screenGlyphs.lineIndex)
+    }
+    
+    endUi(windowData)
+
+    windowData.isInputMode = windowData.activeUiId == {}
+}
+
+renderRect :: proc{renderRect_Float, renderRect_Int}
+
+renderRect_Int :: proc(directXState: ^DirectXState, position, size: int2, zValue: f32, color: float4) {
+    renderRect_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, color)
+}
+
+renderRect_Float :: proc(directXState: ^DirectXState, position, size: float2, zValue: f32, color: float4) {
     color := color
     ctx := directXState.ctx
 
@@ -231,7 +222,7 @@ renderLine :: proc(directXState: ^DirectXState, windowData: ^WindowData, text: s
 }
 
 renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, position: int2) {
-    renderRect(directXState, { f32(position.x), f32(position.y) }, { 3.0, windowData.font.lineHeight }, -1.0, CURSOR_COLOR)
+    renderRect(directXState, float2{ f32(position.x), f32(position.y) }, float2{ 3.0, windowData.font.lineHeight }, -1.0, CURSOR_COLOR)
 }
 
 fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> (i32, i32) {
@@ -267,7 +258,7 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
         leftOffset: f32 = -f32(windowData.size.x) / 2.0 + f32(windowData.editorPadding.left)
         
         if lineIndex == windowData.screenGlyphs.cursorLineIndex {
-            renderRect(directXState, { leftOffset, topOffset }, { f32(editorSize.x), windowData.font.lineHeight }, windowData.maxZIndex, CURSOR_LINE_BG_COLOR)
+            renderRect(directXState, float2{ leftOffset, topOffset }, float2{ f32(editorSize.x), windowData.font.lineHeight }, windowData.maxZIndex, CURSOR_LINE_BG_COLOR)
         }
 
         byteIndex := line.x
@@ -320,80 +311,6 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     return i32(glyphsCount), i32(selectionsCount)
 }
 
-renderVerticalScrollBar :: proc(directXState: ^DirectXState, windowData: ^WindowData, loc := #caller_location) {
-    maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
-    totalLines := i32(len(windowData.screenGlyphs.lines))
-    commandsButchId := loc
-
-    if totalLines == 1 { return }
-
-    // draw background
-    scrollWidth := windowData.editorPadding.right
-    renderRect(directXState, { f32(windowData.size.x) / 2.0 - f32(scrollWidth), -f32(windowData.size.y) / 2.0 }, 
-        { f32(scrollWidth), f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
-
-    scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
-
-    // NOTE: disable automatic top offset calculation if vertical scroll is selected by user 
-    if windowData.activeUiId != commandsButchId {
-        windowData.verticalScrollTopOffset = i32(f32(windowData.screenGlyphs.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(windowData.size.y))
-    }
-
-    append(&uiCommands, UiCommand{
-        id = commandsButchId,
-        variant = UiCommandAction{
-            onActive = proc(windowData: ^WindowData) {
-                assert(windowData != nil)
-
-                windowData.verticalScrollTopOffset += windowData.deltaMousePosition.y
-
-                //> validate correct vertical scroll offset
-                windowData.verticalScrollTopOffset = max(0, windowData.verticalScrollTopOffset)
-
-                maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
-                totalLines := i32(len(windowData.screenGlyphs.lines))
-                scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
-                windowData.verticalScrollTopOffset = min(windowData.size.y - scrollHeight, windowData.verticalScrollTopOffset)
-                //<
-
-                windowData.screenGlyphs.lineIndex = i32(f32(totalLines) * (f32(windowData.verticalScrollTopOffset) / f32(windowData.size.y - scrollHeight)))
-
-                // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
-                windowData.screenGlyphs.lineIndex = min(i32(totalLines) - 1, windowData.screenGlyphs.lineIndex)
-            },
-            onActiveLost = proc(windowData: ^WindowData) {
-                assert(windowData != nil)
-
-                // maxLinesOnScreen := f32(getEditorSize(windowData).y) / windowData.font.lineHeight
-                // totalLines := f32(len(windowData.screenGlyphs.lines))
-                // scrollHeight := f32(windowData.size.y) * maxLinesOnScreen / (maxLinesOnScreen + (totalLines - 1))
-                
-
-                // windowData.verticalScrollTopOffset
-            },
-        },
-    })
-
-    position := int2{ windowData.size.x / 2 - scrollWidth, windowData.size.y / 2 - windowData.verticalScrollTopOffset - scrollHeight }
-    append(&uiCommands, UiCommand{
-        id = commandsButchId,
-        variant = UiCommandRect{
-            rect = Rect{ 
-                top = i32(position.y) + i32(scrollHeight),
-                bottom = i32(position.y),
-                left = i32(position.x),
-                right = i32(position.x) + i32(scrollWidth),
-            },
-            color = { 1.0, 1.0, 1.0, 0.7 },
-            hoverColor = { 1.0, 1.0, 1.0, 1.0 },
-        },
-    })
- 
-    // draw scroll
-    // renderRect(directXState, { f32(windowData.size.x) / 2.0 - scrollWidth, f32(windowData.size.y) / 2.0 - topOffset - scrollHeight },
-    //     { scrollWidth, scrollHeight }, 0.5, { 1.0, 1.0, 1.0, 0.7 })
-}
-
 renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     maxLinesOnScreen := i32(f32(getEditorSize(windowData).y) / windowData.font.lineHeight)
 
@@ -401,8 +318,8 @@ renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) 
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
     
     // draw background
-    renderRect(directXState, { -f32(windowData.size.x) / 2.0, -f32(windowData.size.y) / 2.0 }, 
-        { f32(windowData.editorPadding.left), f32(windowData.size.y) }, 1.0, LINE_NUMBERS_BG_COLOR)
+    renderRect(directXState, float2{ -f32(windowData.size.x) / 2.0, -f32(windowData.size.y) / 2.0 }, 
+        float2{ f32(windowData.editorPadding.left), f32(windowData.size.y) }, 1.0, LINE_NUMBERS_BG_COLOR)
 
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
     

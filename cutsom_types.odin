@@ -17,6 +17,15 @@ Rect :: struct {
     right: i32,
 }
 
+toRect :: proc(position, size: int2) -> Rect {
+    return {
+        top = position.y + size.y,
+        bottom = position.y,
+        left = position.x,
+        right = position.x + size.x,
+    }
+}
+
 getRectSize :: proc(rect: Rect) -> int2 {
     return {
         rect.right - rect.left,        

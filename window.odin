@@ -21,7 +21,16 @@ WindowData :: struct {
     // muContext: ^mu.Context,
 
     size: int2,
+    uiZIndex: f32,
+    
+    hotUiId: uiId,
+    prevHotUiId: uiId,
+    hotUiIdChanged: bool,
+
+    tmpHotUiId: uiId,
+
     activeUiId: uiId,
+    
     verticalScrollTopOffset: i32,
 
     openedFilePath: string,
