@@ -26,6 +26,10 @@ toRect :: proc(position, size: int2) -> Rect {
     }
 }
 
+fromRect :: proc(rect: Rect) -> (int2, int2) {
+    return { rect.left, rect.bottom }, { rect.right - rect.left, rect.top - rect.bottom }
+}
+
 getRectSize :: proc(rect: Rect) -> int2 {
     return {
         rect.right - rect.left,        

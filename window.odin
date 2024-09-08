@@ -22,9 +22,6 @@ WindowData :: struct {
     size: int2,
 
     //> ui
-    renderedUiIds: [dynamic]uiId,
-    cachedUiRects: map[uiId]Rect,
-
     uiZIndex: f32,
 
     hotUiId: uiId,
@@ -34,9 +31,10 @@ WindowData :: struct {
 
     activeUiId: uiId,
     
-    verticalScrollTopOffset: i32,
-
+    // verticalScrollTopOffset: i32,
+    // testingScrollTopOffset: i32,
     // testPanelLocation: int2,
+
     //<
 
     openedFilePath: string,

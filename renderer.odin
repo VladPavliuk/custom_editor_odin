@@ -27,6 +27,12 @@ CURSOR_LINE_BG_COLOR := float4{ 1.0, 1.0, 1.0, 0.1 }
 LINE_NUMBERS_BG_COLOR := float4{ 0.0, 0.0, 0.0, 0.3 }
 TEXT_SELECTION_BG_COLOR := float4{ 1.0, 0.5, 1.0, 0.3 }
 
+THEME_COLOR_1 := float4{ 251 / 255.0, 133 / 255.0, 0 / 255.0, 1.0 }
+THEME_COLOR_2 := float4{ 251 / 255.0, 183 / 255.0, 0 / 255.0, 1.0 }
+THEME_COLOR_3 := float4{ 2 / 255.0, 48 / 255.0, 71 / 255.0, 1.0 }
+THEME_COLOR_4 := float4{ 33 / 255.0, 158 / 255.0, 188 / 255.0, 1.0 }
+THEME_COLOR_5 := float4{ 142 / 255.0, 202 / 255.0, 230 / 255.0, 1.0 }
+
 render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx := directXState.ctx
 
@@ -130,24 +136,8 @@ uiStaff :: proc(windowData: ^WindowData) {
 
     testingButtons(windowData)
 
-    if .ACTIVE in renderVerticalScrollBar(windowData) {
-        windowData.verticalScrollTopOffset += windowData.deltaMousePosition.y
+    renderVerticalScrollBar(windowData)
 
-        //> validate correct vertical scroll offset
-        windowData.verticalScrollTopOffset = max(0, windowData.verticalScrollTopOffset)
-
-        maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
-        totalLines := i32(len(windowData.screenGlyphs.lines))
-        scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
-        windowData.verticalScrollTopOffset = min(windowData.size.y - scrollHeight, windowData.verticalScrollTopOffset)
-        //<
-
-        windowData.screenGlyphs.lineIndex = i32(f32(totalLines) * (f32(windowData.verticalScrollTopOffset) / f32(windowData.size.y - scrollHeight)))
-
-        // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
-        windowData.screenGlyphs.lineIndex = min(i32(totalLines) - 1, windowData.screenGlyphs.lineIndex)
-    }
-    
     @(static)
     showPanel := false
     
@@ -161,14 +151,34 @@ uiStaff :: proc(windowData: ^WindowData) {
     }) { showPanel = !showPanel }
     
     if showPanel {
+        @(static)
+        panelPosition: int2 = { -250, -100 } 
+
+        @(static)
+        panelSize: int2 = { 200, 300 }
+
         renderPanel(windowData, UiPanel{
             title = "PANEL 1",
-            position = { -250, -100 },
-            size = { 200, 300 },
-            bgColor = RED_COLOR,
-            hoverBgColor = GREEN_COLOR,
+            position = &panelPosition,
+            size = &panelSize,
+            bgColor = THEME_COLOR_4,
+            hoverBgColor = THEME_COLOR_5,
         })
     }
+
+    // @(static)
+    // offset: i32 = 0
+    // renderVerticalScroll(windowData, UiScroll{
+    //     bgRect = Rect{
+    //         top = 150, bottom = -150,
+    //         left = 50, right = 100,
+    //     },
+    //     offset = &offset,
+    //     height = 30,
+    //     color = THEME_COLOR_3,
+    //     hoverColor = THEME_COLOR_2,
+    //     bgColor = THEME_COLOR_1,
+    // })
 
     endUi(windowData)
 
@@ -178,6 +188,7 @@ uiStaff :: proc(windowData: ^WindowData) {
 renderRect :: proc{renderRectVec_Float, renderRectVec_Int, renderRect_Int}
 
 renderRect_Int :: proc(directXState: ^DirectXState, rect: Rect, zValue: f32, color: float4) {
+    // todo pidar
     renderRectVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, color)
 }
