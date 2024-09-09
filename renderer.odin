@@ -20,6 +20,10 @@ BLUE_COLOR := float4{ 0.0, 0.0, 1.0, 1.0 }
 YELLOW_COLOR := float4{ 1.0, 1.0, 0.0, 1.0 }
 WHITE_COLOR := float4{ 1.0, 1.0, 1.0, 1.0 }
 BLACK_COLOR := float4{ 0.0, 0.0, 0.0, 1.0 }
+LIGHT_GRAY_COLOR := float4{ 0.5, 0.5, 0.5, 1.0 }
+GRAY_COLOR := float4{ 0.3, 0.3, 0.3, 1.0 }
+DARKER_GRAY_COLOR := float4{ 0.2, 0.2, 0.2, 1.0 }
+DARK_GRAY_COLOR := float4{ 0.1, 0.1, 0.1, 1.0 }
 
 EDITOR_BG_COLOR := float4{ 0.0, 0.25, 0.5, 1.0 }
 CURSOR_COLOR := float4{ 0.0, 0.0, 0.0, 1.0 }
@@ -57,6 +61,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     uiStaff(windowData)
     //<
 
+    //renderRectBorder(directXState, { -200, -200 }, {50,100}, 1.0, 1.0, GRAY_COLOR)
     @(static)
     timeElapsedTotal: f64 = 0.0
     
@@ -92,9 +97,9 @@ testingButtons :: proc(windowData: ^WindowData) {
         text = "Test 1",
         position = { 0, 0 },
         size = { 100, 30 },
-        color = WHITE_COLOR,
-        bgColor = RED_COLOR,
-        hoverBgColor = BLACK_COLOR,
+        // color = WHITE_COLOR,
+        bgColor = THEME_COLOR_3,
+        // hoverBgColor = BLACK_COLOR,
     }); action != nil {
         fmt.print("Test 1 - ")
 
@@ -113,9 +118,9 @@ testingButtons :: proc(windowData: ^WindowData) {
         text = "Test 2",
         position = { 40, 10 },
         size = { 100, 30 },
-        color = WHITE_COLOR,
-        bgColor = GREEN_COLOR,
-        hoverBgColor = BLACK_COLOR,
+        // color = WHITE_COLOR,
+        bgColor = THEME_COLOR_1,
+        // hoverBgColor = BLACK_COLOR,
     }); action != nil {
         fmt.print("Test 2 - ")
 
@@ -145,9 +150,9 @@ uiStaff :: proc(windowData: ^WindowData) {
         text = "Show/Hide panel",
         position = { 39, -100 },
         size = { 150, 30 },
-        color = WHITE_COLOR,
-        bgColor = YELLOW_COLOR,
-        hoverBgColor = BLACK_COLOR,
+        // color = WHITE_COLOR,
+        bgColor = THEME_COLOR_4,
+        // hoverBgColor = BLACK_COLOR,
     }) { showPanel = !showPanel }
     
     if showPanel {
@@ -157,14 +162,28 @@ uiStaff :: proc(windowData: ^WindowData) {
         @(static)
         panelSize: int2 = { 200, 300 }
 
-        renderPanel(windowData, UiPanel{
+        beginPanel(windowData, UiPanel{
             title = "PANEL 1",
             position = &panelPosition,
             size = &panelSize,
-            bgColor = THEME_COLOR_4,
-            hoverBgColor = THEME_COLOR_5,
+            bgColor = THEME_COLOR_1,
+            // hoverBgColor = THEME_COLOR_5,
         })
+
+        @(static)
+        checked := false
+        renderCheckbox(windowData, UiCheckbox{
+            text = "test checkbox",
+            checked = &checked,
+            position = { 0, 0 },
+            color = WHITE_COLOR,
+            bgColor = GREEN_COLOR,
+            hoverBgColor = BLACK_COLOR,
+        })    
+        
+        endPanel(windowData)
     }
+
 
     // @(static)
     // offset: i32 = 0
@@ -188,7 +207,6 @@ uiStaff :: proc(windowData: ^WindowData) {
 renderRect :: proc{renderRectVec_Float, renderRectVec_Int, renderRect_Int}
 
 renderRect_Int :: proc(directXState: ^DirectXState, rect: Rect, zValue: f32, color: float4) {
-    // todo pidar
     renderRectVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, color)
 }
@@ -216,6 +234,24 @@ renderRectVec_Float :: proc(directXState: ^DirectXState, position, size: float2,
     updateGpuBuffer(&color, directXState.constantBuffers[.COLOR], directXState)
 
     directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
+}
+
+renderRectBorder :: proc{renderRectBorderVec_Float, renderRectBorderVec_Int, renderRectBorder_Int}
+
+renderRectBorder_Int :: proc(directXState: ^DirectXState, rect: Rect, thickness, zValue: f32, color: float4) {
+    renderRectBorderVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
+        { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, thickness, zValue, color)
+}
+
+renderRectBorderVec_Int :: proc(directXState: ^DirectXState, position, size: int2, thickness, zValue: f32, color: float4) {
+    renderRectBorderVec_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, thickness, zValue, color)
+}
+
+renderRectBorderVec_Float :: proc(directXState: ^DirectXState, position, size: float2, thickness, zValue: f32, color: float4) {
+    renderRect(directXState, float2{ position.x, position.y + size.y - thickness }, float2{ size.x, thickness }, zValue, color) // top border
+    renderRect(directXState, position, float2{ size.x, thickness }, zValue, color) // bottom border
+    renderRect(directXState, position, float2{ thickness, size.y }, zValue, color) // left border
+    renderRect(directXState, float2{ position.x + size.x - thickness, position.y }, float2{ thickness, size.y }, zValue, color) // right border
 }
 
 renderLine :: proc(directXState: ^DirectXState, windowData: ^WindowData, text: string, position: int2, color: float4, zIndex: f32) {

@@ -117,6 +117,21 @@ checkUiState :: proc(windowData: ^WindowData, uiId: uiId, rect: Rect) -> UiActio
     return action
 }
 
+getDarkerColor :: proc(color: float4) -> float4 {
+    rgb := color.rgb * 0.8
+    return { rgb.r, rgb.g, rgb.b, color.a }
+}
+
+getAbsolutePosition :: proc(windowData: ^WindowData) -> int2 {
+    absolutePosition := int2{ 0, 0 }
+
+    for position in windowData.parentPositionsStack {
+        absolutePosition += position
+    }
+
+    return absolutePosition
+}
+
 clipRect :: proc(target, source: Rect) -> Rect {
     targetSize := getRectSize(target)
     sourceSize := getRectSize(source)

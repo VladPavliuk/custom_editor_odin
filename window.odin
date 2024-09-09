@@ -31,6 +31,7 @@ WindowData :: struct {
 
     activeUiId: uiId,
     
+    parentPositionsStack: [dynamic]int2,
     // verticalScrollTopOffset: i32,
     // testingScrollTopOffset: i32,
     // testPanelLocation: int2,
