@@ -25,6 +25,7 @@ main :: proc() {
         windowData.wasLeftMouseButtonDown = false
         windowData.wasLeftMouseButtonUp = false
         windowData.deltaMousePosition = { 0, 0 }
+        windowData.scrollDelta = 0
     }
 
     removeWindowData(windowData)

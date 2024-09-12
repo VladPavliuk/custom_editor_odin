@@ -16,6 +16,7 @@ UiAction :: enum u32 {
     LOST_ACTIVE,
     MOUSE_ENTER,
     MOUSE_LEAVE,
+    MOUSE_WHEEL_SCROLL,
 }
 
 getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Location) -> i64 {
@@ -37,7 +38,8 @@ endUi :: proc(windowData: ^WindowData) {
     windowData.hotUiId = windowData.tmpHotUiId
 }
 
-renderVerticalScrollBar :: proc(windowData: ^WindowData, customId: i32 = 0, loc := #caller_location) -> UiActions {
+// TODO: move it from here
+renderEditorVerticalScrollBar :: proc(windowData: ^WindowData) -> UiActions {
     maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
     totalLines := i32(len(windowData.screenGlyphs.lines))
 
@@ -63,7 +65,7 @@ renderVerticalScrollBar :: proc(windowData: ^WindowData, customId: i32 = 0, loc 
         color = float4{ 0.7, 0.7, 0.7, 1.0 },
         hoverColor = float4{ 1.0, 1.0, 1.0, 1.0 },
         bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
-    }, customId, loc)
+    }, 0) //TODO: replace 0 later
 
     if .ACTIVE in action {
         windowData.screenGlyphs.lineIndex = i32(f32(totalLines) * (f32(offset) / f32(windowData.size.y - scrollHeight)))
@@ -75,6 +77,12 @@ renderVerticalScrollBar :: proc(windowData: ^WindowData, customId: i32 = 0, loc 
     }
 
     return action
+}
+
+putEmptyUiElement :: proc(windowData: ^WindowData, rect: Rect, customId: i32 = 0, loc := #caller_location) -> (uiId, UiActions) {
+    uiId := getUiId(customId, loc)
+
+    return uiId, checkUiState(windowData, uiId, rect)
 }
 
 checkUiState :: proc(windowData: ^WindowData, uiId: uiId, rect: Rect) -> UiActions{
@@ -108,6 +116,10 @@ checkUiState :: proc(windowData: ^WindowData, uiId: uiId, rect: Rect) -> UiActio
     
     if windowData.hotUiId == uiId {
         action += {.HOT}
+
+        if abs(windowData.scrollDelta) > 0 {
+            action += {.MOUSE_WHEEL_SCROLL}
+        }
     }
 
     if isInRect(rect, mousePosition) {

@@ -45,6 +45,7 @@ WindowData :: struct {
     isLeftMouseButtonDown: bool,
     wasLeftMouseButtonDown: bool,
     wasLeftMouseButtonUp: bool,
+    scrollDelta: i32,
 
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
@@ -60,6 +61,10 @@ WindowData :: struct {
 
     inputState: edit.State,
     screenGlyphs: ScreenGlyphs,
+
+    //> settings
+    wordWrapping: bool,
+    //<
 }
 
 createWindow :: proc(size: int2) -> ^WindowData {
@@ -183,6 +188,10 @@ createWindow :: proc(size: int2) -> ^WindowData {
     windowData.isInputMode = true
 
     windowData.maxZIndex = 100.0
+
+    //> default settings
+    windowData.wordWrapping = true
+    //<
     windowData.windowCreated = true
 
     // createVerticalScrollBar(windowData)

@@ -141,7 +141,7 @@ uiStaff :: proc(windowData: ^WindowData) {
 
     testingButtons(windowData)
 
-    renderVerticalScrollBar(windowData)
+    renderEditorVerticalScrollBar(windowData)
 
     @(static)
     showPanel := false
@@ -173,8 +173,8 @@ uiStaff :: proc(windowData: ^WindowData) {
         @(static)
         checked := false
         renderCheckbox(windowData, UiCheckbox{
-            text = "test checkbox",
-            checked = &checked,
+            text = "word wrapping",
+            checked = &windowData.wordWrapping,
             position = { 0, 0 },
             color = WHITE_COLOR,
             bgColor = GREEN_COLOR,
@@ -184,6 +184,40 @@ uiStaff :: proc(windowData: ^WindowData) {
         endPanel(windowData)
     }
 
+    testItems := []string{
+        "item 1",
+        "item 2",
+        "item 3",
+        "item 4",
+        "item 5",
+        "item 6",
+        "item 7",
+        "item 8",
+        "item 9",
+        "item 10",
+        "item 11",
+        "item 12",
+        "item 13",
+        "item 14",
+        "item 15",
+        "item 16",
+        "item 17",
+    }
+    @(static)
+    selectedItem: i32 = 0
+    @(static)
+    dropdownScrollOffset: i32 = 0
+    @(static)
+    isOpen: bool = false
+    renderDropdown(windowData, UiDropdown{
+        position = { 0, -200 }, size = { 120, 40 },
+        items = testItems,
+        bgColor = THEME_COLOR_2,
+        selectedItemIndex = &selectedItem,
+        maxItemShow = 5,
+        isOpen = &isOpen,
+        scrollOffset = &dropdownScrollOffset,
+    })
 
     // @(static)
     // offset: i32 = 0

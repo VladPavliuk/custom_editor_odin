@@ -61,7 +61,7 @@ renderCheckbox :: proc(windowData: ^WindowData, checkbox: UiCheckbox, customId: 
     textHeight := getTextHeight(&windowData.font)
     
     boxToTextPadding: i32 = 10
-    boxSize := int2{ 17, 17 }
+    boxSize := int2{ 16, 16 }
     boxPosition := int2{ position.x, position.y + (i32(textHeight) - boxSize.y) / 2 }
 
     uiRect := toRect(position, { i32(textWidth) + boxSize.x + boxToTextPadding, i32(textHeight) })
@@ -98,6 +98,112 @@ renderCheckbox :: proc(windowData: ^WindowData, checkbox: UiCheckbox, customId: 
     return action
 }
 
+UiDropdown :: struct {
+    position: int2,
+    size: int2,
+    bgColor: float4,
+    items: []string,
+    selectedItemIndex: ^i32,
+    isOpen: ^bool,
+    scrollOffset: ^i32,
+    maxItemShow: i32,
+}
+
+renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    assert(dropdown.selectedItemIndex != nil)
+    assert(dropdown.isOpen != nil)
+    itemsCount := i32(len(dropdown.items))
+    assert(dropdown.selectedItemIndex^ >= 0 && dropdown.selectedItemIndex^ < itemsCount)
+    assert(itemsCount > 0)
+    assert(dropdown.maxItemShow > 0)
+    customId := customId + 1
+    scrollWidth: i32 = 10
+
+    action := renderButton(windowData, UiButton{
+        text = dropdown.items[dropdown.selectedItemIndex^],
+        position = dropdown.position,
+        size = dropdown.size,
+        bgColor = dropdown.bgColor,
+    }, customId, loc)
+
+    if .SUBMIT in action {
+        dropdown.isOpen^ = !(dropdown.isOpen^)
+    }
+
+    if dropdown.isOpen^ {
+        itemHeight := i32(getTextHeight(&windowData.font))
+        offset := dropdown.position.y - itemHeight
+
+        scrollOffsetIndex: i32 = 0
+        hasScrollBar := false
+        itemsToShow := min(dropdown.maxItemShow, itemsCount)
+        itemsContainerHeight := itemsToShow * itemHeight
+
+        customId += 1
+        containerId, containerActions := putEmptyUiElement(windowData, Rect {
+            top = dropdown.position.y,
+            bottom = dropdown.position.y - itemsContainerHeight,
+            right = dropdown.position.x + dropdown.size.x,
+            left = dropdown.position.x,
+        }, customId, loc)
+        
+        // show scrollbar
+        if itemsCount > dropdown.maxItemShow {
+            hasScrollBar = true
+            customId += 1
+
+            scrollHeight := i32(f32(dropdown.maxItemShow) / f32(itemsCount) * f32(itemsContainerHeight))
+
+            scrollOffsetIndex = i32(f32(f32(dropdown.scrollOffset^) / f32(itemsContainerHeight - scrollHeight)) * f32(itemsCount - dropdown.maxItemShow))
+
+            renderVerticalScroll(windowData, UiScroll{
+                bgRect = Rect{
+                    top = dropdown.position.y,
+                    bottom = dropdown.position.y - itemsContainerHeight,
+                    right = dropdown.position.x + dropdown.size.x,
+                    left = dropdown.position.x + dropdown.size.x - scrollWidth,
+                },
+                offset = dropdown.scrollOffset,
+                height = scrollHeight,
+                color = WHITE_COLOR,
+                hoverColor = LIGHT_GRAY_COLOR,
+                bgColor = BLACK_COLOR,
+            }, containerId, customId, loc)
+        }
+        
+        itemWidth := dropdown.size.x
+
+        if hasScrollBar { itemWidth -= scrollWidth } 
+
+        // render list
+        for i in 0..<itemsToShow {
+            index := i + scrollOffsetIndex
+            item := dropdown.items[index]
+            customId += 1
+
+            itemActions := renderButton(windowData, UiButton{
+                position = { dropdown.position.x, offset },
+                size = { itemWidth, itemHeight },
+                text = item,
+                bgColor = i32(index) == dropdown.selectedItemIndex^ ? getDarkerColor(dropdown.bgColor) : dropdown.bgColor,
+            }, customId, loc)
+
+            if .SUBMIT in itemActions {
+                dropdown.selectedItemIndex^ = i32(index)
+                dropdown.isOpen^ = false
+            }
+
+            // if .MOUSE_WHEEL_SCROLL in itemActions {
+            //     dropdown.scrollOffset^ -= windowData.scrollDelta
+            // }
+
+            offset -= itemHeight
+        }
+    }
+
+    return action
+}
+
 UiScroll :: struct {
     bgRect: Rect,
     offset: ^i32,
@@ -105,7 +211,8 @@ UiScroll :: struct {
     color, hoverColor, bgColor: float4,
 }
 
-renderVerticalScroll :: proc(windowData: ^WindowData, scroll: UiScroll, customId: i32 = 0, loc := #caller_location) -> UiActions {
+renderVerticalScroll :: proc(windowData: ^WindowData, scroll: UiScroll, scrollableUiId: uiId, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    assert(scroll.offset != nil)
     scrollUiId := getUiId(customId, loc)
     bgUiId := getUiId((customId + 1) * 99999999, loc)
 
@@ -134,6 +241,11 @@ renderVerticalScroll :: proc(windowData: ^WindowData, scroll: UiScroll, customId
 
     scrollAction := checkUiState(windowData, scrollUiId, scrollRect)
 
+    validateScrollOffset :: proc(offset: ^i32, maxOffset: i32) {
+        offset^ = max(0, offset^)
+        offset^ = min(maxOffset, offset^)
+    }
+
     if .ACTIVE in scrollAction {
         position, size := fromRect(scrollRect)
 
@@ -145,12 +257,16 @@ renderVerticalScroll :: proc(windowData: ^WindowData, scroll: UiScroll, customId
             delta = abs(delta)
         } else if mouseY > bgRect.top {
             delta = -abs(delta)
-        } 
+        }
 
         scroll.offset^ += delta
 
-        scroll.offset^ = max(0, scroll.offset^)
-        scroll.offset^ = min(bgRect.top - bgRect.bottom - scroll.height, scroll.offset^)
+        validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
+    }
+
+    if .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction {
+        scroll.offset^ -= windowData.scrollDelta
+        validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
     }
 
     return scrollAction

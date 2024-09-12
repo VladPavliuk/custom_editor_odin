@@ -177,7 +177,8 @@ calculateLines :: proc(windowData: ^WindowData) {
         cursor += fontChar.xAdvance
 
         // text wrapping
-        if cursor >= lineWidth {
+        // TODO: make two functions, 1 - with wrapping, 2 - no wrapping, to avoid additional check
+        if windowData.wordWrapping && cursor >= lineWidth {
             cursor = 0.0
 
             // since we do text wrapping, line should end on the previous symbol

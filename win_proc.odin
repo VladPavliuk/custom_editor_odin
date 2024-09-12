@@ -91,11 +91,14 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         yoffset := win32.GET_WHEEL_DELTA_WPARAM(wParam)
 
-        if yoffset > 10 {
-            windowData.screenGlyphs.lineIndex -= 1
-        } else if yoffset < -10 {
-            windowData.screenGlyphs.lineIndex += 1
-        }
+        // TODO: move it out!
+        // if yoffset > 10 {
+        //     windowData.screenGlyphs.lineIndex -= 1
+        // } else if yoffset < -10 {
+        //     windowData.screenGlyphs.lineIndex += 1
+        // }
+
+        windowData.scrollDelta = i32(yoffset)
 
         validateTopLine(windowData)
     case win32.WM_COMMAND:        
