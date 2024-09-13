@@ -29,6 +29,8 @@ WindowData :: struct {
     hotUiIdChanged: bool,
     tmpHotUiId: uiId,
 
+    scrollableElements: [dynamic]map[uiId]struct{},
+
     activeUiId: uiId,
     
     parentPositionsStack: [dynamic]int2,

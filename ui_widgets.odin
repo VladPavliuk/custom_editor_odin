@@ -136,6 +136,7 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
 
         scrollOffsetIndex: i32 = 0
         hasScrollBar := false
+        scrollHeight: i32 = -1
         itemsToShow := min(dropdown.maxItemShow, itemsCount)
         itemsContainerHeight := itemsToShow * itemHeight
 
@@ -150,25 +151,11 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
         // show scrollbar
         if itemsCount > dropdown.maxItemShow {
             hasScrollBar = true
-            customId += 1
+            scrollHeight = i32(f32(dropdown.maxItemShow) / f32(itemsCount) * f32(itemsContainerHeight))
 
-            scrollHeight := i32(f32(dropdown.maxItemShow) / f32(itemsCount) * f32(itemsContainerHeight))
+            beginScroll(windowData)
 
             scrollOffsetIndex = i32(f32(f32(dropdown.scrollOffset^) / f32(itemsContainerHeight - scrollHeight)) * f32(itemsCount - dropdown.maxItemShow))
-
-            renderVerticalScroll(windowData, UiScroll{
-                bgRect = Rect{
-                    top = dropdown.position.y,
-                    bottom = dropdown.position.y - itemsContainerHeight,
-                    right = dropdown.position.x + dropdown.size.x,
-                    left = dropdown.position.x + dropdown.size.x - scrollWidth,
-                },
-                offset = dropdown.scrollOffset,
-                height = scrollHeight,
-                color = WHITE_COLOR,
-                hoverColor = LIGHT_GRAY_COLOR,
-                bgColor = BLACK_COLOR,
-            }, containerId, customId, loc)
         }
         
         itemWidth := dropdown.size.x
@@ -199,6 +186,24 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
 
             offset -= itemHeight
         }
+
+        if hasScrollBar {
+            customId += 1
+
+            endScroll(windowData, UiScroll{
+                bgRect = Rect{
+                    top = dropdown.position.y,
+                    bottom = dropdown.position.y - itemsContainerHeight,
+                    right = dropdown.position.x + dropdown.size.x,
+                    left = dropdown.position.x + dropdown.size.x - scrollWidth,
+                },
+                offset = dropdown.scrollOffset,
+                height = scrollHeight,
+                color = WHITE_COLOR,
+                hoverColor = LIGHT_GRAY_COLOR,
+                bgColor = BLACK_COLOR,
+            }, customId, loc)
+        }
     }
 
     return action
@@ -211,9 +216,17 @@ UiScroll :: struct {
     color, hoverColor, bgColor: float4,
 }
 
-renderVerticalScroll :: proc(windowData: ^WindowData, scroll: UiScroll, scrollableUiId: uiId, customId: i32 = 0, loc := #caller_location) -> UiActions {
+beginScroll :: proc(windowData: ^WindowData) {
+    append(&windowData.scrollableElements, make(map[uiId]struct{}))
+}
+
+endScroll :: proc(windowData: ^WindowData, scroll: UiScroll, customId: i32 = 0, loc := #caller_location) -> UiActions {
     assert(scroll.offset != nil)
+    scrollableElements := pop(&windowData.scrollableElements)
+    defer delete(scrollableElements)
+
     scrollUiId := getUiId(customId, loc)
+    
     bgUiId := getUiId((customId + 1) * 99999999, loc)
 
     position, size := fromRect(scroll.bgRect)
@@ -264,7 +277,7 @@ renderVerticalScroll :: proc(windowData: ^WindowData, scroll: UiScroll, scrollab
         validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
     }
 
-    if .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction {
+    if windowData.hotUiId in scrollableElements || .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction {
         scroll.offset^ -= windowData.scrollDelta
         validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
     }

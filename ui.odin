@@ -53,7 +53,9 @@ renderEditorVerticalScrollBar :: proc(windowData: ^WindowData) -> UiActions {
     @(static)
     offset: i32 = 0
 
-    action := renderVerticalScroll(windowData, UiScroll{
+    beginScroll(windowData)
+
+    action := endScroll(windowData, UiScroll{
         bgRect = {
             top = windowData.size.y / 2,
             bottom = -windowData.size.y / 2,
@@ -65,7 +67,7 @@ renderEditorVerticalScrollBar :: proc(windowData: ^WindowData) -> UiActions {
         color = float4{ 0.7, 0.7, 0.7, 1.0 },
         hoverColor = float4{ 1.0, 1.0, 1.0, 1.0 },
         bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
-    }, 0) //TODO: replace 0 later
+    })
 
     if .ACTIVE in action {
         windowData.screenGlyphs.lineIndex = i32(f32(totalLines) * (f32(offset) / f32(windowData.size.y - scrollHeight)))
@@ -86,6 +88,10 @@ putEmptyUiElement :: proc(windowData: ^WindowData, rect: Rect, customId: i32 = 0
 }
 
 checkUiState :: proc(windowData: ^WindowData, uiId: uiId, rect: Rect) -> UiActions{
+    if len(windowData.scrollableElements) > 0 {
+        windowData.scrollableElements[len(windowData.scrollableElements) - 1][uiId] = {}
+    }
+
     mousePosition := screenToDirectXCoords(windowData, { i32(windowData.mousePosition.x), i32(windowData.mousePosition.y) })
 
     action: UiActions = nil
