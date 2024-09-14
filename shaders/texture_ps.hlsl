@@ -3,6 +3,9 @@ cbuffer solidColorCB : register(b0)
     float4 color;
 }
 
+Texture2D objTexture : TEXTURE : register(t0);
+SamplerState objSamplerState : SAMPLER : register(s0);
+
 struct PSInput
 {
     float4 positionSV : SV_POSITION;
@@ -20,7 +23,10 @@ PSOutput main(PSInput input)
 {
     PSOutput output;
 
-    output.pixelColor = color;
+    float4 objectColor = objTexture.Sample(objSamplerState, input.texcoord.xy).xyzw;
+
+    output.pixelColor = objectColor;
+    // output.pixelColor = color;
     
     // output.pixelColor = float4(1.0, 0.0, 1.0, 1.0);
     // output.objectItemId = (float) input.objectItemId;

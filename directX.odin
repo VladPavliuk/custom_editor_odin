@@ -16,6 +16,7 @@ DirectXState :: struct {
     rasterizerState: ^d3d11.IRasterizerState,
     depthStencilState: ^d3d11.IDepthStencilState,
     blendState: ^d3d11.IBlendState,
+	samplerState: ^d3d11.ISamplerState,
 
     textures: [TextureType]GpuTexture,
     vertexBuffers: [GpuBufferType]GpuBuffer,
@@ -106,6 +107,18 @@ initDirectX :: proc(hwnd: win32.HWND) -> ^DirectXState {
 	res = directXState.device->CreateRasterizerState(&rasterizerDesc, &directXState.rasterizerState)
     assert(res == 0)
 
+    samplerDesc := d3d11.SAMPLER_DESC{
+        Filter = .MIN_MAG_MIP_LINEAR,
+        AddressU = .WRAP,
+        AddressV = .WRAP,
+        AddressW = .WRAP,
+        ComparisonFunc = .NEVER,
+        MinLOD = 0,
+        MaxLOD = d3d11.FLOAT32_MAX,
+    }
+    res = directXState.device->CreateSamplerState(&samplerDesc, &directXState.samplerState)
+    assert(res == 0)
+
     viewport := d3d11.VIEWPORT{
         0, 0,
         f32(depthBufferDesc.Width), f32(depthBufferDesc.Height),
@@ -156,6 +169,7 @@ clearDirectX :: proc(directXState: ^DirectXState) {
     directXState.depthBufferView->Release()
     directXState.rasterizerState->Release()
     directXState.depthStencilState->Release()
+    directXState.samplerState->Release()
     directXState.blendState->Release()
 
     for texture in directXState.textures {

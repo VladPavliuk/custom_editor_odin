@@ -319,7 +319,7 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, customId: i32 = 0, l
     //<
 
     // panel body
-    renderRect(windowData.directXState, panelRect, windowData.uiZIndex, panel.bgColor)
+    renderImageRect(windowData.directXState, panelRect, windowData.uiZIndex, .CLOSE_ICON, panel.bgColor)
     windowData.uiZIndex -= 0.1
 
     // panel header

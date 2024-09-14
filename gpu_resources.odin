@@ -7,9 +7,14 @@ import "vendor:directx/d3d_compiler"
 import "base:runtime"
 
 import "core:mem"
+import "core:image"
+import "core:image/png" // since png module has autoload function, don't remove it!
+
+import "core:bytes"
 
 TextureType :: enum {
     FONT,
+    CLOSE_ICON,
 }
 
 GpuTexture :: struct {
@@ -44,6 +49,7 @@ VertexShaderType :: enum {
 
 PixelShaderType :: enum {
     SOLID_COLOR,
+    TEXTURE,
     FONT,
 }
 
@@ -78,6 +84,7 @@ initGpuResources :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     directXState.vertexShaders[.MULTIPLE_RECTS], _ = compileVertexShader(#load("./shaders/multiple_rects_vs.hlsl"), directXState)
     directXState.pixelShaders[.FONT] = compilePixelShader(#load("./shaders/font_ps.hlsl"), directXState)
     directXState.pixelShaders[.SOLID_COLOR] = compilePixelShader(#load("./shaders/solid_color_ps.hlsl"), directXState)
+    directXState.pixelShaders[.TEXTURE] = compilePixelShader(#load("./shaders/texture_ps.hlsl"), directXState)
     directXState.inputLayouts[.POSITION_AND_TEXCOORD] = inputLayout 
     
     VertexItem :: struct {
@@ -128,6 +135,7 @@ memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T 
 
 loadTextures :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     directXState.textures[.FONT], windowData.font = loadFont(directXState)
+    directXState.textures[.CLOSE_ICON] = loadTextureFromImage(directXState, #load("./resources/images/heart_image.png", []u8))
 }
 
 compileVertexShader :: proc(fileContent: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
@@ -352,4 +360,52 @@ createStructuredBuffer_NoInitData :: proc(length: u32, $T: typeid, directXState:
         strideSize = size_of(T),
         itemType = typeid_of(T),
     }
+}
+
+loadTextureFromImage :: proc(directXState: ^DirectXState, imageFileContent: []u8) -> GpuTexture {
+    parsedImage, imageErr := image.load_from_bytes(imageFileContent)
+    assert(imageErr == nil, "Couldn't parse image")
+    defer image.destroy(parsedImage)
+
+    bitmap := bytes.buffer_to_bytes(&parsedImage.pixels)
+
+    textureDesc := d3d11.TEXTURE2D_DESC{
+        Width = u32(parsedImage.width), 
+        Height = u32(parsedImage.height),
+        MipLevels = 1,
+        ArraySize = 1,
+        Format = dxgi.FORMAT.R8G8B8A8_UNORM,
+        SampleDesc = {
+            Count = 1,
+            Quality = 0,
+        },
+        Usage = d3d11.USAGE.DEFAULT,
+        BindFlags = { d3d11.BIND_FLAG.SHADER_RESOURCE },
+        CPUAccessFlags = {},
+        MiscFlags = {},
+    }
+
+    data := d3d11.SUBRESOURCE_DATA{
+        pSysMem = raw_data(bitmap),
+        SysMemPitch = u32(parsedImage.width * 4), // TODO: remove hardcoded 4 and actually compute it
+        SysMemSlicePitch = u32(parsedImage.width * parsedImage.height * 4),
+    }
+
+    texture: ^d3d11.ITexture2D
+    hr := directXState.device->CreateTexture2D(&textureDesc, &data, &texture)
+    assert(hr == 0)
+    
+    srvDesc := d3d11.SHADER_RESOURCE_VIEW_DESC{
+        Format = textureDesc.Format,
+        ViewDimension = d3d11.SRV_DIMENSION.TEXTURE2D,
+        Texture2D = {
+            MipLevels = 1,
+        },
+    }
+
+    srv: ^d3d11.IShaderResourceView
+    hr = directXState.device->CreateShaderResourceView(texture, &srvDesc, &srv)
+    assert(hr == 0)
+
+    return GpuTexture{ texture, srv, { i32(parsedImage.width), i32(parsedImage.height) } }
 }

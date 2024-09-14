@@ -47,6 +47,8 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     ctx->OMSetRenderTargets(1, &directXState.backBufferView, directXState.depthBufferView)
     ctx->OMSetDepthStencilState(directXState.depthStencilState, 0)
     ctx->RSSetState(directXState.rasterizerState)
+	ctx->PSSetSamplers(0, 1, &directXState->samplerState)
+
     ctx->OMSetBlendState(directXState.blendState, nil, 0xFFFFFFFF)
 
 	ctx->IASetPrimitiveTopology(d3d11.PRIMITIVE_TOPOLOGY.TRIANGLELIST)
@@ -179,45 +181,45 @@ uiStaff :: proc(windowData: ^WindowData) {
             color = WHITE_COLOR,
             bgColor = GREEN_COLOR,
             hoverBgColor = BLACK_COLOR,
-        })    
-        
+        })
+
+        testItems := []string{
+            "item 1",
+            "item 2",
+            "item 3",
+            "item 4",
+            "item 5",
+            "item 6",
+            "item 7",
+            "item 8",
+            "item 9",
+            "item 10",
+            "item 11",
+            "item 12",
+            "item 13",
+            "item 14",
+            "item 15",
+            "item 16",
+            "item 17",
+        }
+        @(static)
+        selectedItem: i32 = 0
+        @(static)
+        dropdownScrollOffset: i32 = 0
+        @(static)
+        isOpen: bool = false
+        renderDropdown(windowData, UiDropdown{
+            position = { 0, 100 }, size = { 120, 40 },
+            items = testItems,
+            bgColor = THEME_COLOR_2,
+            selectedItemIndex = &selectedItem,
+            maxItemShow = 5,
+            isOpen = &isOpen,
+            scrollOffset = &dropdownScrollOffset,
+        })
+
         endPanel(windowData)
     }
-
-    testItems := []string{
-        "item 1",
-        "item 2",
-        "item 3",
-        "item 4",
-        "item 5",
-        "item 6",
-        "item 7",
-        "item 8",
-        "item 9",
-        "item 10",
-        "item 11",
-        "item 12",
-        "item 13",
-        "item 14",
-        "item 15",
-        "item 16",
-        "item 17",
-    }
-    @(static)
-    selectedItem: i32 = 0
-    @(static)
-    dropdownScrollOffset: i32 = 0
-    @(static)
-    isOpen: bool = false
-    renderDropdown(windowData, UiDropdown{
-        position = { 0, -200 }, size = { 120, 40 },
-        items = testItems,
-        bgColor = THEME_COLOR_2,
-        selectedItemIndex = &selectedItem,
-        maxItemShow = 5,
-        isOpen = &isOpen,
-        scrollOffset = &dropdownScrollOffset,
-    })
 
     // @(static)
     // offset: i32 = 0
@@ -266,6 +268,39 @@ renderRectVec_Float :: proc(directXState: ^DirectXState, position, size: float2,
 
     updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
     updateGpuBuffer(&color, directXState.constantBuffers[.COLOR], directXState)
+
+    directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
+}
+
+renderImageRect :: proc{renderImageRectVec_Float, renderImageRectVec_Int, renderImageRect_Int}
+
+renderImageRect_Int :: proc(directXState: ^DirectXState, rect: Rect, zValue: f32, texture: TextureType, bgColor: float4) {
+    renderImageRectVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
+        { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, texture, bgColor)
+}
+
+renderImageRectVec_Int :: proc(directXState: ^DirectXState, position, size: int2, zValue: f32, texture: TextureType, bgColor: float4) {
+    renderImageRectVec_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, texture, bgColor)
+}
+
+renderImageRectVec_Float :: proc(directXState: ^DirectXState, position, size: float2, zValue: f32, texture: TextureType, bgColor: float4) {
+    bgColor := bgColor
+    ctx := directXState.ctx
+
+    ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
+    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+    ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
+
+    ctx->PSSetShader(directXState.pixelShaders[.TEXTURE], nil, 0)
+    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
+    ctx->PSSetShaderResources(0, 1, &directXState.textures[texture].srv)
+
+    modelMatrix := getTransformationMatrix(
+        { position.x, position.y, zValue }, 
+        { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 })
+
+    updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
+    updateGpuBuffer(&bgColor, directXState.constantBuffers[.COLOR], directXState)
 
     directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
 }
