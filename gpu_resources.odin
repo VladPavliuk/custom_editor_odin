@@ -10,6 +10,8 @@ import "core:mem"
 import "core:image"
 import "core:image/png" // since png module has autoload function, don't remove it!
 
+_ :: png._MAX_IDAT
+
 import "core:bytes"
 
 TextureType :: enum {

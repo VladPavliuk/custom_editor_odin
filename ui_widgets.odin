@@ -1,7 +1,5 @@
 package main
 
-import "core:fmt"
-
 UiButton :: struct {
     text: string,
     position, size: int2,
@@ -116,7 +114,8 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
     assert(dropdown.selectedItemIndex^ >= 0 && dropdown.selectedItemIndex^ < itemsCount)
     assert(itemsCount > 0)
     assert(dropdown.maxItemShow > 0)
-    customId := customId + 1
+    customId := customId
+    customId += 1
     scrollWidth: i32 = 10
 
     action := renderButton(windowData, UiButton{
@@ -140,13 +139,13 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
         itemsToShow := min(dropdown.maxItemShow, itemsCount)
         itemsContainerHeight := itemsToShow * itemHeight
 
-        customId += 1
-        containerId, containerActions := putEmptyUiElement(windowData, Rect {
-            top = dropdown.position.y,
-            bottom = dropdown.position.y - itemsContainerHeight,
-            right = dropdown.position.x + dropdown.size.x,
-            left = dropdown.position.x,
-        }, customId, loc)
+        // customId += 1
+        // containerId, containerActions := putEmptyUiElement(windowData, Rect {
+        //     top = dropdown.position.y,
+        //     bottom = dropdown.position.y - itemsContainerHeight,
+        //     right = dropdown.position.x + dropdown.size.x,
+        //     left = dropdown.position.x,
+        // }, customId, loc)
         
         // show scrollbar
         if itemsCount > dropdown.maxItemShow {
@@ -260,8 +259,6 @@ endScroll :: proc(windowData: ^WindowData, scroll: UiScroll, customId: i32 = 0, 
     }
 
     if .ACTIVE in scrollAction {
-        position, size := fromRect(scrollRect)
-
         mouseY := screenToDirectXCoords(windowData, windowData.mousePosition).y
 
         delta := windowData.deltaMousePosition.y
@@ -349,7 +346,7 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, customId: i32 = 0, l
         panelRect = toRect(panel.position^, panel.size^)
 
         panelRect = clipRect(windowRect, panelRect)
-        position, size := fromRect(panelRect)
+        position, _ := fromRect(panelRect)
 
         panel.position^ = position
     }

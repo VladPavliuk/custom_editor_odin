@@ -1,7 +1,5 @@
 package main
 
-import "core:fmt"
-
 import "base:runtime"
 
 uiId :: i64
@@ -47,8 +45,6 @@ renderEditorVerticalScrollBar :: proc(windowData: ^WindowData) -> UiActions {
 
     scrollWidth := windowData.editorPadding.right
     scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
-
-    scrollPosition := int2{ windowData.size.x / 2 - scrollWidth, windowData.size.y / 2 - scrollHeight }
 
     @(static)
     offset: i32 = 0
