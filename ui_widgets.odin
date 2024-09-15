@@ -15,7 +15,6 @@ renderButton_Base :: proc(windowData: ^WindowData, button: UiButton, customId: i
     position := button.position + getAbsolutePosition(windowData)
 
     uiRect := toRect(position, button.size)
-    uiRectSize := getRectSize(uiRect)
 
     bgColor := button.bgColor
 
@@ -370,9 +369,6 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, open: ^bool, customI
         WHITE_COLOR, windowData.uiZIndex)
     advanceZIndex(windowData)
 
-    renderRectBorder(windowData.directXState, panel.position^, panel.size^, 1.0, windowData.uiZIndex, GRAY_COLOR)
-    advanceZIndex(windowData)
-
     panelAction := checkUiState(windowData, uiId, panelRect)
     headerAction := checkUiState(windowData, headerUiId, headerRect)
 
@@ -389,6 +385,9 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, open: ^bool, customI
     }, customId, loc) {
         open^ = false
     }
+    
+    renderRectBorder(windowData.directXState, panel.position^, panel.size^, 1.0, windowData.uiZIndex, GRAY_COLOR)
+    advanceZIndex(windowData)
 
     if .ACTIVE in headerAction {
         panel.position.x += windowData.deltaMousePosition.x
