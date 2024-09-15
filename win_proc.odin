@@ -10,55 +10,44 @@ import win32 "core:sys/windows"
 
 winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARAM, lParam: win32.LPARAM) -> win32.LRESULT {
     context = runtime.default_context()
-    getWindowData := proc(hwnd: win32.HWND) -> ^WindowData { return (^WindowData)(uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA))) }
 
     switch msg {
     case win32.WM_NCCREATE:
-        windowData := (^WindowData)(((^win32.CREATESTRUCTW)(uintptr(lParam))).lpCreateParams)
+        // windowData := (^WindowData)(((^win32.CREATESTRUCTW)(uintptr(lParam))).lpCreateParams)
 
-        win32.SetWindowLongPtrW(hwnd, win32.GWLP_USERDATA, win32.LONG_PTR(uintptr(windowData)))
+        // win32.SetWindowLongPtrW(hwnd, win32.GWLP_USERDATA, win32.LONG_PTR(uintptr(&windowData)))
     case win32.WM_MOUSEMOVE:
-        windowData := getWindowData(hwnd)
-
 	    xMouse := win32.GET_X_LPARAM(lParam)
 		yMouse := win32.GET_Y_LPARAM(lParam)
 
-        prevMousePosition := windowData.mousePosition
-        windowData.mousePosition = { xMouse, yMouse }
+        prevMousePosition := inputState.mousePosition
+        inputState.mousePosition = { xMouse, yMouse }
 
-        windowData.deltaMousePosition = windowData.mousePosition - prevMousePosition
+        inputState.deltaMousePosition = inputState.mousePosition - prevMousePosition
 
-        windowData.mousePosition.x = max(0, windowData.mousePosition.x)
-        windowData.mousePosition.y = max(0, windowData.mousePosition.y)
+        inputState.mousePosition.x = max(0, inputState.mousePosition.x)
+        inputState.mousePosition.y = max(0, inputState.mousePosition.y)
 
-        windowData.mousePosition.x = min(windowData.size.x, windowData.mousePosition.x)
-        windowData.mousePosition.y = min(windowData.size.y, windowData.mousePosition.y)
+        inputState.mousePosition.x = min(windowData.size.x, inputState.mousePosition.x)
+        inputState.mousePosition.y = min(windowData.size.y, inputState.mousePosition.y)
     case win32.WM_LBUTTONDOWN:
-        windowData := getWindowData(hwnd)
-
-		windowData.isLeftMouseButtonDown = true
-		windowData.wasLeftMouseButtonDown = true
+		inputState.isLeftMouseButtonDown = true
+		inputState.wasLeftMouseButtonDown = true
 
 		win32.SetCapture(hwnd)
     case win32.WM_LBUTTONUP:
-        windowData := getWindowData(hwnd)
-
-        windowData.isLeftMouseButtonDown = false
-        windowData.wasLeftMouseButtonUp = true
+        inputState.isLeftMouseButtonDown = false
+        inputState.wasLeftMouseButtonUp = true
 
         // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
         win32.ReleaseCapture()
     case win32.WM_LBUTTONDBLCLK:
-        windowData := getWindowData(hwnd)
-
         // NOTE: for simplicity just pretend that WM_LBUTTONDBLCLK message is just WM_LBUTTONDOWN
-		windowData.isLeftMouseButtonDown = true
-		windowData.wasLeftMouseButtonDown = true
+		inputState.isLeftMouseButtonDown = true
+		inputState.wasLeftMouseButtonDown = true
         
 		win32.SetCapture(hwnd)
     case win32.WM_SIZE:
-        windowData := getWindowData(hwnd)
-
         if !windowData.windowCreated { break }
 
         if wParam == win32.SIZE_MINIMIZED { break }
@@ -66,29 +55,25 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         clientRect: win32.RECT
         win32.GetClientRect(hwnd, &clientRect)
 
-        windowSizeChangedHandler(windowData, clientRect.right - clientRect.left, clientRect.bottom - clientRect.top)
+        windowSizeChangedHandler(clientRect.right - clientRect.left, clientRect.bottom - clientRect.top)
 
-        calculateLines(windowData)
-        updateCusrorData(windowData)
-        validateTopLine(windowData)
+        calculateLines()
+        updateCusrorData()
+        validateTopLine()
 
         // NOTE: while resizing we only get resize message, so we can't redraw from main loop, so we do it explicitlly
-        render(windowData.directXState, windowData)
+        render()
     case win32.WM_KEYDOWN:
-        handle_WM_KEYDOWN(lParam, wParam, getWindowData(hwnd))
+        handle_WM_KEYDOWN(lParam, wParam)
     case win32.WM_CHAR:
-        windowData := getWindowData(hwnd)
-
         if windowData.wasInputSymbolTyped && windowData.isInputMode {
-            edit.input_rune(&windowData.inputState, rune(wParam))
+            edit.input_rune(&windowData.editorState, rune(wParam))
             
-            calculateLines(windowData)
-            updateCusrorData(windowData)
-            jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
+            calculateLines()
+            updateCusrorData()
+            jumpToCursor(windowData.screenGlyphs.cursorLineIndex)
         }
     case win32.WM_MOUSEWHEEL:
-        windowData := getWindowData(hwnd)
-
         yoffset := win32.GET_WHEEL_DELTA_WPARAM(wParam)
 
         // TODO: move it out!
@@ -98,17 +83,15 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         //     windowData.screenGlyphs.lineIndex += 1
         // }
 
-        windowData.scrollDelta = i32(yoffset)
+        inputState.scrollDelta = i32(yoffset)
 
-        validateTopLine(windowData)
+        validateTopLine()
     case win32.WM_COMMAND:        
-        windowData := getWindowData(hwnd)
-
 		menuItemId := win32.LOWORD(u32(wParam))
 
         switch menuItemId {
         case IDM_FILE_OPEN:
-            filePath, ok := showOpenFileDialog(windowData)
+            filePath, ok := showOpenFileDialog()
             if !ok { break }
 
             windowData.openedFilePath = filePath
@@ -125,16 +108,16 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
             strings.write_string(&windowData.text, testText)
             
-            edit.init(&windowData.inputState, context.allocator, context.allocator)
-            edit.setup_once(&windowData.inputState, &windowData.text)
-            windowData.inputState.selection = { 0, 0 }
+            edit.init(&windowData.editorState, context.allocator, context.allocator)
+            edit.setup_once(&windowData.editorState, &windowData.text)
+            windowData.editorState.selection = { 0, 0 }
             windowData.screenGlyphs.lineIndex = 0
         case IDM_FILE_SAVE_AS:
-            ok := showSaveAsFileDialog(windowData)
+            ok := showSaveAsFileDialog()
 
             if !ok { break }
         case IDM_FILE_SAVE:
-            saveToOpenedFile(windowData)
+            saveToOpenedFile()
         }
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
@@ -153,7 +136,7 @@ isCtrlPressed :: proc() -> bool {
     return uint(win32.GetKeyState(win32.VK_LCONTROL)) & 0x8000 == 0x8000
 }
 
-handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData: ^WindowData) {
+handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
     windowData.wasInputSymbolTyped = false
 
     if !windowData.isInputMode { return }
@@ -199,9 +182,9 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
     switch wParam {
     case win32.VK_RETURN:
         // NOTE: if there's any whitespace at the beginning of the line, copy it to the new line
-        lineStart := windowData.inputState.line_start
+        lineStart := windowData.editorState.line_start
         whiteSpacesCount := 0
-        for i in lineStart..<windowData.inputState.line_end {
+        for i in lineStart..<windowData.editorState.line_end {
             char := windowData.text.buf[i]
 
             if char != ' ' && char != '\t' {
@@ -210,99 +193,99 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
             whiteSpacesCount += 1
         }
 
-        edit.perform_command(&windowData.inputState, edit.Command.New_Line)
+        edit.perform_command(&windowData.editorState, edit.Command.New_Line)
 
         if whiteSpacesCount > 0 {
-            edit.input_text(&windowData.inputState, string(windowData.text.buf[lineStart:][:whiteSpacesCount]))
+            edit.input_text(&windowData.editorState, string(windowData.text.buf[lineStart:][:whiteSpacesCount]))
         }
     case win32.VK_TAB:
-        edit.input_rune(&windowData.inputState, rune('\t'))
+        edit.input_rune(&windowData.editorState, rune('\t'))
     case win32.VK_LEFT:
         if isCtrlPressed() {
             if isShiftPressed() {
-                edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Left)
+                edit.perform_command(&windowData.editorState, edit.Command.Select_Word_Left)
             } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Word_Left)
+                edit.move_to(&windowData.editorState, edit.Translation.Word_Left)
             }
         } else {
             if isShiftPressed() {
-                edit.perform_command(&windowData.inputState, edit.Command.Select_Left)
+                edit.perform_command(&windowData.editorState, edit.Command.Select_Left)
             } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Left)
+                edit.move_to(&windowData.editorState, edit.Translation.Left)
             }
         }
     case win32.VK_RIGHT:
         if isCtrlPressed() {
             if isShiftPressed() {
-                edit.perform_command(&windowData.inputState, edit.Command.Select_Word_Right)
+                edit.perform_command(&windowData.editorState, edit.Command.Select_Word_Right)
             } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Word_Right)
+                edit.move_to(&windowData.editorState, edit.Translation.Word_Right)
             }
         } else {
             if isShiftPressed() {
-                edit.perform_command(&windowData.inputState, edit.Command.Select_Right)
+                edit.perform_command(&windowData.editorState, edit.Command.Select_Right)
             } else {
-                edit.move_to(&windowData.inputState, edit.Translation.Right)
+                edit.move_to(&windowData.editorState, edit.Translation.Right)
             }
         }
     case win32.VK_UP:
         if isShiftPressed() {
-            edit.perform_command(&windowData.inputState, edit.Command.Select_Up)
+            edit.perform_command(&windowData.editorState, edit.Command.Select_Up)
         } else {
-            edit.move_to(&windowData.inputState, edit.Translation.Up)
+            edit.move_to(&windowData.editorState, edit.Translation.Up)
         }
     case win32.VK_DOWN:
         if isShiftPressed() {
-            edit.perform_command(&windowData.inputState, edit.Command.Select_Down)
+            edit.perform_command(&windowData.editorState, edit.Command.Select_Down)
         } else {
-            edit.move_to(&windowData.inputState, edit.Translation.Down)
+            edit.move_to(&windowData.editorState, edit.Translation.Down)
         }
     case win32.VK_BACK:
         if isCtrlPressed() {
-            edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Left)
+            edit.perform_command(&windowData.editorState, edit.Command.Delete_Word_Left)
         } else {
-            edit.perform_command(&windowData.inputState, edit.Command.Backspace)
+            edit.perform_command(&windowData.editorState, edit.Command.Backspace)
         }
     case win32.VK_DELETE:        
         if isCtrlPressed() {
-            edit.perform_command(&windowData.inputState, edit.Command.Delete_Word_Right)
+            edit.perform_command(&windowData.editorState, edit.Command.Delete_Word_Right)
         } else {
-            edit.perform_command(&windowData.inputState, edit.Command.Delete)
+            edit.perform_command(&windowData.editorState, edit.Command.Delete)
         }
     case win32.VK_HOME:
-        jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
+        jumpToCursor(windowData.screenGlyphs.cursorLineIndex)
 
         if isShiftPressed() {
-            edit.perform_command(&windowData.inputState, edit.Command.Select_Line_Start)
+            edit.perform_command(&windowData.editorState, edit.Command.Select_Line_Start)
         } else {
-            edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_Start)
+            edit.move_to(&windowData.editorState, edit.Translation.Soft_Line_Start)
         }
     case win32.VK_END:
-        jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
+        jumpToCursor(windowData.screenGlyphs.cursorLineIndex)
 
         if isShiftPressed() {
-            edit.perform_command(&windowData.inputState, edit.Command.Select_Line_End)
+            edit.perform_command(&windowData.editorState, edit.Command.Select_Line_End)
         } else {
-            edit.move_to(&windowData.inputState, edit.Translation.Soft_Line_End)
+            edit.move_to(&windowData.editorState, edit.Translation.Soft_Line_End)
         }
     case win32.VK_A:
-        edit.perform_command(&windowData.inputState, edit.Command.Select_All)
+        edit.perform_command(&windowData.editorState, edit.Command.Select_All)
     case win32.VK_C:
-        if edit.has_selection(&windowData.inputState) {
-            edit.perform_command(&windowData.inputState, edit.Command.Copy)
+        if edit.has_selection(&windowData.editorState) {
+            edit.perform_command(&windowData.editorState, edit.Command.Copy)
         }
     case win32.VK_V:
-        edit.perform_command(&windowData.inputState, edit.Command.Paste)
+        edit.perform_command(&windowData.editorState, edit.Command.Paste)
     case win32.VK_X:
-        edit.perform_command(&windowData.inputState, edit.Command.Cut)
+        edit.perform_command(&windowData.editorState, edit.Command.Cut)
     case win32.VK_Z:
         if isShiftPressed() {
-            edit.perform_command(&windowData.inputState, edit.Command.Redo)
+            edit.perform_command(&windowData.editorState, edit.Command.Redo)
         } else {
-            edit.perform_command(&windowData.inputState, edit.Command.Undo)
+            edit.perform_command(&windowData.editorState, edit.Command.Undo)
         }
     case win32.VK_S:
-        saveToOpenedFile(windowData)
+        saveToOpenedFile()
     }
 
     switch wParam {
@@ -310,18 +293,16 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM, windowData
         win32.VK_LEFT, win32.VK_RIGHT, win32.VK_UP, win32.VK_DOWN,
         win32.VK_BACK, win32.VK_DELETE,
         win32.VK_V, win32.VK_X, win32.VK_Z:
-            calculateLines(windowData)
-            updateCusrorData(windowData)
-            jumpToCursor(windowData, windowData.screenGlyphs.cursorLineIndex)
+            calculateLines()
+            updateCusrorData()
+            jumpToCursor(windowData.screenGlyphs.cursorLineIndex)
     }
 }
 
-windowSizeChangedHandler :: proc "c" (windowData: ^WindowData, width, height: i32) {
+windowSizeChangedHandler :: proc "c" (width, height: i32) {
     context = runtime.default_context()
 
     windowData.size = { width, height }
-
-    directXState := windowData.directXState
 
     directXState.ctx->OMSetRenderTargets(0, nil, nil)
     directXState.backBufferView->Release()
@@ -359,5 +340,5 @@ windowSizeChangedHandler :: proc "c" (windowData: ^WindowData, width, height: i3
 
     viewMatrix := getOrthoraphicsMatrix(f32(width), f32(height), 0.1, windowData.maxZIndex + 1.0)
 
-    updateGpuBuffer(&viewMatrix, directXState.constantBuffers[.PROJECTION], directXState)
+    updateGpuBuffer(&viewMatrix, directXState.constantBuffers[.PROJECTION])
 }

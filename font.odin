@@ -30,7 +30,7 @@ FontData :: struct {
     kerningTable: map[rune]map[rune]f32,
 }
 
-loadFont :: proc(directXState: ^DirectXState) -> (GpuTexture, FontData) {
+loadFont :: proc() -> (GpuTexture, FontData) {
     // "SourceCodePro-Medium"
     fileContent, success := os.read_entire_file_from_filename("c:/windows/fonts/arial.TTF")
     // fileContent, success := os.read_entire_file_from_filename("SourceCodePro-Medium.TTF")

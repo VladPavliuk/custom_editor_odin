@@ -4,12 +4,11 @@ import win32 "core:sys/windows"
 import "core:text/edit"
 
 main :: proc() {
-    windowData := createWindow({ 800, 800 })
+    createWindow({ 800, 800 })
 
-    directXState := initDirectX(windowData.parentHwnd)
-    windowData.directXState = directXState
+    initDirectX()
     
-    initGpuResources(directXState, windowData)
+    initGpuResources()
 
     msg: win32.MSG
     for msg.message != win32.WM_QUIT {
@@ -19,15 +18,15 @@ main :: proc() {
             continue
         }
 
-        edit.update_time(&windowData.inputState)
-        render(windowData.directXState, windowData)
+        edit.update_time(&windowData.editorState)
+        render()
 
-        windowData.wasLeftMouseButtonDown = false
-        windowData.wasLeftMouseButtonUp = false
-        windowData.deltaMousePosition = { 0, 0 }
-        windowData.scrollDelta = 0
+        inputState.wasLeftMouseButtonDown = false
+        inputState.wasLeftMouseButtonUp = false
+        inputState.deltaMousePosition = { 0, 0 }
+        inputState.scrollDelta = 0
     }
 
-    removeWindowData(windowData)
-    clearDirectX(windowData.directXState)
+    removeWindowData()
+    clearDirectX()
 }

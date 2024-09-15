@@ -3,8 +3,6 @@ package main
 import "vendor:directx/dxgi"
 import "vendor:directx/d3d11"
 
-import win32 "core:sys/windows"
-
 DirectXState :: struct {
     device: ^d3d11.IDevice,
     ctx: ^d3d11.IDeviceContext,
@@ -30,8 +28,10 @@ DirectXState :: struct {
     pixelShaders: [PixelShaderType]^d3d11.IPixelShader,
 }
 
-initDirectX :: proc(hwnd: win32.HWND) -> ^DirectXState {
-    directXState := new(DirectXState)
+directXState: DirectXState
+
+initDirectX :: proc() {
+    // directXState := new(DirectXState)
 
     baseDevice: ^d3d11.IDevice
 	baseDeviceContext: ^d3d11.IDeviceContext
@@ -80,7 +80,8 @@ initDirectX :: proc(hwnd: win32.HWND) -> ^DirectXState {
 		Flags = { },
 	}
 
-	res = dxgiFactory->CreateSwapChainForHwnd(directXState.device, hwnd, &swapchainDesc, nil, nil, &directXState.swapchain)
+    assert(windowData.parentHwnd != nil)
+	res = dxgiFactory->CreateSwapChainForHwnd(directXState.device, windowData.parentHwnd, &swapchainDesc, nil, nil, &directXState.swapchain)
     assert(res == 0)
 
 	res = directXState.swapchain->GetBuffer(0, d3d11.ITexture2D_UUID, (^rawptr)(&directXState.backBuffer))
@@ -153,11 +154,9 @@ initDirectX :: proc(hwnd: win32.HWND) -> ^DirectXState {
 
 	res = directXState->device->CreateBlendState(&blendDesc, &directXState.blendState)
     assert(res == 0)
-
-    return directXState
 }
 
-clearDirectX :: proc(directXState: ^DirectXState) {
+clearDirectX :: proc() {
 	directXState.swapchain->SetFullscreenState(false, nil)
 
     directXState.device->Release()
@@ -210,5 +209,5 @@ clearDirectX :: proc(directXState: ^DirectXState) {
         pixelShader->Release()
     }
 
-    free(directXState)
+    directXState = {}
 }

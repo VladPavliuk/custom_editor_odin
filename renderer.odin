@@ -37,7 +37,7 @@ THEME_COLOR_3 := float4{ 2 / 255.0, 48 / 255.0, 71 / 255.0, 1.0 }
 THEME_COLOR_4 := float4{ 33 / 255.0, 158 / 255.0, 188 / 255.0, 1.0 }
 THEME_COLOR_5 := float4{ 142 / 255.0, 202 / 255.0, 230 / 255.0, 1.0 }
 
-render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
+render :: proc() {
     ctx := directXState.ctx
 
     bgColor: [4]f32 = EDITOR_BG_COLOR.xyzw
@@ -60,7 +60,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
     //> ui testing
-    uiStaff(windowData)
+    uiStaff()
     //<
 
     //renderRectBorder(directXState, { -200, -200 }, {50,100}, 1.0, 1.0, GRAY_COLOR)
@@ -73,13 +73,13 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     timer: time.Stopwatch
     time.stopwatch_start(&timer)    
 
-    glyphsCount, selectionsCount := fillTextBuffer(directXState, windowData)
+    glyphsCount, selectionsCount := fillTextBuffer()
     time.stopwatch_stop(&timer)
 
     if windowData.isInputMode {
-        calculateLines(windowData)
-        findCursorPosition(windowData)
-        updateCusrorData(windowData)
+        calculateLines()
+        findCursorPosition()
+        updateCusrorData()
     }
     
     elapsed := time.duration_microseconds(timer._accumulation)
@@ -87,15 +87,15 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     timeElapsedCount += 1
     // fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
     
-    renderText(directXState, windowData, glyphsCount, selectionsCount)
-    renderLineNumbers(directXState, windowData)
+    renderText(glyphsCount, selectionsCount)
+    renderLineNumbers()
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)
 }
 
-testingButtons :: proc(windowData: ^WindowData) {
-    if action := renderButton(windowData, UiTextButton{
+testingButtons :: proc() {
+    if action := renderButton(&windowData.uiContext, UiTextButton{
         text = "Test 1",
         position = { 0, 0 },
         size = { 100, 30 },
@@ -116,7 +116,7 @@ testingButtons :: proc(windowData: ^WindowData) {
         fmt.print('\n')
     }
 
-    if action := renderButton(windowData, UiTextButton{
+    if action := renderButton(&windowData.uiContext, UiTextButton{
         text = "Test 2",
         position = { 40, 10 },
         size = { 100, 30 },
@@ -138,17 +138,17 @@ testingButtons :: proc(windowData: ^WindowData) {
     }
 }
 
-uiStaff :: proc(windowData: ^WindowData) {
-    beginUi(windowData)
+uiStaff :: proc() {
+    beginUi(&windowData.uiContext, windowData.maxZIndex / 2.0)
 
-    testingButtons(windowData)
+    testingButtons()
 
-    renderEditorVerticalScrollBar(windowData)
+    renderEditorVerticalScrollBar()
 
     @(static)
     showPanel := false
     
-    if .SUBMIT in renderButton(windowData, UiTextButton{
+    if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
         text = "Show/Hide panel",
         position = { 39, -100 },
         size = { 150, 30 },
@@ -164,7 +164,7 @@ uiStaff :: proc(windowData: ^WindowData) {
         @(static)
         panelSize: int2 = { 200, 300 }
 
-        beginPanel(windowData, UiPanel{
+        beginPanel(&windowData.uiContext, UiPanel{
             title = "PANEL 1",
             position = &panelPosition,
             size = &panelSize,
@@ -174,7 +174,7 @@ uiStaff :: proc(windowData: ^WindowData) {
 
         @(static)
         checked := false
-        renderCheckbox(windowData, UiCheckbox{
+        renderCheckbox(&windowData.uiContext, UiCheckbox{
             text = "word wrapping",
             checked = &windowData.wordWrapping,
             position = { 0, 0 },
@@ -208,7 +208,7 @@ uiStaff :: proc(windowData: ^WindowData) {
         dropdownScrollOffset: i32 = 0
         @(static)
         isOpen: bool = false
-        renderDropdown(windowData, UiDropdown{
+        renderDropdown(&windowData.uiContext, UiDropdown{
             position = { 0, 100 }, size = { 120, 40 },
             items = testItems,
             bgColor = THEME_COLOR_2,
@@ -218,7 +218,7 @@ uiStaff :: proc(windowData: ^WindowData) {
             scrollOffset = &dropdownScrollOffset,
         })
 
-        endPanel(windowData)
+        endPanel(&windowData.uiContext)
     }
 
     // @(static)
@@ -235,23 +235,23 @@ uiStaff :: proc(windowData: ^WindowData) {
     //     bgColor = THEME_COLOR_1,
     // })
 
-    endUi(windowData)
+    endUi(&windowData.uiContext)
 
-    windowData.isInputMode = windowData.activeUiId == {}
+    windowData.isInputMode = windowData.uiContext.activeId == {}
 }
 
 renderRect :: proc{renderRectVec_Float, renderRectVec_Int, renderRect_Int}
 
-renderRect_Int :: proc(directXState: ^DirectXState, rect: Rect, zValue: f32, color: float4) {
-    renderRectVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
+renderRect_Int :: proc(rect: Rect, zValue: f32, color: float4) {
+    renderRectVec_Float({ f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, color)
 }
 
-renderRectVec_Int :: proc(directXState: ^DirectXState, position, size: int2, zValue: f32, color: float4) {
-    renderRectVec_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, color)
+renderRectVec_Int :: proc(position, size: int2, zValue: f32, color: float4) {
+    renderRectVec_Float({ f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, color)
 }
 
-renderRectVec_Float :: proc(directXState: ^DirectXState, position, size: float2, zValue: f32, color: float4) {
+renderRectVec_Float :: proc(position, size: float2, zValue: f32, color: float4) {
     color := color
     ctx := directXState.ctx
 
@@ -266,24 +266,24 @@ renderRectVec_Float :: proc(directXState: ^DirectXState, position, size: float2,
         { position.x, position.y, zValue }, 
         { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 })
 
-    updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
-    updateGpuBuffer(&color, directXState.constantBuffers[.COLOR], directXState)
+    updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION])
+    updateGpuBuffer(&color, directXState.constantBuffers[.COLOR])
 
     directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
 }
 
 renderImageRect :: proc{renderImageRectVec_Float, renderImageRectVec_Int, renderImageRect_Int}
 
-renderImageRect_Int :: proc(directXState: ^DirectXState, rect: Rect, zValue: f32, texture: TextureType, bgColor: float4) {
-    renderImageRectVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
+renderImageRect_Int :: proc(rect: Rect, zValue: f32, texture: TextureType, bgColor: float4) {
+    renderImageRectVec_Float({ f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, texture, bgColor)
 }
 
-renderImageRectVec_Int :: proc(directXState: ^DirectXState, position, size: int2, zValue: f32, texture: TextureType, bgColor: float4) {
-    renderImageRectVec_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, texture, bgColor)
+renderImageRectVec_Int :: proc(position, size: int2, zValue: f32, texture: TextureType, bgColor: float4) {
+    renderImageRectVec_Float({ f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, texture, bgColor)
 }
 
-renderImageRectVec_Float :: proc(directXState: ^DirectXState, position, size: float2, zValue: f32, texture: TextureType, bgColor: float4) {
+renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: TextureType, bgColor: float4) {
     bgColor := bgColor
     ctx := directXState.ctx
 
@@ -299,39 +299,39 @@ renderImageRectVec_Float :: proc(directXState: ^DirectXState, position, size: fl
         { position.x, position.y, zValue }, 
         { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 })
 
-    updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION], directXState)
-    updateGpuBuffer(&bgColor, directXState.constantBuffers[.COLOR], directXState)
+    updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION])
+    updateGpuBuffer(&bgColor, directXState.constantBuffers[.COLOR])
 
     directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
 }
 
 renderRectBorder :: proc{renderRectBorderVec_Float, renderRectBorderVec_Int, renderRectBorder_Int}
 
-renderRectBorder_Int :: proc(directXState: ^DirectXState, rect: Rect, thickness, zValue: f32, color: float4) {
-    renderRectBorderVec_Float(directXState, { f32(rect.left), f32(rect.bottom) }, 
+renderRectBorder_Int :: proc(rect: Rect, thickness, zValue: f32, color: float4) {
+    renderRectBorderVec_Float({ f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, thickness, zValue, color)
 }
 
-renderRectBorderVec_Int :: proc(directXState: ^DirectXState, position, size: int2, thickness, zValue: f32, color: float4) {
-    renderRectBorderVec_Float(directXState, { f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, thickness, zValue, color)
+renderRectBorderVec_Int :: proc(position, size: int2, thickness, zValue: f32, color: float4) {
+    renderRectBorderVec_Float({ f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, thickness, zValue, color)
 }
 
-renderRectBorderVec_Float :: proc(directXState: ^DirectXState, position, size: float2, thickness, zValue: f32, color: float4) {
-    renderRect(directXState, float2{ position.x, position.y + size.y - thickness }, float2{ size.x, thickness }, zValue, color) // top border
-    renderRect(directXState, position, float2{ size.x, thickness }, zValue, color) // bottom border
-    renderRect(directXState, position, float2{ thickness, size.y }, zValue, color) // left border
-    renderRect(directXState, float2{ position.x + size.x - thickness, position.y }, float2{ thickness, size.y }, zValue, color) // right border
+renderRectBorderVec_Float :: proc(position, size: float2, thickness, zValue: f32, color: float4) {
+    renderRect(float2{ position.x, position.y + size.y - thickness }, float2{ size.x, thickness }, zValue, color) // top border
+    renderRect(position, float2{ size.x, thickness }, zValue, color) // bottom border
+    renderRect(position, float2{ thickness, size.y }, zValue, color) // left border
+    renderRect(float2{ position.x + size.x - thickness, position.y }, float2{ thickness, size.y }, zValue, color) // right border
 }
 
-renderLine :: proc(directXState: ^DirectXState, windowData: ^WindowData, text: string, position: int2, color: float4, zIndex: f32) {
+renderLine :: proc(text: string, font: ^FontData, position: int2, color: float4, zIndex: f32) {
     fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
     
     leftOffset := f32(position.x)
-    topOffset := f32(position.y) - windowData.font.descent
+    topOffset := f32(position.y) - font.descent
 
     for char, index in text {
-        fontChar := windowData.font.chars[char]
+        fontChar := font.chars[char]
 
         glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
         glyphPosition: int2 = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
@@ -359,18 +359,18 @@ renderLine :: proc(directXState: ^DirectXState, windowData: ^WindowData, text: s
     ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
     ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST], directXState)
+    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
     color := color // whithout it we won't be able to pass color as a pointer
-    updateGpuBuffer(&color, directXState.constantBuffers[.COLOR], directXState)
+    updateGpuBuffer(&color, directXState.constantBuffers[.COLOR])
     directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(len(text)), 0, 0, 0)
 }
 
-renderCursor :: proc(directXState: ^DirectXState, windowData: ^WindowData, position: int2) {
-    renderRect(directXState, float2{ f32(position.x), f32(position.y) }, float2{ 3.0, windowData.font.lineHeight }, 
+renderCursor :: proc(position: int2) {
+    renderRect(float2{ f32(position.x), f32(position.y) }, float2{ 3.0, windowData.font.lineHeight }, 
         windowData.maxZIndex - 3.0, CURSOR_COLOR)
 }
 
-fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> (i32, i32) {
+fillTextBuffer :: proc() -> (i32, i32) {
     stringToRender := strings.to_string(windowData.text)
 
     fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
@@ -382,16 +382,16 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     topLine := windowData.screenGlyphs.lineIndex
     bottomLine := i32(len(windowData.screenGlyphs.lines))
 
-    editorSize := getEditorSize(windowData)
+    editorSize := getEditorSize()
 
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
 
     glyphsCount := 0
     selectionsCount := 0
-    hasSelection := windowData.inputState.selection[0] != windowData.inputState.selection[1]
+    hasSelection := windowData.editorState.selection[0] != windowData.editorState.selection[1]
     selectionRange: int2 = {
-        i32(min(windowData.inputState.selection[0], windowData.inputState.selection[1])),
-        i32(max(windowData.inputState.selection[0], windowData.inputState.selection[1])),
+        i32(min(windowData.editorState.selection[0], windowData.editorState.selection[1])),
+        i32(max(windowData.editorState.selection[0], windowData.editorState.selection[1])),
     }
     
     for lineIndex in topLine..<bottomLine {
@@ -403,7 +403,7 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
         leftOffset: f32 = -f32(windowData.size.x) / 2.0 + f32(windowData.editorPadding.left)
         
         if lineIndex == windowData.screenGlyphs.cursorLineIndex {
-            renderRect(directXState, float2{ leftOffset, topOffset }, float2{ f32(editorSize.x), windowData.font.lineHeight }, windowData.maxZIndex, CURSOR_LINE_BG_COLOR)
+            renderRect(float2{ leftOffset, topOffset }, float2{ f32(editorSize.x), windowData.font.lineHeight }, windowData.maxZIndex, CURSOR_LINE_BG_COLOR)
         }
 
         byteIndex := line.x
@@ -418,8 +418,8 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
             glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
             glyphPosition: int2 = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
 
-            if int(byteIndex) == windowData.inputState.selection[0] {
-                renderCursor(directXState, windowData, glyphPosition)
+            if int(byteIndex) == windowData.editorState.selection[0] {
+                renderCursor(glyphPosition)
             }
 
             // NOTE: last symbol in string is EOF which has 0 length
@@ -456,14 +456,14 @@ fillTextBuffer :: proc(directXState: ^DirectXState, windowData: ^WindowData) -> 
     return i32(glyphsCount), i32(selectionsCount)
 }
 
-renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
-    maxLinesOnScreen := i32(f32(getEditorSize(windowData).y) / windowData.font.lineHeight)
+renderLineNumbers :: proc() {
+    maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
     fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
     
     // draw background
-    renderRect(directXState, float2{ -f32(windowData.size.x) / 2.0, -f32(windowData.size.y) / 2.0 }, 
+    renderRect(float2{ -f32(windowData.size.x) / 2.0, -f32(windowData.size.y) / 2.0 }, 
         float2{ f32(windowData.editorPadding.left), f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
 
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
@@ -512,15 +512,15 @@ renderLineNumbers :: proc(directXState: ^DirectXState, windowData: ^WindowData) 
     ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
     ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST], directXState)
-    updateGpuBuffer(&WHITE_COLOR, directXState.constantBuffers[.COLOR], directXState)
+    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
+    updateGpuBuffer(&WHITE_COLOR, directXState.constantBuffers[.COLOR])
     directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(glyphsCount), 0, 0, 0)
 }
 
 // BENCHMARKS:
 // +-20000 microseconds with -speed build option without instancing
 // +-750 microseconds with -speed build option with instancing
-renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData, glyphsCount: i32, selectionsCount: i32) {
+renderText :: proc(glyphsCount: i32, selectionsCount: i32) {
     ctx := directXState.ctx
 
     //> draw selection
@@ -534,8 +534,8 @@ renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData, glyphsC
     ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
     ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    updateGpuBuffer(rectsList, directXState.structuredBuffers[.RECTS_LIST], directXState)
-    updateGpuBuffer(&TEXT_SELECTION_BG_COLOR, directXState.constantBuffers[.COLOR], directXState)
+    updateGpuBuffer(rectsList, directXState.structuredBuffers[.RECTS_LIST])
+    updateGpuBuffer(&TEXT_SELECTION_BG_COLOR, directXState.constantBuffers[.COLOR])
 
     directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(selectionsCount), 0, 0, 0)
     //<
@@ -552,8 +552,8 @@ renderText :: proc(directXState: ^DirectXState, windowData: ^WindowData, glyphsC
     ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
     ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    updateGpuBuffer(&WHITE_COLOR, directXState.constantBuffers[.COLOR], directXState)
-    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST], directXState)
+    updateGpuBuffer(&WHITE_COLOR, directXState.constantBuffers[.COLOR])
+    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
     directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(glyphsCount), 0, 0, 0)
     //<
 }

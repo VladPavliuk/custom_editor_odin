@@ -2,7 +2,6 @@ package main
 
 import "core:strings"
 import "core:text/edit"
-import "core:mem"
 import "core:fmt"
 
 import "core:unicode/utf16"
@@ -15,43 +14,44 @@ ScreenGlyphs :: struct {
     lines: [dynamic]int2, // { start line char index, end char line index }
 }
 
-WindowData :: struct {
-    windowCreated: bool,
-    parentHwnd: win32.HWND,
+UiContext :: struct {
+    zIndex: f32,
 
-    size: int2,
-
-    //> ui
-    uiZIndex: f32,
-
-    hotUiId: uiId,
-    prevHotUiId: uiId,
-    hotUiIdChanged: bool,
-    tmpHotUiId: uiId,
+    hotId: uiId,
+    prevHotId: uiId,
+    hotIdChanged: bool,
+    tmpHotId: uiId,
 
     scrollableElements: [dynamic]map[uiId]struct{},
 
-    activeUiId: uiId,
+    activeId: uiId,
     
     parentPositionsStack: [dynamic]int2,
-    // verticalScrollTopOffset: i32,
-    // testingScrollTopOffset: i32,
-    // testPanelLocation: int2,
+}
 
-    //<
-
-    openedFilePath: string,
-
+InputState :: struct {
     deltaMousePosition: int2,
     mousePosition: int2,
     isLeftMouseButtonDown: bool,
     wasLeftMouseButtonDown: bool,
     wasLeftMouseButtonUp: bool,
     scrollDelta: i32,
+}
+
+inputState: InputState
+
+WindowData :: struct {
+    windowCreated: bool,
+    parentHwnd: win32.HWND,
+
+    size: int2,
+
+    uiContext: UiContext,
+
+    openedFilePath: string,
 
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
-    directXState: ^DirectXState,
     maxZIndex: f32,
 
     font: FontData,
@@ -61,7 +61,7 @@ WindowData :: struct {
     text: strings.Builder,
     editorPadding: Rect,
 
-    inputState: edit.State,
+    editorState: edit.State,
     screenGlyphs: ScreenGlyphs,
 
     //> settings
@@ -69,7 +69,9 @@ WindowData :: struct {
     //<
 }
 
-createWindow :: proc(size: int2) -> ^WindowData {
+windowData: WindowData
+
+createWindow :: proc(size: int2) {
     hInstance := win32.HINSTANCE(win32.GetModuleHandleA(nil))
     
     wndClassName := win32.utf8_to_wstring("class")
@@ -92,9 +94,6 @@ createWindow :: proc(size: int2) -> ^WindowData {
     assert(res != 0, fmt.tprintfln("Error: %i", win32.GetLastError()))
     // defer win32.UnregisterClassW(wndClassName, hInstance)
 
-    windowData := new(WindowData)
-    mem.zero(windowData, size_of(WindowData))
-    
     // TODO: is it good approach?
     win32.SetProcessDpiAwarenessContext(win32.DPI_AWARENESS_CONTEXT_SYSTEM_AWARE)
     
@@ -110,7 +109,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
         size.x, size.y,
         nil, nil,
         hInstance,
-        windowData,
+        nil,
     )
 
     assert(hwnd != nil)
@@ -177,13 +176,13 @@ createWindow :: proc(size: int2) -> ^WindowData {
 
     // strings.write_string(&windowData.text, testText)
     
-    edit.init(&windowData.inputState, context.allocator, context.allocator)
-    edit.setup_once(&windowData.inputState, &windowData.text)
-    windowData.inputState.selection = { 0, 0 }
+    edit.init(&windowData.editorState, context.allocator, context.allocator)
+    edit.setup_once(&windowData.editorState, &windowData.text)
+    windowData.editorState.selection = { 0, 0 }
 
-    windowData.inputState.set_clipboard = putTextIntoClipboard
-    windowData.inputState.get_clipboard = getTextFromClipboard
-    windowData.inputState.clipboard_user_data = &windowData.parentHwnd
+    windowData.editorState.set_clipboard = putTextIntoClipboard
+    windowData.editorState.get_clipboard = getTextFromClipboard
+    windowData.editorState.clipboard_user_data = &windowData.parentHwnd
 
     windowData.parentHwnd = hwnd
 
@@ -195,13 +194,9 @@ createWindow :: proc(size: int2) -> ^WindowData {
     windowData.wordWrapping = true
     //<
     windowData.windowCreated = true
-
-    // createVerticalScrollBar(windowData)
-
-    return windowData
 }
 
-// createVerticalScrollBar :: proc(windowData: ^WindowData) {
+// createVerticalScrollBar :: proc() {
 //     rect: win32.RECT
 
 //     win32.GetClientRect(windowData.parentHwnd, &rect)
@@ -225,7 +220,7 @@ createWindow :: proc(size: int2) -> ^WindowData {
 //     )
 // }
 
-removeWindowData :: proc(windowData: ^WindowData) {
+removeWindowData :: proc() {
     for _, kerning in windowData.font.kerningTable {
         delete(kerning)
     }
@@ -233,7 +228,7 @@ removeWindowData :: proc(windowData: ^WindowData) {
     delete(windowData.font.chars)
 
     delete(windowData.screenGlyphs.lines)
-    edit.destroy(&windowData.inputState)
+    edit.destroy(&windowData.editorState)
     strings.builder_destroy(&windowData.text)
 
     win32.DestroyWindow(windowData.parentHwnd)
@@ -241,10 +236,10 @@ removeWindowData :: proc(windowData: ^WindowData) {
     res := win32.UnregisterClassW(win32.utf8_to_wstring("class"), win32.HINSTANCE(win32.GetModuleHandleA(nil)))
     assert(bool(res), fmt.tprintfln("Error: %i", win32.GetLastError()))
 
-    free(windowData)
+    windowData = {}
 }
 
-getEditorSize :: proc(windowData: ^WindowData) -> int2 {
+getEditorSize :: proc() -> int2 {
     return {
         windowData.size.x - windowData.editorPadding.left - windowData.editorPadding.right,
         windowData.size.y - windowData.editorPadding.top - windowData.editorPadding.bottom,

@@ -3,13 +3,13 @@ package main
 import "core:strings"
 import "core:unicode/utf8"
 
-findCursorPosition :: proc(windowData: ^WindowData) {
-    getCursorPosition :: proc(windowData: ^WindowData) -> int {
+findCursorPosition :: proc() {
+    getCursorPosition :: proc() -> int {
         stringToRender := strings.to_string(windowData.text)
 
         mousePosition: int2 = {
-            i32(windowData.mousePosition.x) - windowData.editorPadding.left,
-            i32(windowData.mousePosition.y) - windowData.editorPadding.top,
+            i32(inputState.mousePosition.x) - windowData.editorPadding.left,
+            i32(inputState.mousePosition.y) - windowData.editorPadding.top,
         }
         lineIndex := i16(f32(mousePosition.y) / windowData.font.lineHeight) + i16(windowData.screenGlyphs.lineIndex)
         
@@ -37,18 +37,18 @@ findCursorPosition :: proc(windowData: ^WindowData) {
         return int(toByte)
     }
 
-    if windowData.wasLeftMouseButtonDown {
-        pos := getCursorPosition(windowData)
-        windowData.inputState.selection = { pos, pos }
+    if inputState.wasLeftMouseButtonDown {
+        pos := getCursorPosition()
+        windowData.editorState.selection = { pos, pos }
         return
     }
 
-    if windowData.isLeftMouseButtonDown { 
-        windowData.inputState.selection[0] = getCursorPosition(windowData)
+    if inputState.isLeftMouseButtonDown { 
+        windowData.editorState.selection[0] = getCursorPosition()
     }
 }
 
-updateCusrorData :: proc(windowData: ^WindowData) {
+updateCusrorData :: proc() {
     // layoutLength := len(windowData.screenGlyphs.layout)
     // if layoutLength == 0 { return }
 
@@ -57,7 +57,7 @@ updateCusrorData :: proc(windowData: ^WindowData) {
     // find cursor line
     windowData.screenGlyphs.cursorLineIndex = 0
     cursorLine: int2 = { 0, 0 }
-    cursorIndex := i32(windowData.inputState.selection[0])
+    cursorIndex := i32(windowData.editorState.selection[0])
 
     // find current cursor line index
     for line, lineIndex in screenGlyphs.lines {
@@ -67,8 +67,8 @@ updateCusrorData :: proc(windowData: ^WindowData) {
         if cursorIndex >= leftByte && cursorIndex <= rightByte {
             windowData.screenGlyphs.cursorLineIndex = i32(lineIndex)
             cursorLine = { leftByte, rightByte }
-            windowData.inputState.line_start = int(leftByte)
-            windowData.inputState.line_end = int(rightByte)
+            windowData.editorState.line_start = int(leftByte)
+            windowData.editorState.line_end = int(rightByte)
             break
         }
     }
@@ -93,7 +93,7 @@ updateCusrorData :: proc(windowData: ^WindowData) {
     if cursorLineIndex > 0 {
         previousLine := screenGlyphs.lines[cursorLineIndex - 1]
 
-        windowData.inputState.up_index = int(previousLine.y)
+        windowData.editorState.up_index = int(previousLine.y)
 
         charIndex = previousLine.x
         leftOffset: f32 = 0.0
@@ -104,19 +104,19 @@ updateCusrorData :: proc(windowData: ^WindowData) {
             fontChar := windowData.font.chars[char]
             leftOffset += fontChar.xAdvance
             if leftOffset > cursorLeftOffset {
-                windowData.inputState.up_index = int(charIndex)
+                windowData.editorState.up_index = int(charIndex)
                 break
             }
         }
     } else {
-        windowData.inputState.up_index = windowData.inputState.selection[0]
+        windowData.editorState.up_index = windowData.editorState.selection[0]
     }
 
     // calculate line below cursor position if user clicks DOWN
     if cursorLineIndex < i32(len(screenGlyphs.lines) - 1) {
         nextLine := screenGlyphs.lines[cursorLineIndex + 1]
 
-        windowData.inputState.down_index = int(nextLine.y)
+        windowData.editorState.down_index = int(nextLine.y)
 
         charIndex = nextLine.x
         leftOffset: f32 = 0.0
@@ -127,22 +127,22 @@ updateCusrorData :: proc(windowData: ^WindowData) {
             fontChar := windowData.font.chars[char]
             leftOffset += fontChar.xAdvance
             if leftOffset > cursorLeftOffset {
-                windowData.inputState.down_index = int(charIndex)
+                windowData.editorState.down_index = int(charIndex)
                 break
             }
         }
     } else {
-        windowData.inputState.down_index = windowData.inputState.selection[0]
+        windowData.editorState.down_index = windowData.editorState.selection[0]
     }
 }
 
-validateTopLine :: proc(windowData: ^WindowData) {
+validateTopLine :: proc() {
     windowData.screenGlyphs.lineIndex = max(0, windowData.screenGlyphs.lineIndex)
     windowData.screenGlyphs.lineIndex = min(i32(len(windowData.screenGlyphs.lines) - 1), windowData.screenGlyphs.lineIndex)
 }
 
-jumpToCursor :: proc(windowData: ^WindowData, cursorLineIndex: i32) {
-    maxLinesOnScreen := i32(f32(getEditorSize(windowData).y) / windowData.font.lineHeight)
+jumpToCursor :: proc(cursorLineIndex: i32) {
+    maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
     if cursorLineIndex < windowData.screenGlyphs.lineIndex {
         windowData.screenGlyphs.lineIndex = cursorLineIndex
@@ -151,13 +151,13 @@ jumpToCursor :: proc(windowData: ^WindowData, cursorLineIndex: i32) {
     }
 }
 
-calculateLines :: proc(windowData: ^WindowData) {
+calculateLines :: proc() {
     clear(&windowData.screenGlyphs.lines)
     stringToRender := strings.to_string(windowData.text)
     stringLength := len(stringToRender)
  
     cursor: f32 = 0.0
-    lineWidth := f32(getEditorSize(windowData).x)
+    lineWidth := f32(getEditorSize().x)
     lineBoundaryIndexes: int2 = { 0, 0 }
     
     for charIndex := 0; charIndex < stringLength; {

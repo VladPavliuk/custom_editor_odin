@@ -5,18 +5,18 @@ import "core:strings"
 import "core:unicode/utf8"
 import "core:os"
 
-saveToOpenedFile :: proc(windowData: ^WindowData) -> (success: bool) {
+saveToOpenedFile :: proc() -> (success: bool) {
     if len(windowData.openedFilePath) > 0 {
         err := os.write_entire_file_or_err(windowData.openedFilePath, windowData.text.buf[:])
         assert(err == nil)
     } else {
-        showSaveAsFileDialog(windowData)
+        showSaveAsFileDialog()
     }
 
     return true
 }
 
-showSaveAsFileDialog :: proc(windowData: ^WindowData) -> (success: bool) {
+showSaveAsFileDialog :: proc() -> (success: bool) {
     hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
     assert(hr == 0)
     defer win32.CoUninitialize()

@@ -2,7 +2,7 @@ package main
 
 import win32 "core:sys/windows"
 
-showOpenFileDialog :: proc(windowData: ^WindowData) -> (res: string, success: bool) {
+showOpenFileDialog :: proc() -> (res: string, success: bool) {
     hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
     assert(hr == 0)
     defer win32.CoUninitialize()

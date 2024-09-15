@@ -37,20 +37,20 @@ startApp :: proc(whenReady: proc (^$T) -> bool) -> (^thread.Thread, ^T) {
         hwnd = win32.FindWindowW(wndClassName, nil)
     }
 
-    windowDataPtr := uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA))
+    // windowDataPtr := uintptr(win32.GetWindowLongPtrW(hwnd, win32.GWLP_USERDATA))
 
-    assert(windowDataPtr != 0, "Window related data must be defined")
+    // assert(windowDataPtr != 0, "Window related data must be defined")
 
-    windowData := (^T)(windowDataPtr)
+    // windowData := (^T)(windowDataPtr)
 
-    for !whenReady(windowData) {}
+    for !whenReady(&main.windowData) {}
 
     appWinHook = win32.SetWindowsHookExW(win32.WH_CALLWNDPROC, appWinHookCallback, nil, u32(appThread.id))
 
     // threadId: u32
     // GetWindowThreadProcessId(hwnd, &threadId)
 
-    return appThread, windowData
+    return appThread, &main.windowData
 }
 
 stopApp :: proc(appThread: ^thread.Thread, hwnd: win32.HWND) {
@@ -58,7 +58,7 @@ stopApp :: proc(appThread: ^thread.Thread, hwnd: win32.HWND) {
 
     win32.SendMessageW(hwnd, win32.WM_DESTROY, 0, 0)
 
-    // win32.DestroyWindow(hwnd)
+    //win32.DestroyWindow(hwnd)
     for !thread.is_done(appThread) { }
 
     thread.join(appThread)

@@ -21,24 +21,24 @@ getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Locat
     return i64(customIdentifier + 1) * i64(callerLocation.line + 1) * i64(uintptr(raw_data(callerLocation.file_path)))
 }
 
-beginUi :: proc(windowData: ^WindowData) {
-    windowData.uiZIndex = windowData.maxZIndex / 2.0
-    windowData.tmpHotUiId = {}
+beginUi :: proc(using ctx: ^UiContext, initZIndex: f32) {
+    zIndex = initZIndex
+    tmpHotId = {}
 }
 
-endUi :: proc(windowData: ^WindowData) {
-    windowData.hotUiIdChanged = false
-    if windowData.tmpHotUiId != windowData.hotUiId {
-        windowData.prevHotUiId = windowData.hotUiId
-        windowData.hotUiIdChanged = true
+endUi :: proc(using ctx: ^UiContext) {
+    hotIdChanged = false
+    if tmpHotId != hotId {
+        prevHotId = hotId
+        hotIdChanged = true
     }
 
-    windowData.hotUiId = windowData.tmpHotUiId
+    hotId = tmpHotId
 }
 
 // TODO: move it from here
-renderEditorVerticalScrollBar :: proc(windowData: ^WindowData) -> UiActions {
-    maxLinesOnScreen := getEditorSize(windowData).y / i32(windowData.font.lineHeight)
+renderEditorVerticalScrollBar :: proc() -> UiActions {
+    maxLinesOnScreen := getEditorSize().y / i32(windowData.font.lineHeight)
     totalLines := i32(len(windowData.screenGlyphs.lines))
 
     if totalLines == 1 { return {} }
@@ -49,9 +49,9 @@ renderEditorVerticalScrollBar :: proc(windowData: ^WindowData) -> UiActions {
     @(static)
     offset: i32 = 0
 
-    beginScroll(windowData)
+    beginScroll(&windowData.uiContext)
 
-    action := endScroll(windowData, UiScroll{
+    action := endScroll(&windowData.uiContext, UiScroll{
         bgRect = {
             top = windowData.size.y / 2,
             bottom = -windowData.size.y / 2,
@@ -77,59 +77,59 @@ renderEditorVerticalScrollBar :: proc(windowData: ^WindowData) -> UiActions {
     return action
 }
 
-putEmptyUiElement :: proc(windowData: ^WindowData, rect: Rect, customId: i32 = 0, loc := #caller_location) -> (uiId, UiActions) {
+putEmptyUiElement :: proc(ctx: ^UiContext, rect: Rect, customId: i32 = 0, loc := #caller_location) -> (uiId, UiActions) {
     uiId := getUiId(customId, loc)
 
-    return uiId, checkUiState(windowData, uiId, rect)
+    return uiId, checkUiState(ctx, uiId, rect)
 }
 
-advanceUiZIndex :: proc(windowData: ^WindowData) {
-    windowData.uiZIndex -= 0.1
+advanceUiZIndex :: proc(uiContext: ^UiContext) {
+    uiContext.zIndex -= 0.1
 }
 
-checkUiState :: proc(windowData: ^WindowData, uiId: uiId, rect: Rect) -> UiActions{
-    if len(windowData.scrollableElements) > 0 {
-        windowData.scrollableElements[len(windowData.scrollableElements) - 1][uiId] = {}
+checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect) -> UiActions{
+    if len(ctx.scrollableElements) > 0 {
+        ctx.scrollableElements[len(ctx.scrollableElements) - 1][uiId] = {}
     }
 
-    mousePosition := screenToDirectXCoords(windowData, { i32(windowData.mousePosition.x), i32(windowData.mousePosition.y) })
+    mousePosition := screenToDirectXCoords({ i32(inputState.mousePosition.x), i32(inputState.mousePosition.y) })
 
     action: UiActions = nil
     
-    if windowData.activeUiId == uiId {
-        if windowData.wasLeftMouseButtonUp {
-            if windowData.hotUiId == uiId {
+    if ctx.activeId == uiId {
+        if inputState.wasLeftMouseButtonUp {
+            if ctx.hotId == uiId {
                 action += {.SUBMIT}
             }
 
             action += {.LOST_ACTIVE}
-            windowData.activeUiId = {}
+            ctx.activeId = {}
         } else {
             action += {.ACTIVE}
         }
-    } else if windowData.hotUiId == uiId {
-        if windowData.wasLeftMouseButtonDown {
-            windowData.activeUiId = uiId
+    } else if ctx.hotId == uiId {
+        if inputState.wasLeftMouseButtonDown {
+            ctx.activeId = uiId
             action += {.GOT_ACTIVE}
         }
     }
     
-    if windowData.hotUiIdChanged && windowData.hotUiId == uiId {
+    if ctx.hotIdChanged && ctx.hotId == uiId {
         action += {.MOUSE_ENTER}
-    } else if windowData.hotUiIdChanged && windowData.prevHotUiId == uiId {
+    } else if ctx.hotIdChanged && ctx.prevHotId == uiId {
         action += {.MOUSE_LEAVE}
     } 
     
-    if windowData.hotUiId == uiId {
+    if ctx.hotId == uiId {
         action += {.HOT}
 
-        if abs(windowData.scrollDelta) > 0 {
+        if abs(inputState.scrollDelta) > 0 {
             action += {.MOUSE_WHEEL_SCROLL}
         }
     }
 
     if isInRect(rect, mousePosition) {
-        windowData.tmpHotUiId = uiId
+        ctx.tmpHotId = uiId
     }
 
     return action
@@ -140,10 +140,10 @@ getDarkerColor :: proc(color: float4) -> float4 {
     return { rgb.r, rgb.g, rgb.b, color.a }
 }
 
-getAbsolutePosition :: proc(windowData: ^WindowData) -> int2 {
+getAbsolutePosition :: proc(uiContext: ^UiContext) -> int2 {
     absolutePosition := int2{ 0, 0 }
 
-    for position in windowData.parentPositionsStack {
+    for position in uiContext.parentPositionsStack {
         absolutePosition += position
     }
 
@@ -180,14 +180,14 @@ clipRect :: proc(target, source: Rect) -> Rect {
     return source
 }
 
-screenToDirectXCoords :: proc(windowData: ^WindowData, coords: int2) -> int2 {
+screenToDirectXCoords :: proc(coords: int2) -> int2 {
     return {
         coords.x - windowData.size.x / 2,
         -coords.y + windowData.size.y / 2,
     }
 }
 
-directXToScreenToCoords :: proc(windowData: ^WindowData, coords: int2) -> int2 {
+directXToScreenToCoords :: proc(coords: int2) -> int2 {
     return {
         coords.x + windowData.size.x / 2,
         coords.y + windowData.size.x / 2,
