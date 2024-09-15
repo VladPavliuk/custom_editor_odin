@@ -95,7 +95,7 @@ render :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
 }
 
 testingButtons :: proc(windowData: ^WindowData) {
-    if action := renderButton(windowData, UiButton{
+    if action := renderButton(windowData, UiTextButton{
         text = "Test 1",
         position = { 0, 0 },
         size = { 100, 30 },
@@ -116,7 +116,7 @@ testingButtons :: proc(windowData: ^WindowData) {
         fmt.print('\n')
     }
 
-    if action := renderButton(windowData, UiButton{
+    if action := renderButton(windowData, UiTextButton{
         text = "Test 2",
         position = { 40, 10 },
         size = { 100, 30 },
@@ -148,7 +148,7 @@ uiStaff :: proc(windowData: ^WindowData) {
     @(static)
     showPanel := false
     
-    if .SUBMIT in renderButton(windowData, UiButton{
+    if .SUBMIT in renderButton(windowData, UiTextButton{
         text = "Show/Hide panel",
         position = { 39, -100 },
         size = { 150, 30 },
@@ -170,7 +170,7 @@ uiStaff :: proc(windowData: ^WindowData) {
             size = &panelSize,
             bgColor = THEME_COLOR_1,
             // hoverBgColor = THEME_COLOR_5,
-        })
+        }, &showPanel)
 
         @(static)
         checked := false

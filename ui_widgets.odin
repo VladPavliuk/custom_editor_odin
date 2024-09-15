@@ -1,23 +1,21 @@
 package main
 
+@(private="file")
 UiButton :: struct {
-    text: string,
     position, size: int2,
-    color, bgColor, hoverBgColor: float4,
+    bgColor, hoverBgColor: float4,
+    noBorder: bool,
 }
 
-renderButton :: proc(windowData: ^WindowData, button: UiButton, customId: i32 = 0, loc := #caller_location) -> UiActions {
+renderButton :: proc{renderTextButton, renderImageButton}
+
+@(private="file")
+renderButton_Base :: proc(windowData: ^WindowData, button: UiButton, customId: i32 = 0, loc := #caller_location) -> UiActions {
     uiId := getUiId(customId, loc)
     position := button.position + getAbsolutePosition(windowData)
 
     uiRect := toRect(position, button.size)
     uiRectSize := getRectSize(uiRect)
-
-    textWidth := getTextWidth(button.text, &windowData.font)
-    textHeight := getTextHeight(&windowData.font)
-
-    bottomTextPadding := (f32(uiRectSize.y) - textHeight) / 2.0
-    leftTextPadding := (f32(uiRectSize.x) - textWidth) / 2.0
 
     bgColor := button.bgColor
 
@@ -30,18 +28,68 @@ renderButton :: proc(windowData: ^WindowData, button: UiButton, customId: i32 = 
     }
 
     renderRect(windowData.directXState, uiRect, windowData.uiZIndex, bgColor)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
+
+    if !button.noBorder {       
+        renderRectBorder(windowData.directXState, position, button.size, 1.0, windowData.uiZIndex, windowData.activeUiId == uiId ? DARKER_GRAY_COLOR : GRAY_COLOR)
+        advanceZIndex(windowData)
+    }
+    return checkUiState(windowData, uiId, uiRect)
+}
+
+UiTextButton :: struct {
+    using base: UiButton,
+    text: string,
+    color: float4,
+}
+
+@(private="file")
+renderTextButton :: proc(windowData: ^WindowData, button: UiTextButton, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    actions := renderButton_Base(windowData, button.base, customId, loc)
+
+    position := button.position + getAbsolutePosition(windowData)
+
+    uiRect := toRect(position, button.size)
+    uiRectSize := getRectSize(uiRect)
+
+    textWidth := getTextWidth(button.text, &windowData.font)
+    textHeight := getTextHeight(&windowData.font)
+
+    bottomTextPadding := (f32(uiRectSize.y) - textHeight) / 2.0
+    leftTextPadding := (f32(uiRectSize.x) - textWidth) / 2.0
 
     fontColor := button.color.a != 0.0 ? button.color : WHITE_COLOR
 
     renderLine(windowData.directXState, windowData, button.text, { i32(leftTextPadding) + uiRect.left, i32(bottomTextPadding) + uiRect.bottom }, 
         fontColor, windowData.uiZIndex)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
 
-    renderRectBorder(windowData.directXState, position, button.size, 1.0, windowData.uiZIndex, windowData.activeUiId == uiId ? DARKER_GRAY_COLOR : GRAY_COLOR)
-    windowData.uiZIndex -= 0.1
+    return actions
+}
 
-    return checkUiState(windowData, uiId, uiRect)
+UiImageButton :: struct {
+    using base: UiButton,
+    texture: TextureType,
+    texturePadding: i32,
+} 
+
+@(private="file")
+renderImageButton :: proc(windowData: ^WindowData, button: UiImageButton, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    actions := renderButton_Base(windowData, button.base, customId, loc)
+
+    position := button.position + getAbsolutePosition(windowData)
+
+    uiRect := toRect(position, button.size)
+
+    uiRect.bottom += button.texturePadding
+    uiRect.top -= button.texturePadding
+    uiRect.left += button.texturePadding
+    uiRect.right -= button.texturePadding
+
+    renderImageRect(windowData.directXState, uiRect, windowData.uiZIndex, button.texture, button.bgColor)
+    advanceZIndex(windowData)
+
+    return actions
 }
 
 UiCheckbox :: struct {
@@ -70,21 +118,21 @@ renderCheckbox :: proc(windowData: ^WindowData, checkbox: UiCheckbox, customId: 
 
     renderLine(windowData.directXState, windowData, checkbox.text, { i32(leftTextPadding) + uiRect.left, i32(bottomTextPadding) + uiRect.bottom }, 
         checkbox.color, windowData.uiZIndex)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
 
     checkboxRect := toRect(boxPosition, boxSize)
 
     if checkbox.checked^ {
         renderRect(windowData.directXState, checkboxRect, windowData.uiZIndex, WHITE_COLOR)
-        windowData.uiZIndex -= 0.1    
+        advanceZIndex(windowData)    
     }
     
     renderRectBorder(windowData.directXState, checkboxRect, 1.0, windowData.uiZIndex, windowData.activeUiId == uiId ? DARK_GRAY_COLOR : DARKER_GRAY_COLOR)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
     
     if windowData.activeUiId == uiId {
         renderRectBorder(windowData.directXState, uiRect, 1.0, windowData.uiZIndex, LIGHT_GRAY_COLOR)
-        windowData.uiZIndex -= 0.1           
+        advanceZIndex(windowData)           
     }
 
     action := checkUiState(windowData, uiId, uiRect)
@@ -118,7 +166,7 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
     customId += 1
     scrollWidth: i32 = 10
 
-    action := renderButton(windowData, UiButton{
+    action := renderButton(windowData, UiTextButton{
         text = dropdown.items[dropdown.selectedItemIndex^],
         position = dropdown.position,
         size = dropdown.size,
@@ -138,14 +186,6 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
         scrollHeight: i32 = -1
         itemsToShow := min(dropdown.maxItemShow, itemsCount)
         itemsContainerHeight := itemsToShow * itemHeight
-
-        // customId += 1
-        // containerId, containerActions := putEmptyUiElement(windowData, Rect {
-        //     top = dropdown.position.y,
-        //     bottom = dropdown.position.y - itemsContainerHeight,
-        //     right = dropdown.position.x + dropdown.size.x,
-        //     left = dropdown.position.x,
-        // }, customId, loc)
         
         // show scrollbar
         if itemsCount > dropdown.maxItemShow {
@@ -167,7 +207,7 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
             item := dropdown.items[index]
             customId += 1
 
-            itemActions := renderButton(windowData, UiButton{
+            itemActions := renderButton(windowData, UiTextButton{
                 position = { dropdown.position.x, offset },
                 size = { itemWidth, itemHeight },
                 text = item,
@@ -178,10 +218,6 @@ renderDropdown :: proc(windowData: ^WindowData, dropdown: UiDropdown, customId: 
                 dropdown.selectedItemIndex^ = i32(index)
                 dropdown.isOpen^ = false
             }
-
-            // if .MOUSE_WHEEL_SCROLL in itemActions {
-            //     dropdown.scrollOffset^ -= windowData.scrollDelta
-            // }
 
             offset -= itemHeight
         }
@@ -242,14 +278,14 @@ endScroll :: proc(windowData: ^WindowData, scroll: UiScroll, customId: i32 = 0, 
 
     // background
     renderRect(windowData.directXState, bgRect, windowData.uiZIndex, scroll.bgColor)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
     
     bgAction := checkUiState(windowData, bgUiId, bgRect)
 
     // scroll
     isHover := windowData.activeUiId == scrollUiId || windowData.hotUiId == scrollUiId
     renderRect(windowData.directXState, scrollRect, windowData.uiZIndex, isHover ? scroll.hoverColor : scroll.color)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
 
     scrollAction := checkUiState(windowData, scrollUiId, scrollRect)
 
@@ -288,7 +324,8 @@ UiPanel :: struct {
     bgColor, hoverBgColor: float4,
 }
 
-beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, customId: i32 = 0, loc := #caller_location) -> UiActions {
+beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, open: ^bool, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    customId := customId
     uiId := getUiId(customId, loc)
     headerUiId := getUiId((customId + 1) * 999999, loc)
     
@@ -316,8 +353,8 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, customId: i32 = 0, l
     //<
 
     // panel body
-    renderImageRect(windowData.directXState, panelRect, windowData.uiZIndex, .CLOSE_ICON, panel.bgColor)
-    windowData.uiZIndex -= 0.1
+    renderRect(windowData.directXState, panelRect, windowData.uiZIndex, panel.bgColor)
+    advanceZIndex(windowData)
 
     // panel header
     headerBgColor := getDarkerColor(panel.bgColor)
@@ -326,18 +363,32 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, customId: i32 = 0, l
     if windowData.activeUiId == headerUiId { headerBgColor = getDarkerColor(headerBgColor) }
 
     renderRect(windowData.directXState, headerRect, windowData.uiZIndex, headerBgColor)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
 
     // panel title
     renderLine(windowData.directXState, windowData, panel.title, { panelRect.left, panelRect.top - textHeight }, 
         WHITE_COLOR, windowData.uiZIndex)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
 
     renderRectBorder(windowData.directXState, panel.position^, panel.size^, 1.0, windowData.uiZIndex, GRAY_COLOR)
-    windowData.uiZIndex -= 0.1
+    advanceZIndex(windowData)
 
     panelAction := checkUiState(windowData, uiId, panelRect)
     headerAction := checkUiState(windowData, headerUiId, headerRect)
+
+    // panel close button
+    customId += 1
+    closeButtonSize := headerRect.top - headerRect.bottom
+    if .SUBMIT in renderButton(windowData, UiImageButton{
+        position = { headerRect.right - closeButtonSize, headerRect.bottom },
+        size = { closeButtonSize, closeButtonSize },
+        bgColor = headerBgColor,
+        texture = .CLOSE_ICON,
+        texturePadding = 2,
+        noBorder = true,
+    }, customId, loc) {
+        open^ = false
+    }
 
     if .ACTIVE in headerAction {
         panel.position.x += windowData.deltaMousePosition.x

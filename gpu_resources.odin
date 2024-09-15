@@ -137,7 +137,7 @@ memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T 
 
 loadTextures :: proc(directXState: ^DirectXState, windowData: ^WindowData) {
     directXState.textures[.FONT], windowData.font = loadFont(directXState)
-    directXState.textures[.CLOSE_ICON] = loadTextureFromImage(directXState, #load("./resources/images/heart_image.png", []u8))
+    directXState.textures[.CLOSE_ICON] = loadTextureFromImage(directXState, #load("./resources/images/close_icon.png", []u8))
 }
 
 compileVertexShader :: proc(fileContent: string, directXState: ^DirectXState) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {

@@ -83,6 +83,10 @@ putEmptyUiElement :: proc(windowData: ^WindowData, rect: Rect, customId: i32 = 0
     return uiId, checkUiState(windowData, uiId, rect)
 }
 
+advanceZIndex :: proc(windowData: ^WindowData) {
+    windowData.uiZIndex -= 0.1
+}
+
 checkUiState :: proc(windowData: ^WindowData, uiId: uiId, rect: Rect) -> UiActions{
     if len(windowData.scrollableElements) > 0 {
         windowData.scrollableElements[len(windowData.scrollableElements) - 1][uiId] = {}
