@@ -27,11 +27,11 @@ renderButton_Base :: proc(windowData: ^WindowData, button: UiButton, customId: i
     }
 
     renderRect(windowData.directXState, uiRect, windowData.uiZIndex, bgColor)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     if !button.noBorder {       
         renderRectBorder(windowData.directXState, position, button.size, 1.0, windowData.uiZIndex, windowData.activeUiId == uiId ? DARKER_GRAY_COLOR : GRAY_COLOR)
-        advanceZIndex(windowData)
+        advanceUiZIndex(windowData)
     }
     return checkUiState(windowData, uiId, uiRect)
 }
@@ -61,7 +61,7 @@ renderTextButton :: proc(windowData: ^WindowData, button: UiTextButton, customId
 
     renderLine(windowData.directXState, windowData, button.text, { i32(leftTextPadding) + uiRect.left, i32(bottomTextPadding) + uiRect.bottom }, 
         fontColor, windowData.uiZIndex)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     return actions
 }
@@ -86,7 +86,7 @@ renderImageButton :: proc(windowData: ^WindowData, button: UiImageButton, custom
     uiRect.right -= button.texturePadding
 
     renderImageRect(windowData.directXState, uiRect, windowData.uiZIndex, button.texture, button.bgColor)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     return actions
 }
@@ -117,21 +117,21 @@ renderCheckbox :: proc(windowData: ^WindowData, checkbox: UiCheckbox, customId: 
 
     renderLine(windowData.directXState, windowData, checkbox.text, { i32(leftTextPadding) + uiRect.left, i32(bottomTextPadding) + uiRect.bottom }, 
         checkbox.color, windowData.uiZIndex)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     checkboxRect := toRect(boxPosition, boxSize)
 
     if checkbox.checked^ {
         renderRect(windowData.directXState, checkboxRect, windowData.uiZIndex, WHITE_COLOR)
-        advanceZIndex(windowData)    
+        advanceUiZIndex(windowData)    
     }
     
     renderRectBorder(windowData.directXState, checkboxRect, 1.0, windowData.uiZIndex, windowData.activeUiId == uiId ? DARK_GRAY_COLOR : DARKER_GRAY_COLOR)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
     
     if windowData.activeUiId == uiId {
         renderRectBorder(windowData.directXState, uiRect, 1.0, windowData.uiZIndex, LIGHT_GRAY_COLOR)
-        advanceZIndex(windowData)           
+        advanceUiZIndex(windowData)           
     }
 
     action := checkUiState(windowData, uiId, uiRect)
@@ -277,14 +277,14 @@ endScroll :: proc(windowData: ^WindowData, scroll: UiScroll, customId: i32 = 0, 
 
     // background
     renderRect(windowData.directXState, bgRect, windowData.uiZIndex, scroll.bgColor)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
     
     bgAction := checkUiState(windowData, bgUiId, bgRect)
 
     // scroll
     isHover := windowData.activeUiId == scrollUiId || windowData.hotUiId == scrollUiId
     renderRect(windowData.directXState, scrollRect, windowData.uiZIndex, isHover ? scroll.hoverColor : scroll.color)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     scrollAction := checkUiState(windowData, scrollUiId, scrollRect)
 
@@ -353,7 +353,7 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, open: ^bool, customI
 
     // panel body
     renderRect(windowData.directXState, panelRect, windowData.uiZIndex, panel.bgColor)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     // panel header
     headerBgColor := getDarkerColor(panel.bgColor)
@@ -362,12 +362,12 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, open: ^bool, customI
     if windowData.activeUiId == headerUiId { headerBgColor = getDarkerColor(headerBgColor) }
 
     renderRect(windowData.directXState, headerRect, windowData.uiZIndex, headerBgColor)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     // panel title
     renderLine(windowData.directXState, windowData, panel.title, { panelRect.left, panelRect.top - textHeight }, 
         WHITE_COLOR, windowData.uiZIndex)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     panelAction := checkUiState(windowData, uiId, panelRect)
     headerAction := checkUiState(windowData, headerUiId, headerRect)
@@ -385,9 +385,9 @@ beginPanel :: proc(windowData: ^WindowData, panel: UiPanel, open: ^bool, customI
     }, customId, loc) {
         open^ = false
     }
-    
+
     renderRectBorder(windowData.directXState, panel.position^, panel.size^, 1.0, windowData.uiZIndex, GRAY_COLOR)
-    advanceZIndex(windowData)
+    advanceUiZIndex(windowData)
 
     if .ACTIVE in headerAction {
         panel.position.x += windowData.deltaMousePosition.x

@@ -83,7 +83,7 @@ putEmptyUiElement :: proc(windowData: ^WindowData, rect: Rect, customId: i32 = 0
     return uiId, checkUiState(windowData, uiId, rect)
 }
 
-advanceZIndex :: proc(windowData: ^WindowData) {
+advanceUiZIndex :: proc(windowData: ^WindowData) {
     windowData.uiZIndex -= 0.1
 }
 
