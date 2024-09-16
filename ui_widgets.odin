@@ -5,6 +5,7 @@ UiButton :: struct {
     position, size: int2,
     bgColor, hoverBgColor: float4,
     noBorder: bool,
+    ignoreFocusUpdate: bool,
 }
 
 renderButton :: proc{renderTextButton, renderImageButton}
@@ -33,7 +34,8 @@ renderButton_Base :: proc(ctx: ^UiContext, button: UiButton, customId: i32 = 0, 
         renderRectBorder(position, button.size, 1.0, ctx.zIndex, ctx.activeId == uiId ? DARKER_GRAY_COLOR : GRAY_COLOR)
         advanceUiZIndex(ctx)
     }
-    return checkUiState(ctx, uiId, uiRect)
+
+    return checkUiState(ctx, uiId, uiRect, button.ignoreFocusUpdate)
 }
 
 UiTextButton :: struct {
@@ -176,6 +178,10 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
         dropdown.isOpen^ = !(dropdown.isOpen^)
     }
 
+    if .LOST_FOCUS in action {
+        dropdown.isOpen^ = false
+    }
+
     if dropdown.isOpen^ {
         itemHeight := i32(getTextHeight(&windowData.font))
         offset := dropdown.position.y - itemHeight
@@ -211,6 +217,7 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
                 size = { itemWidth, itemHeight },
                 text = item,
                 bgColor = i32(index) == dropdown.selectedItemIndex^ ? getDarkerColor(dropdown.bgColor) : dropdown.bgColor,
+                ignoreFocusUpdate = true,
             }, customId, loc)
 
             if .SUBMIT in itemActions {
@@ -279,14 +286,14 @@ endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #
     renderRect(bgRect, ctx.zIndex, scroll.bgColor)
     advanceUiZIndex(ctx)
     
-    bgAction := checkUiState(ctx, bgUiId, bgRect)
+    bgAction := checkUiState(ctx, bgUiId, bgRect, true)
 
     // scroll
     isHover := ctx.activeId == scrollUiId || ctx.hotId == scrollUiId
     renderRect(scrollRect, ctx.zIndex, isHover ? scroll.hoverColor : scroll.color)
     advanceUiZIndex(ctx)
 
-    scrollAction := checkUiState(ctx, scrollUiId, scrollRect)
+    scrollAction := checkUiState(ctx, scrollUiId, scrollRect, true)
 
     validateScrollOffset :: proc(offset: ^i32, maxOffset: i32) {
         offset^ = max(0, offset^)

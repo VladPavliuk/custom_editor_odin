@@ -2,6 +2,8 @@ package main
 
 import "base:runtime"
 
+import "core:fmt"
+
 uiId :: i64
 
 UiActions :: bit_set[UiAction; u32]
@@ -12,6 +14,8 @@ UiAction :: enum u32 {
     ACTIVE,
     GOT_ACTIVE,
     LOST_ACTIVE,
+    GOT_FOCUS,
+    LOST_FOCUS,
     MOUSE_ENTER,
     MOUSE_LEAVE,
     MOUSE_WHEEL_SCROLL,
@@ -23,7 +27,13 @@ getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Locat
 
 beginUi :: proc(using ctx: ^UiContext, initZIndex: f32) {
     zIndex = initZIndex
-    tmpHotId = {}
+    tmpHotId = 0
+    tmpFocusedId = focusedId
+
+    // if clicked on empty element - lost any focus
+    if inputState.wasLeftMouseButtonDown && hotId == 0 {
+        focusedId = 0
+    }
 }
 
 endUi :: proc(using ctx: ^UiContext) {
@@ -34,6 +44,12 @@ endUi :: proc(using ctx: ^UiContext) {
     }
 
     hotId = tmpHotId
+
+    focusedIdChanged = false
+    if tmpFocusedId != focusedId {
+        prevFocusedId = tmpFocusedId
+        focusedIdChanged = true
+    }
 }
 
 // TODO: move it from here
@@ -87,7 +103,7 @@ advanceUiZIndex :: proc(uiContext: ^UiContext) {
     uiContext.zIndex -= 0.1
 }
 
-checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect) -> UiActions{
+checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect, ignoreFocusUpdate := false) -> UiActions {
     if len(ctx.scrollableElements) > 0 {
         ctx.scrollableElements[len(ctx.scrollableElements) - 1][uiId] = {}
     }
@@ -110,15 +126,24 @@ checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect) -> UiActions{
     } else if ctx.hotId == uiId {
         if inputState.wasLeftMouseButtonDown {
             ctx.activeId = uiId
+
             action += {.GOT_ACTIVE}
+
+            if !ignoreFocusUpdate { ctx.focusedId = uiId }
         }
     }
-    
+
+    if ctx.focusedIdChanged && ctx.focusedId == uiId {
+        action += {.GOT_FOCUS}
+    } else if ctx.focusedIdChanged && ctx.prevFocusedId == uiId {
+        action += {.LOST_FOCUS}
+    }
+
     if ctx.hotIdChanged && ctx.hotId == uiId {
         action += {.MOUSE_ENTER}
     } else if ctx.hotIdChanged && ctx.prevHotId == uiId {
         action += {.MOUSE_LEAVE}
-    } 
+    }
     
     if ctx.hotId == uiId {
         action += {.HOT}

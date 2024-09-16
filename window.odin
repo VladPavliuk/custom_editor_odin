@@ -26,6 +26,11 @@ UiContext :: struct {
 
     activeId: uiId,
     
+    prevFocusedId: uiId,
+    focusedId: uiId,
+    focusedIdChanged: bool,
+    tmpFocusedId: uiId,
+    
     parentPositionsStack: [dynamic]int2,
 }
 

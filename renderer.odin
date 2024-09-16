@@ -112,6 +112,8 @@ testingButtons :: proc() {
         if .LOST_ACTIVE in action { fmt.print("LOST_ACTIVE ") }
         if .MOUSE_ENTER in action { fmt.print("MOUSE_ENTER ") }
         if .MOUSE_LEAVE in action { fmt.print("MOUSE_LEAVE ") }
+        if .GOT_FOCUS in action { fmt.print("GOT_FOCUS ") }
+        if .LOST_FOCUS in action { fmt.print("LOST_FOCUS ") }
 
         fmt.print('\n')
     }
@@ -133,6 +135,8 @@ testingButtons :: proc() {
         if .LOST_ACTIVE in action { fmt.print("LOST_ACTIVE ") }
         if .MOUSE_ENTER in action { fmt.print("MOUSE_ENTER ") }
         if .MOUSE_LEAVE in action { fmt.print("MOUSE_LEAVE ") }
+        if .GOT_FOCUS in action { fmt.print("GOT_FOCUS ") }
+        if .LOST_FOCUS in action { fmt.print("LOST_FOCUS ") }
 
         fmt.print('\n')
     }
