@@ -28,11 +28,11 @@ getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Locat
 beginUi :: proc(using ctx: ^UiContext, initZIndex: f32) {
     zIndex = initZIndex
     tmpHotId = 0
-    tmpFocusedId = focusedId
+    focusedId = tmpFocusedId
 
     // if clicked on empty element - lost any focus
     if inputState.wasLeftMouseButtonDown && hotId == 0 {
-        focusedId = 0
+        tmpFocusedId = 0
     }
 }
 
@@ -47,17 +47,15 @@ endUi :: proc(using ctx: ^UiContext) {
 
     focusedIdChanged = false
     if tmpFocusedId != focusedId {
-        prevFocusedId = tmpFocusedId
+        prevFocusedId = focusedId
         focusedIdChanged = true
     }
 }
 
 // TODO: move it from here
-renderEditorVerticalScrollBar :: proc() -> UiActions {
+renderEditorContent :: proc() {
     maxLinesOnScreen := getEditorSize().y / i32(windowData.font.lineHeight)
-    totalLines := i32(len(windowData.screenGlyphs.lines))
-
-    if totalLines == 1 { return {} }
+    totalLines := i32(len(windowData.editorCtx.lines))
 
     scrollWidth := windowData.editorPadding.right
     scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
@@ -67,7 +65,18 @@ renderEditorVerticalScrollBar :: proc() -> UiActions {
 
     beginScroll(&windowData.uiContext)
 
-    action := endScroll(&windowData.uiContext, UiScroll{
+    editorContentActions := putEmptyUiElement(&windowData.uiContext, windowData.editorCtx.rect)
+
+    handleTextInputActions(&windowData.editorCtx, editorContentActions)
+
+    calculateLines(&windowData.editorCtx)
+    updateCusrorData(&windowData.editorCtx)
+
+    glyphsCount, selectionsCount := fillTextBuffer(&windowData.editorCtx, windowData.maxZIndex)
+    
+    renderText(glyphsCount, selectionsCount, WHITE_COLOR, TEXT_SELECTION_BG_COLOR)
+    
+    scrollActions := endScroll(&windowData.uiContext, UiScroll{
         bgRect = {
             top = windowData.size.y / 2,
             bottom = -windowData.size.y / 2,
@@ -81,22 +90,30 @@ renderEditorVerticalScrollBar :: proc() -> UiActions {
         bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
     })
 
-    if .ACTIVE in action {
-        windowData.screenGlyphs.lineIndex = i32(f32(totalLines) * (f32(offset) / f32(windowData.size.y - scrollHeight)))
+    if .MOUSE_WHEEL_SCROLL in scrollActions {
+         if inputState.scrollDelta > 5 {
+            windowData.editorCtx.lineIndex -= 1
+        } else if inputState.scrollDelta < -5 {
+            windowData.editorCtx.lineIndex += 1
+        }
 
-        // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
-        windowData.screenGlyphs.lineIndex = min(i32(totalLines) - 1, windowData.screenGlyphs.lineIndex)
-    } else {
-        offset = i32(f32(windowData.screenGlyphs.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(windowData.size.y))
+        validateTopLine(&windowData.editorCtx)
     }
 
-    return action
+    if .ACTIVE in scrollActions {
+        windowData.editorCtx.lineIndex = i32(f32(totalLines) * (f32(offset) / f32(windowData.size.y - scrollHeight)))
+
+        // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
+        windowData.editorCtx.lineIndex = min(i32(totalLines) - 1, windowData.editorCtx.lineIndex)
+    } else {
+        offset = i32(f32(windowData.editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(windowData.size.y))
+    }
 }
 
-putEmptyUiElement :: proc(ctx: ^UiContext, rect: Rect, customId: i32 = 0, loc := #caller_location) -> (uiId, UiActions) {
+putEmptyUiElement :: proc(ctx: ^UiContext, rect: Rect, customId: i32 = 0, loc := #caller_location) -> UiActions {
     uiId := getUiId(customId, loc)
 
-    return uiId, checkUiState(ctx, uiId, rect)
+    return checkUiState(ctx, uiId, rect)
 }
 
 advanceUiZIndex :: proc(uiContext: ^UiContext) {
@@ -129,7 +146,7 @@ checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect, ignoreFocusUpdate 
 
             action += {.GOT_ACTIVE}
 
-            if !ignoreFocusUpdate { ctx.focusedId = uiId }
+            if !ignoreFocusUpdate { ctx.tmpFocusedId = uiId }
         }
     }
 

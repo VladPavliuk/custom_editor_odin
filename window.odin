@@ -8,12 +8,6 @@ import "core:unicode/utf16"
 
 import win32 "core:sys/windows"
 
-ScreenGlyphs :: struct {
-    lineIndex: i32, // top line index from which text is rendered
-    cursorLineIndex: i32,
-    lines: [dynamic]int2, // { start line char index, end char line index }
-}
-
 UiContext :: struct {
     zIndex: f32,
 
@@ -22,14 +16,16 @@ UiContext :: struct {
     hotIdChanged: bool,
     tmpHotId: uiId,
 
-    scrollableElements: [dynamic]map[uiId]struct{},
-
     activeId: uiId,
     
     prevFocusedId: uiId,
     focusedId: uiId,
     focusedIdChanged: bool,
     tmpFocusedId: uiId,
+
+    textInputCtx: EditableTextContext,
+
+    scrollableElements: [dynamic]map[uiId]struct{},
     
     parentPositionsStack: [dynamic]int2,
 }
@@ -44,6 +40,16 @@ InputState :: struct {
 }
 
 inputState: InputState
+
+EditableTextContext :: struct {
+    text: strings.Builder,
+    rect: Rect,
+    editorState: edit.State,
+
+    lineIndex: i32, // top line index from which text is rendered
+    cursorLineIndex: i32,
+    lines: [dynamic]int2,
+}
 
 WindowData :: struct {
     windowCreated: bool,
@@ -63,11 +69,12 @@ WindowData :: struct {
 
     isInputMode: bool,
 
-    text: strings.Builder,
     editorPadding: Rect,
 
-    editorState: edit.State,
-    screenGlyphs: ScreenGlyphs,
+    editableTextCtx: ^EditableTextContext,
+
+    // TODO: replace it by some list of tabs instead of a single editable text
+    editorCtx: EditableTextContext,
 
     //> settings
     wordWrapping: bool,
@@ -166,9 +173,16 @@ createWindow :: proc(size: int2) {
 
     windowData.editorPadding = { top = 10, bottom = 10, left = 50, right = 15 }
 
-    windowData.text = strings.builder_make()
+    windowData.editorCtx.text = strings.builder_make()
+    windowData.editorCtx.lineIndex = 0
 
-    windowData.screenGlyphs.lineIndex = 0
+    windowData.editorCtx.rect = Rect{
+        top = windowData.size.y / 2 - windowData.editorPadding.top,
+        bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
+        left = -windowData.size.x / 2 + windowData.editorPadding.left,
+        right = windowData.size.x / 2 - windowData.editorPadding.right,
+    }
+
     // fileContent := os.read_entire_file_from_filename("../test_data/test_text_file.txt") or_else panic("Failed to read file")
     // originalFileText := string(fileContent[:])
    
@@ -181,13 +195,13 @@ createWindow :: proc(size: int2) {
 
     // strings.write_string(&windowData.text, testText)
     
-    edit.init(&windowData.editorState, context.allocator, context.allocator)
-    edit.setup_once(&windowData.editorState, &windowData.text)
-    windowData.editorState.selection = { 0, 0 }
+    edit.init(&windowData.editorCtx.editorState, context.allocator, context.allocator)
+    edit.setup_once(&windowData.editorCtx.editorState, &windowData.editorCtx.text)
+    windowData.editorCtx.editorState.selection = { 0, 0 }
 
-    windowData.editorState.set_clipboard = putTextIntoClipboard
-    windowData.editorState.get_clipboard = getTextFromClipboard
-    windowData.editorState.clipboard_user_data = &windowData.parentHwnd
+    windowData.editorCtx.editorState.set_clipboard = putTextIntoClipboard
+    windowData.editorCtx.editorState.get_clipboard = getTextFromClipboard
+    windowData.editorCtx.editorState.clipboard_user_data = &windowData.parentHwnd
 
     windowData.parentHwnd = hwnd
 
@@ -198,6 +212,15 @@ createWindow :: proc(size: int2) {
     //> default settings
     windowData.wordWrapping = true
     //<
+
+    // set default editable context
+    switchInputContextToEditor()
+
+    // TODO: testing
+    windowData.uiContext.textInputCtx.text = strings.builder_make()
+    strings.write_string(&windowData.uiContext.textInputCtx.text, "HYI")
+    //<
+
     windowData.windowCreated = true
 }
 
@@ -232,9 +255,9 @@ removeWindowData :: proc() {
     delete(windowData.font.kerningTable)
     delete(windowData.font.chars)
 
-    delete(windowData.screenGlyphs.lines)
-    edit.destroy(&windowData.editorState)
-    strings.builder_destroy(&windowData.text)
+    delete(windowData.editorCtx.lines)
+    edit.destroy(&windowData.editorCtx.editorState)
+    strings.builder_destroy(&windowData.editorCtx.text)
 
     win32.DestroyWindow(windowData.parentHwnd)
 
@@ -249,4 +272,23 @@ getEditorSize :: proc() -> int2 {
         windowData.size.x - windowData.editorPadding.left - windowData.editorPadding.right,
         windowData.size.y - windowData.editorPadding.top - windowData.editorPadding.bottom,
     }
+}
+
+switchInputContextToUiElement :: proc(rect: Rect) {
+    windowData.editableTextCtx = &windowData.uiContext.textInputCtx
+
+    windowData.editableTextCtx.rect = rect
+    ctx := windowData.editableTextCtx
+
+    edit.init(&ctx.editorState, context.allocator, context.allocator)
+    edit.setup_once(&ctx.editorState, &ctx.text)
+    ctx.editorState.selection = { 0, 0 }
+
+    // ctx.editorState.set_clipboard = putTextIntoClipboard
+    // ctx.editorState.get_clipboard = getTextFromClipboard
+    // ctx.editorState.clipboard_user_data = &windowData.parentHwnd
+}
+
+switchInputContextToEditor :: proc() {
+    windowData.editableTextCtx = &windowData.editorCtx 
 }

@@ -1,5 +1,7 @@
 package main
 
+import "core:fmt"
+
 @(private="file")
 UiButton :: struct {
     position, size: int2,
@@ -93,6 +95,82 @@ renderImageButton :: proc(ctx: ^UiContext, button: UiImageButton, customId: i32 
     return actions
 }
 
+UiTextField :: struct {
+    text: string,
+    position, size: int2,
+    bgColor: float4,
+}
+
+renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 = 0, loc := #caller_location) -> UiActions {    
+    uiId := getUiId(customId, loc)
+    position := textField.position + getAbsolutePosition(ctx)
+
+    uiRect := toRect(position, textField.size)
+
+    bgColor := WHITE_COLOR
+
+    if ctx.hotId == uiId { 
+        bgColor = getDarkerColor(bgColor) 
+        
+        if ctx.activeId == uiId { 
+            bgColor = getDarkerColor(bgColor) 
+        }
+    }
+
+    renderRect(uiRect, ctx.zIndex, bgColor)
+    advanceUiZIndex(ctx)
+
+    hasFocus := ctx.focusedId == uiId || ctx.hotId == uiId
+    renderRectBorder(uiRect, hasFocus ? 2 : 1, ctx.zIndex, BLACK_COLOR)
+    advanceUiZIndex(ctx)
+
+    textHeight := getTextHeight(&windowData.font)
+    
+    actions := checkUiState(ctx, uiId, uiRect)
+
+    if .GOT_FOCUS in actions {
+        switchInputContextToUiElement(Rect {
+            top = uiRect.top - textField.size.y / 2 + i32(textHeight / 2),
+            bottom = uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2),
+            left = uiRect.left + 5,
+            right = uiRect.right - 5,
+        })
+    } 
+
+    if .LOST_FOCUS in actions {
+        switchInputContextToEditor()
+    }
+
+    if ctx.focusedId == uiId {
+        // fmt.println(actions)
+        calculateLines(&windowData.uiContext.textInputCtx)
+        updateCusrorData(&windowData.uiContext.textInputCtx)
+    
+        handleTextInputActions(&windowData.uiContext.textInputCtx, actions)
+
+        glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiContext.textInputCtx, ctx.zIndex)
+
+        renderText(glyphsCount, selectionsCount, BLACK_COLOR, TEXT_SELECTION_BG_COLOR)
+    } else {
+        renderLine(textField.text, &windowData.font, { uiRect.left + 5, uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2) }, 
+            BLACK_COLOR, ctx.zIndex)
+        advanceUiZIndex(ctx)
+    }
+
+    return actions
+}
+
+handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: UiActions) {
+    if .GOT_ACTIVE in actions {
+        pos := getCursorPosition(ctx)
+        ctx.editorState.selection = { pos, pos }
+    }
+
+    if .ACTIVE in actions {
+        ctx.editorState.selection[0] = getCursorPosition(ctx)
+    }   
+}
+
 UiCheckbox :: struct {
     text: string,
     checked: ^bool,
@@ -101,7 +179,7 @@ UiCheckbox :: struct {
 }
 
 renderCheckbox :: proc(ctx: ^UiContext, checkbox: UiCheckbox, customId: i32 = 0, loc := #caller_location) -> UiActions {
-    uiId := getUiId(customId, loc) 
+    uiId := getUiId(customId, loc)
     position := checkbox.position + getAbsolutePosition(ctx)
 
     textWidth := getTextWidth(checkbox.text, &windowData.font)
@@ -271,6 +349,9 @@ endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #
     bgUiId := getUiId((customId + 1) * 99999999, loc)
 
     position, size := fromRect(scroll.bgRect)
+
+    if size.y == scroll.height { return {} }
+
     position += getAbsolutePosition(ctx)
 
     bgRect := toRect(position, size)
@@ -318,7 +399,12 @@ endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #
 
     if ctx.hotId in scrollableElements || .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction {
         scroll.offset^ -= inputState.scrollDelta
+        fmt.println(inputState.scrollDelta)
         validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
+    }
+
+    if ctx.hotId in scrollableElements && abs(inputState.scrollDelta) > 0 {
+        scrollAction += {.MOUSE_WHEEL_SCROLL}
     }
 
     return scrollAction

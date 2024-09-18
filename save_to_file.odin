@@ -7,7 +7,7 @@ import "core:os"
 
 saveToOpenedFile :: proc() -> (success: bool) {
     if len(windowData.openedFilePath) > 0 {
-        err := os.write_entire_file_or_err(windowData.openedFilePath, windowData.text.buf[:])
+        err := os.write_entire_file_or_err(windowData.openedFilePath, windowData.editorCtx.text.buf[:])
         assert(err == nil)
     } else {
         showSaveAsFileDialog()
@@ -41,7 +41,7 @@ showSaveAsFileDialog :: proc() -> (success: bool) {
     // set default file name
     defaultFileName := "New Text File.txt"
     
-    text := strings.to_string(windowData.text)
+    text := strings.to_string(windowData.editorCtx.text)
 
     defaultFileNameBuilder, ok := tryGetDefaultFileName(text)
     defer strings.builder_destroy(&defaultFileNameBuilder)
@@ -82,7 +82,7 @@ showSaveAsFileDialog :: proc() -> (success: bool) {
 
     filePath, _ := win32.wstring_to_utf8(filePathW, -1)
 
-    err := os.write_entire_file_or_err(filePath, windowData.text.buf[:])
+    err := os.write_entire_file_or_err(filePath, windowData.editorCtx.text.buf[:])
     assert(err == nil)
 
     windowData.openedFilePath = filePath

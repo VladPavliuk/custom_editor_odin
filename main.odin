@@ -18,7 +18,7 @@ main :: proc() {
             continue
         }
 
-        edit.update_time(&windowData.editorState)
+        edit.update_time(&windowData.editableTextCtx.editorState)
         render()
 
         inputState.wasLeftMouseButtonDown = false
