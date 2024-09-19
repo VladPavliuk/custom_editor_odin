@@ -42,10 +42,4 @@ get_WIN32_MENUBARINFO :: proc() -> WIN32_MENUBARINFO {
 WIN32_CF_TEXT :: 1
 WIN32_CF_UNICODETEXT :: 13
 
-IDM_FILE_NEW :: 1
-IDM_FILE_OPEN :: 2
-IDM_FILE_SAVE :: 3
-IDM_FILE_SAVE_AS :: 4
-IDM_FILE_QUIT :: 5
-
 IDI_ICON :: 101 // copied from resources/resource.rc file

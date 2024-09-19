@@ -136,7 +136,7 @@ memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T 
 }
 
 loadTextures :: proc() {
-    directXState.textures[.FONT], windowData.font = loadFont()
+    directXState.textures[.FONT], windowData.font = loadFont("c:/windows/fonts/arial.TTF")
     directXState.textures[.CLOSE_ICON] = loadTextureFromImage(#load("./resources/images/close_icon.png", []u8))
 }
 

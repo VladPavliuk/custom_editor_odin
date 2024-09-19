@@ -36,7 +36,12 @@ beginUi :: proc(using ctx: ^UiContext, initZIndex: f32) {
     }
 }
 
-endUi :: proc(using ctx: ^UiContext) {
+endUi :: proc(using ctx: ^UiContext, frameDelta: f64) {
+    updateAlertTimeout(ctx, frameDelta)
+    if ctx.activeAlert != nil {
+        renderActiveAlert(ctx)
+    }
+
     hotIdChanged = false
     if tmpHotId != hotId {
         prevHotId = hotId
@@ -57,8 +62,10 @@ renderEditorContent :: proc() {
     maxLinesOnScreen := getEditorSize().y / i32(windowData.font.lineHeight)
     totalLines := i32(len(windowData.editorCtx.lines))
 
+    editorRectSize := getRectSize(windowData.editorCtx.rect)
+
     scrollWidth := windowData.editorPadding.right
-    scrollHeight := i32(f32(windowData.size.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
+    scrollHeight := i32(f32(editorRectSize.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
 
     @(static)
     offset: i32 = 0
@@ -78,10 +85,10 @@ renderEditorContent :: proc() {
     
     scrollActions := endScroll(&windowData.uiContext, UiScroll{
         bgRect = {
-            top = windowData.size.y / 2,
-            bottom = -windowData.size.y / 2,
-            left = windowData.size.x / 2 - scrollWidth,
-            right = windowData.size.x / 2,
+            top = windowData.editorCtx.rect.top,
+            bottom = windowData.editorCtx.rect.bottom,
+            left = windowData.editorCtx.rect.right,
+            right = windowData.editorCtx.rect.right + scrollWidth,
         },
         height = scrollHeight,
         offset = &offset,
@@ -101,12 +108,12 @@ renderEditorContent :: proc() {
     }
 
     if .ACTIVE in scrollActions {
-        windowData.editorCtx.lineIndex = i32(f32(totalLines) * (f32(offset) / f32(windowData.size.y - scrollHeight)))
+        windowData.editorCtx.lineIndex = i32(f32(totalLines) * (f32(offset) / f32(editorRectSize.y - scrollHeight)))
 
         // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
         windowData.editorCtx.lineIndex = min(i32(totalLines) - 1, windowData.editorCtx.lineIndex)
     } else {
-        offset = i32(f32(windowData.editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(windowData.size.y))
+        offset = i32(f32(windowData.editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(editorRectSize.y))
     }
 }
 

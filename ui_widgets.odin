@@ -1,6 +1,7 @@
 package main
 
 import "core:fmt"
+import "core:mem"
 
 @(private="file")
 UiButton :: struct {
@@ -8,6 +9,7 @@ UiButton :: struct {
     bgColor, hoverBgColor: float4,
     noBorder: bool,
     ignoreFocusUpdate: bool,
+    disabled: bool,
 }
 
 renderButton :: proc{renderTextButton, renderImageButton}
@@ -19,14 +21,19 @@ renderButton_Base :: proc(ctx: ^UiContext, button: UiButton, customId: i32 = 0, 
 
     uiRect := toRect(position, button.size)
 
-    bgColor := button.bgColor
+    bgColor: float4
+    if !button.disabled {
+        bgColor = button.bgColor
 
-    if ctx.hotId == uiId { 
-        bgColor = button.hoverBgColor.a != 0.0 ? button.hoverBgColor : getDarkerColor(bgColor) 
-        
-        if ctx.activeId == uiId { 
-            bgColor = getDarkerColor(bgColor) 
+        if ctx.hotId == uiId { 
+            bgColor = button.hoverBgColor.a != 0.0 ? button.hoverBgColor : getDarkerColor(bgColor) 
+            
+            if ctx.activeId == uiId { 
+                bgColor = getDarkerColor(bgColor) 
+            }
         }
+    } else {
+        bgColor = DARK_GRAY_COLOR
     }
 
     renderRect(uiRect, ctx.zIndex, bgColor)
@@ -37,7 +44,7 @@ renderButton_Base :: proc(ctx: ^UiContext, button: UiButton, customId: i32 = 0, 
         advanceUiZIndex(ctx)
     }
 
-    return checkUiState(ctx, uiId, uiRect, button.ignoreFocusUpdate)
+    return button.disabled ? {} : checkUiState(ctx, uiId, uiRect, button.ignoreFocusUpdate)
 }
 
 UiTextButton :: struct {
@@ -95,6 +102,23 @@ renderImageButton :: proc(ctx: ^UiContext, button: UiImageButton, customId: i32 
     return actions
 }
 
+UiLabel :: struct {
+    text: string,
+    position: int2,
+    color: float4,
+}
+
+renderLabel :: proc(ctx: ^UiContext, label: UiLabel, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    uiId := getUiId(customId, loc)
+    position := label.position + getAbsolutePosition(ctx)
+    actions := UiActions{}
+
+    renderLine(label.text, &windowData.font, position, label.color, ctx.zIndex)
+    advanceUiZIndex(ctx)
+
+    return actions
+}
+
 UiTextField :: struct {
     text: string,
     position, size: int2,
@@ -134,7 +158,7 @@ renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 =
             bottom = uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2),
             left = uiRect.left + 5,
             right = uiRect.right - 5,
-        })
+        }, true)
     } 
 
     if .LOST_FOCUS in actions {
@@ -224,39 +248,51 @@ renderCheckbox :: proc(ctx: ^UiContext, checkbox: UiCheckbox, customId: i32 = 0,
 }
 
 UiDropdown :: struct {
+    text: string,
     position: int2,
     size: int2,
     bgColor: float4,
     items: []string,
-    selectedItemIndex: ^i32,
+    selectedItemIndex: i32,
     isOpen: ^bool,
     scrollOffset: ^i32,
     maxItemShow: i32,
+    //TODO: make item and button more configurable
+    itemSize: int2,
 }
 
-renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0, loc := #caller_location) -> UiActions {
-    assert(dropdown.selectedItemIndex != nil)
+renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0, loc := #caller_location) -> (UiActions, i32) {
     assert(dropdown.isOpen != nil)
     itemsCount := i32(len(dropdown.items))
-    assert(dropdown.selectedItemIndex^ >= 0 && dropdown.selectedItemIndex^ < itemsCount)
+    assert(dropdown.selectedItemIndex >= -1 && dropdown.selectedItemIndex < itemsCount)
     assert(itemsCount > 0)
     assert(dropdown.maxItemShow > 0)
     customId := customId
     customId += 1
     scrollWidth: i32 = 10
+    selectedItemIndex := dropdown.selectedItemIndex
+    actions: UiActions = {}
 
-    action := renderButton(ctx, UiTextButton{
-        text = dropdown.items[dropdown.selectedItemIndex^],
+    text: string
+    if len(dropdown.text) > 0 { text = dropdown.text }
+    else {
+        assert(dropdown.selectedItemIndex >= 0)
+        text = dropdown.items[dropdown.selectedItemIndex]
+    }
+
+    buttonActions := renderButton(ctx, UiTextButton{
+        text = text,
         position = dropdown.position,
         size = dropdown.size,
         bgColor = dropdown.bgColor,
+        noBorder = true,
     }, customId, loc)
 
-    if .SUBMIT in action {
+    if .SUBMIT in buttonActions {
         dropdown.isOpen^ = !(dropdown.isOpen^)
     }
 
-    if .LOST_FOCUS in action {
+    if .LOST_FOCUS in buttonActions {
         dropdown.isOpen^ = false
     }
 
@@ -280,7 +316,7 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
             scrollOffsetIndex = i32(f32(f32(dropdown.scrollOffset^) / f32(itemsContainerHeight - scrollHeight)) * f32(itemsCount - dropdown.maxItemShow))
         }
         
-        itemWidth := dropdown.size.x
+        itemWidth := dropdown.itemSize.x > 0 ? dropdown.itemSize.x : dropdown.size.x
 
         if hasScrollBar { itemWidth -= scrollWidth } 
 
@@ -294,12 +330,14 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
                 position = { dropdown.position.x, offset },
                 size = { itemWidth, itemHeight },
                 text = item,
-                bgColor = i32(index) == dropdown.selectedItemIndex^ ? getDarkerColor(dropdown.bgColor) : dropdown.bgColor,
+                bgColor = i32(index) == selectedItemIndex ? getDarkerColor(dropdown.bgColor) : dropdown.bgColor,
                 ignoreFocusUpdate = true,
+                noBorder = true,
             }, customId, loc)
 
             if .SUBMIT in itemActions {
-                dropdown.selectedItemIndex^ = i32(index)
+                selectedItemIndex = i32(index)
+                actions += {.SUBMIT}
                 dropdown.isOpen^ = false
             }
 
@@ -325,7 +363,131 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
         }
     }
 
-    return action
+    return actions, selectedItemIndex
+}
+
+UiAlert :: struct {
+    text: string,
+    timeout: f64,
+    color, bgColor, hoverColor: float4,
+    originalTimeout: f64, // don't specify it!
+}
+
+pushAlert :: proc(ctx: ^UiContext, alert: UiAlert, customId: i32 = 0, loc := #caller_location) {
+    clearAlert(ctx)
+    ctx.activeAlert = new(UiAlert)
+
+    alert := alert
+    alert.timeout = alert.timeout > 0.01 ? alert.timeout : 3.0
+    alert.originalTimeout = alert.timeout
+    mem.copy(ctx.activeAlert, &alert, size_of(UiAlert))
+}
+
+clearAlert :: proc(ctx: ^UiContext) {
+    if ctx.activeAlert != nil {
+        free(ctx.activeAlert)
+        ctx.activeAlert = nil
+    }
+}
+
+updateAlertTimeout :: proc(ctx: ^UiContext, delta: f64) {
+    if ctx.activeAlert == nil { return }
+
+    ctx.activeAlert.timeout -= delta
+
+    if ctx.activeAlert.timeout < 0.0 {
+        clearAlert(ctx)
+    }
+}
+
+renderActiveAlert :: proc(ctx: ^UiContext, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    if ctx.activeAlert == nil { return {} }
+
+    alert := ctx.activeAlert
+
+    fadeOutDuration := 1.5
+    fadeInDuration := 0.15
+
+    customId := customId
+    uiId := getUiId(customId, loc)
+
+    textWidth := getTextWidth(alert.text, &windowData.font)
+    textHeight := getTextHeight(&windowData.font)
+    textPadding := int2{ 10, 5 }
+    targetAlertOffset := int2{ 15, 5 }
+
+    alertRect := Rect{
+        top = -windowData.size.y / 2,
+        bottom = -windowData.size.y / 2 - i32(textHeight) - 2 * textPadding.y,
+        right = windowData.size.x / 2 - targetAlertOffset.x,
+        left = windowData.size.x / 2 - i32(textWidth) - 2 * textPadding.x - targetAlertOffset.x,
+    }
+
+    alertRectSize := getRectSize(alertRect)
+
+    //> fade-in animation
+    verticalOffset := targetAlertOffset.y + alertRectSize.y
+
+    if fadeInDuration > alert.originalTimeout - alert.timeout {
+        delta := (alert.originalTimeout - alert.timeout) / fadeInDuration
+        verticalOffset = i32(f64(verticalOffset) * delta)
+    }
+
+    alertRect.bottom += verticalOffset
+    alertRect.top += verticalOffset
+    //<
+
+    closeButtonPadding: i32 = 5
+    closeButtonSize := alertRect.top - alertRect.bottom - closeButtonPadding * 2
+    alertRect.left -= closeButtonSize
+
+    //> fade-out animation
+    transparency: f32 = 1.0
+
+    if alert.timeout < fadeOutDuration {
+        transparency = f32(alert.timeout * 1.0 / fadeOutDuration)
+    }
+    //<
+
+    bgColor := alert.bgColor
+    bgColor.a = transparency 
+    renderRect(alertRect, ctx.zIndex, bgColor)
+    advanceUiZIndex(ctx)
+
+    bottomTextPadding := (f32(alertRectSize.y) - textHeight) / 2.0
+    leftTextPadding := (f32(alertRectSize.x) - textWidth) / 2.0
+
+    fontColor := alert.color.a != 0.0 ? alert.color : WHITE_COLOR
+
+    fontColor.a = transparency 
+    renderLine(alert.text, &windowData.font, { i32(leftTextPadding) + alertRect.left, i32(bottomTextPadding) + alertRect.bottom }, 
+        fontColor, ctx.zIndex)
+    advanceUiZIndex(ctx)
+
+    alertActions := checkUiState(ctx, uiId, alertRect)
+
+    // close button
+    customId += 1
+    closeBgColor := alert.bgColor
+    closeBgColor.a = 0.0
+    closeButtonActions := renderButton(ctx, UiImageButton{
+        position = { alertRect.right - closeButtonSize - closeButtonPadding, alertRect.bottom + closeButtonPadding },
+        size = { closeButtonSize, closeButtonSize },
+        bgColor = closeBgColor,
+        texture = .CLOSE_ICON,
+        texturePadding = 2,
+        noBorder = true,
+    }, customId, loc) 
+
+    if .SUBMIT in closeButtonActions {
+        clearAlert(ctx)
+    }
+
+    if .HOT in alertActions || .HOT in closeButtonActions {
+        alert.timeout = alert.originalTimeout - fadeInDuration
+    }
+
+    return alertActions
 }
 
 UiScroll :: struct {
@@ -399,7 +561,7 @@ endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #
 
     if ctx.hotId in scrollableElements || .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction {
         scroll.offset^ -= inputState.scrollDelta
-        fmt.println(inputState.scrollDelta)
+        // fmt.println(inputState.scrollDelta)
         validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
     }
 

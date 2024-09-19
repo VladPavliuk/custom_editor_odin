@@ -77,39 +77,6 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         yoffset := win32.GET_WHEEL_DELTA_WPARAM(wParam)
 
         inputState.scrollDelta = i32(yoffset)
-    case win32.WM_COMMAND:        
-		menuItemId := win32.LOWORD(u32(wParam))
-
-        switch menuItemId {
-        case IDM_FILE_OPEN:
-            filePath, ok := showOpenFileDialog()
-            if !ok { break }
-
-            windowData.openedFilePath = filePath
-            fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
-            originalFileText := string(fileContent[:])
-        
-            testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
-
-            if wasNewAllocation {
-                delete(fileContent)
-            }
-
-            strings.builder_reset(&windowData.editorCtx.text)
-
-            strings.write_string(&windowData.editorCtx.text, testText)
-            
-            edit.init(&windowData.editorCtx.editorState, context.allocator, context.allocator)
-            edit.setup_once(&windowData.editorCtx.editorState, &windowData.editorCtx.text)
-            windowData.editorCtx.editorState.selection = { 0, 0 }
-            windowData.editorCtx.lineIndex = 0
-        case IDM_FILE_SAVE_AS:
-            ok := showSaveAsFileDialog()
-
-            if !ok { break }
-        case IDM_FILE_SAVE:
-            saveToOpenedFile()
-        }
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
     }
@@ -173,6 +140,8 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
     editorCtx := windowData.editableTextCtx
     switch wParam {
     case win32.VK_RETURN:
+        if editorCtx.disableNewLines { break }
+        
         // NOTE: if there's any whitespace at the beginning of the line, copy it to the new line
         lineStart := editorCtx.editorState.line_start
         whiteSpacesCount := 0
@@ -189,7 +158,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
 
         if whiteSpacesCount > 0 {
             edit.input_text(&editorCtx.editorState, string(editorCtx.text.buf[lineStart:][:whiteSpacesCount]))
-        }
+        }   
     case win32.VK_TAB:
         edit.input_rune(&editorCtx.editorState, rune('\t'))
     case win32.VK_LEFT:
@@ -285,9 +254,9 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         win32.VK_LEFT, win32.VK_RIGHT, win32.VK_UP, win32.VK_DOWN,
         win32.VK_BACK, win32.VK_DELETE,
         win32.VK_V, win32.VK_X, win32.VK_Z:
-            calculateLines(&windowData.editorCtx)
-            updateCusrorData(&windowData.editorCtx)
-            jumpToCursor(&windowData.editorCtx)
+            calculateLines(editorCtx)
+            updateCusrorData(editorCtx)
+            jumpToCursor(editorCtx)
     }
 }
 

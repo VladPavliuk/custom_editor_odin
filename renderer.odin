@@ -13,6 +13,9 @@ import "core:time"
 import "core:math"
 import "core:strconv"
 
+import "core:os"
+import "core:text/edit"
+
 // TODO: make all them configurable
 RED_COLOR := float4{ 1.0, 0.0, 0.0, 1.0 }
 GREEN_COLOR := float4{ 0.0, 1.0, 0.0, 1.0 }
@@ -93,6 +96,145 @@ render :: proc() {
     assert(hr == 0)
 }
 
+renderTopMenu :: proc() {
+    // top menu background
+    renderRect(Rect{ 
+        top = windowData.size.y / 2,
+        bottom = windowData.size.y / 2 - windowData.editorPadding.top,
+        left = -windowData.size.x / 2,
+        right = windowData.size.x / 2,
+    }, windowData.uiContext.zIndex, DARKER_GRAY_COLOR)
+    advanceUiZIndex(&windowData.uiContext)
+
+    topItemPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - windowData.editorPadding.top }
+    itemHeight := windowData.editorPadding.top
+
+    fileItems := []string{
+        "Open...",
+        "Save",
+        "Save as...",
+    }
+
+    @(static)
+    isOpen: bool = false
+
+    if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+        text = "File",
+        position = topItemPosition, size = { 60, itemHeight },
+        items = fileItems,
+        bgColor = DARKER_GRAY_COLOR,
+        selectedItemIndex = -1,
+        maxItemShow = 5,
+        isOpen = &isOpen,
+        itemSize = { 120, 0 }
+    }); .SUBMIT in actions {
+        switch selected {
+        case 0:
+            filePath, ok := showOpenFileDialog()
+            if !ok { break }
+
+            windowData.openedFilePath = filePath
+            fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
+            originalFileText := string(fileContent[:])
+        
+            testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
+
+            if wasNewAllocation {
+                delete(fileContent)
+            }
+
+            strings.builder_reset(&windowData.editorCtx.text)
+
+            strings.write_string(&windowData.editorCtx.text, testText)
+            
+            edit.init(&windowData.editorCtx.editorState, context.allocator, context.allocator)
+            edit.setup_once(&windowData.editorCtx.editorState, &windowData.editorCtx.text)
+            windowData.editorCtx.editorState.selection = { 0, 0 }
+            windowData.editorCtx.lineIndex = 0
+        case 1:
+            saveToOpenedFile()            
+        case 2:
+            ok := showSaveAsFileDialog()
+        }
+    }
+    topItemPosition.x += 60
+
+    @(static)
+    showSettings := false
+    if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+        text = "Settings",
+        position = topItemPosition, size = { 100, itemHeight },
+        bgColor = DARKER_GRAY_COLOR,
+        noBorder = true,
+    }) {
+        showSettings = !showSettings
+    }
+
+    if showSettings {
+        @(static)
+        panelPosition: int2 = { -250, -100 } 
+
+        @(static)
+        panelSize: int2 = { 250, 300 }
+
+        beginPanel(&windowData.uiContext, UiPanel{
+            title = "Settings",
+            position = &panelPosition,
+            size = &panelSize,
+            bgColor = GRAY_COLOR,
+            // hoverBgColor = THEME_COLOR_5,
+        }, &showSettings)
+
+        renderLabel(&windowData.uiContext, UiLabel{
+            text = "Custom Font",
+            position = { 0, 250 },
+            color = WHITE_COLOR,
+        })
+
+        renderTextField(&windowData.uiContext, UiTextField{
+            text = strings.to_string(windowData.uiContext.textInputCtx.text),
+            position = { 0, 220 },
+            size = { 200, 30 },
+            bgColor = LIGHT_GRAY_COLOR,
+        })
+
+        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+            text = "Load Font",
+            position = { 0, 190 },
+            size = { 100, 30 },
+            bgColor = THEME_COLOR_1,
+            disabled = strings.builder_len(windowData.uiContext.textInputCtx.text) == 0,
+        }) {
+            // try load font
+            fontPath := strings.to_string(windowData.uiContext.textInputCtx.text)
+
+            if os.exists(fontPath) {
+                directXState.textures[.FONT], windowData.font = loadFont(fontPath)
+            } else {
+                pushAlert(&windowData.uiContext, UiAlert{
+                    text = "Specified file does not exist!",
+                    bgColor = RED_COLOR,
+                })
+            }
+        }
+        
+        @(static)
+        checked := false
+        renderCheckbox(&windowData.uiContext, UiCheckbox{
+            text = "word wrapping",
+            checked = &windowData.wordWrapping,
+            position = { 0, 40 },
+            color = WHITE_COLOR,
+            bgColor = GREEN_COLOR,
+            hoverBgColor = BLACK_COLOR,
+        })
+
+        //testingButtons()
+        
+        endPanel(&windowData.uiContext)
+    }
+}
+
 testingButtons :: proc() {
     if action := renderButton(&windowData.uiContext, UiTextButton{
         text = "Test 1",
@@ -146,90 +288,84 @@ uiStaff :: proc() {
 
     renderEditorContent()
 
-    testingButtons()
-
-    renderTextField(&windowData.uiContext, UiTextField{
-        text = strings.to_string(windowData.uiContext.textInputCtx.text),
-        position = { -40, 200 },
-        size = { 100, 30 },
-        bgColor = LIGHT_GRAY_COLOR,
-    })
-
-    @(static)
-    showPanel := false
+    // @(static)
+    // showPanel := false
     
-    if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
-        text = "Show/Hide panel",
-        position = { 39, -100 },
-        size = { 150, 30 },
-        // color = WHITE_COLOR,
-        bgColor = THEME_COLOR_4,
-        // hoverBgColor = BLACK_COLOR,
-    }) { showPanel = !showPanel }
+    // if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+    //     text = "Show/Hide panel",
+    //     position = { 39, -100 },
+    //     size = { 150, 30 },
+    //     // color = WHITE_COLOR,
+    //     bgColor = THEME_COLOR_4,
+    //     // hoverBgColor = BLACK_COLOR,
+    // }) { showPanel = !showPanel }
     
-    if showPanel {
-        @(static)
-        panelPosition: int2 = { -250, -100 } 
+    // if showPanel {
+    //     @(static)
+    //     panelPosition: int2 = { -250, -100 } 
 
-        @(static)
-        panelSize: int2 = { 200, 300 }
+    //     @(static)
+    //     panelSize: int2 = { 200, 300 }
 
-        beginPanel(&windowData.uiContext, UiPanel{
-            title = "PANEL 1",
-            position = &panelPosition,
-            size = &panelSize,
-            bgColor = THEME_COLOR_1,
-            // hoverBgColor = THEME_COLOR_5,
-        }, &showPanel)
+    //     beginPanel(&windowData.uiContext, UiPanel{
+    //         title = "PANEL 1",
+    //         position = &panelPosition,
+    //         size = &panelSize,
+    //         bgColor = THEME_COLOR_1,
+    //         // hoverBgColor = THEME_COLOR_5,
+    //     }, &showPanel)
 
-        @(static)
-        checked := false
-        renderCheckbox(&windowData.uiContext, UiCheckbox{
-            text = "word wrapping",
-            checked = &windowData.wordWrapping,
-            position = { 0, 0 },
-            color = WHITE_COLOR,
-            bgColor = GREEN_COLOR,
-            hoverBgColor = BLACK_COLOR,
-        })
+    //     @(static)
+    //     checked := false
+    //     renderCheckbox(&windowData.uiContext, UiCheckbox{
+    //         text = "word wrapping",
+    //         checked = &windowData.wordWrapping,
+    //         position = { 0, 0 },
+    //         color = WHITE_COLOR,
+    //         bgColor = GREEN_COLOR,
+    //         hoverBgColor = BLACK_COLOR,
+    //     })
 
-        testItems := []string{
-            "item 1",
-            "item 2",
-            "item 3",
-            "item 4",
-            "item 5",
-            "item 6",
-            "item 7",
-            "item 8",
-            "item 9",
-            "item 10",
-            "item 11",
-            "item 12",
-            "item 13",
-            "item 14",
-            "item 15",
-            "item 16",
-            "item 17",
-        }
-        @(static)
-        selectedItem: i32 = 0
-        @(static)
-        dropdownScrollOffset: i32 = 0
-        @(static)
-        isOpen: bool = false
-        renderDropdown(&windowData.uiContext, UiDropdown{
-            position = { 0, 100 }, size = { 120, 40 },
-            items = testItems,
-            bgColor = THEME_COLOR_2,
-            selectedItemIndex = &selectedItem,
-            maxItemShow = 5,
-            isOpen = &isOpen,
-            scrollOffset = &dropdownScrollOffset,
-        })
+    //     testItems := []string{
+    //         "item 1",
+    //         "item 2",
+    //         "item 3",
+    //         "item 4",
+    //         "item 5",
+    //         "item 6",
+    //         "item 7",
+    //         "item 8",
+    //         "item 9",
+    //         "item 10",
+    //         "item 11",
+    //         "item 12",
+    //         "item 13",
+    //         "item 14",
+    //         "item 15",
+    //         "item 16",
+    //         "item 17",
+    //     }
+    //     @(static)
+    //     selectedItem: i32 = -1
+    //     @(static)
+    //     dropdownScrollOffset: i32 = 0
+    //     @(static)
+    //     isOpen: bool = false
+    //     if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+    //         text = "YEAH",
+    //         position = { 0, 100 }, size = { 120, 40 },
+    //         items = testItems,
+    //         bgColor = THEME_COLOR_2,
+    //         selectedItemIndex = selectedItem,
+    //         maxItemShow = 5,
+    //         isOpen = &isOpen,
+    //         scrollOffset = &dropdownScrollOffset,
+    //     }); .SUBMIT in actions {
+    //         selectedItem = selected
+    //     }
 
-        endPanel(&windowData.uiContext)
-    }
+    //     endPanel(&windowData.uiContext)
+    // }
 
     // @(static)
     // offset: i32 = 0
@@ -244,8 +380,10 @@ uiStaff :: proc() {
     //     hoverColor = THEME_COLOR_2,
     //     bgColor = THEME_COLOR_1,
     // })
+    
+    renderTopMenu()
 
-    endUi(&windowData.uiContext)
+    endUi(&windowData.uiContext, windowData.delta)
 
     windowData.isInputMode = windowData.uiContext.activeId == {}
 }

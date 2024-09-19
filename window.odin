@@ -28,6 +28,8 @@ UiContext :: struct {
     scrollableElements: [dynamic]map[uiId]struct{},
     
     parentPositionsStack: [dynamic]int2,
+
+    activeAlert: ^UiAlert,
 }
 
 InputState :: struct {
@@ -45,6 +47,7 @@ EditableTextContext :: struct {
     text: strings.Builder,
     rect: Rect,
     editorState: edit.State,
+    disableNewLines: bool,
 
     lineIndex: i32, // top line index from which text is rendered
     cursorLineIndex: i32,
@@ -55,6 +58,7 @@ WindowData :: struct {
     windowCreated: bool,
     parentHwnd: win32.HWND,
 
+    delta: f64,
     size: int2,
 
     uiContext: UiContext,
@@ -140,38 +144,12 @@ createWindow :: proc(size: int2) {
 
     win32.ShowWindow(hwnd, win32.SW_SHOWDEFAULT)
 
-    //> create top bar
-    {
-        windowMenubar := CreateMenu()
-        windowFileMenu := CreateMenu()
-
-        assert(windowMenubar != nil)
-        assert(windowFileMenu != nil)
-        
-        wideStringBuffer: [255]u16
-
-        utf16.encode_string(wideStringBuffer[:], "&File")
-        win32.AppendMenuW(windowMenubar, win32.MF_POPUP, uintptr(windowFileMenu), raw_data(wideStringBuffer[:]))
-
-        utf16.encode_string(wideStringBuffer[:], "&Open...")
-        win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_OPEN, raw_data(wideStringBuffer[:]))
-        
-        utf16.encode_string(wideStringBuffer[:], "&Save")
-        win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_SAVE, raw_data(wideStringBuffer[:]))
-        
-        utf16.encode_string(wideStringBuffer[:], "&Save as...")
-        win32.AppendMenuW(windowFileMenu, win32.MF_STRING, IDM_FILE_SAVE_AS, raw_data(wideStringBuffer[:]))
-
-        win32.SetMenu(hwnd, windowMenubar)
-    }
-    //<
-
     clientRect: win32.RECT
     win32.GetClientRect(hwnd, &clientRect)
 
     windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
 
-    windowData.editorPadding = { top = 10, bottom = 10, left = 50, right = 15 }
+    windowData.editorPadding = { top = 25, bottom = 10, left = 50, right = 15 }
 
     windowData.editorCtx.text = strings.builder_make()
     windowData.editorCtx.lineIndex = 0
@@ -274,9 +252,10 @@ getEditorSize :: proc() -> int2 {
     }
 }
 
-switchInputContextToUiElement :: proc(rect: Rect) {
+switchInputContextToUiElement :: proc(rect: Rect, disableNewLines: bool) {
     windowData.editableTextCtx = &windowData.uiContext.textInputCtx
 
+    windowData.editableTextCtx.disableNewLines = disableNewLines
     windowData.editableTextCtx.rect = rect
     ctx := windowData.editableTextCtx
 
@@ -284,9 +263,9 @@ switchInputContextToUiElement :: proc(rect: Rect) {
     edit.setup_once(&ctx.editorState, &ctx.text)
     ctx.editorState.selection = { 0, 0 }
 
-    // ctx.editorState.set_clipboard = putTextIntoClipboard
-    // ctx.editorState.get_clipboard = getTextFromClipboard
-    // ctx.editorState.clipboard_user_data = &windowData.parentHwnd
+    ctx.editorState.set_clipboard = putTextIntoClipboard
+    ctx.editorState.get_clipboard = getTextFromClipboard
+    ctx.editorState.clipboard_user_data = &windowData.parentHwnd
 }
 
 switchInputContextToEditor :: proc() {
