@@ -73,7 +73,14 @@ render :: proc() {
     // time.stopwatch_start(&timer)    
 
     //> ui testing
+    // setClipRect(Rect{
+    //     top = 10,
+    //     bottom = 200,
+    //     left = 0,
+    //     right = 200,
+    // })
     uiStaff()
+    // resetClipRect()
     //<
 
     // glyphsCount, selectionsCount := fillTextBuffer(&windowData.editorCtx, windowData.maxZIndex)
@@ -94,6 +101,29 @@ render :: proc() {
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0)
+    //TODO: if pc went to sleep mode hr variable might be not 0, investigate why is that
+}
+
+resetClipRect :: proc() {
+    scissorRect := d3d11.RECT{
+        top = 0,
+        bottom = windowData.size.y,
+        left = 0,
+        right = windowData.size.x,
+    }
+
+    directXState.ctx->RSSetScissorRects(1, &scissorRect)
+}
+
+setClipRect :: proc(rect: Rect) {
+    scissorRect := d3d11.RECT{
+        top = rect.top,
+        bottom = rect.bottom,
+        left = rect.left,
+        right = rect.right,
+    }
+
+    directXState.ctx->RSSetScissorRects(1, &scissorRect)
 }
 
 renderTopMenu :: proc() {
@@ -220,14 +250,20 @@ renderTopMenu :: proc() {
         
         @(static)
         checked := false
-        renderCheckbox(&windowData.uiContext, UiCheckbox{
+        if .SUBMIT in renderCheckbox(&windowData.uiContext, UiCheckbox{
             text = "word wrapping",
             checked = &windowData.wordWrapping,
             position = { 0, 40 },
             color = WHITE_COLOR,
             bgColor = GREEN_COLOR,
             hoverBgColor = BLACK_COLOR,
-        })
+        }) {
+            //TODO: looks a bit hacky
+            if windowData.wordWrapping {
+                windowData.editorCtx.leftOffset = 0
+            }
+            // jumpToCursor(&windowData.editorCtx)
+        }
 
         //testingButtons()
         
@@ -513,8 +549,24 @@ renderLine :: proc(text: string, font: ^FontData, position: int2, color: float4,
     directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(len(text)), 0, 0, 0)
 }
 
-renderCursor :: proc(position: int2, zIndex: f32) {
-    renderRect(float2{ f32(position.x), f32(position.y) }, float2{ 3.0, windowData.font.lineHeight }, 
+renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
+    // if cursor above top line, don't render it
+    if ctx.cursorLineIndex < ctx.lineIndex { return }
+    
+    // TODO: move it into a separate function
+    editorRectSize := getRectSize(ctx.rect)
+    maxLinesOnScreen := editorRectSize.y / i32(windowData.font.lineHeight)
+
+    // if cursor bellow bottom line, don't render it
+    if ctx.cursorLineIndex > maxLinesOnScreen + ctx.lineIndex { return }
+
+    topOffset := f32(ctx.rect.top) - f32(ctx.cursorLineIndex - ctx.lineIndex) * windowData.font.lineHeight
+    topOffset -= windowData.font.lineHeight
+    leftOffset := f32(ctx.rect.left) + ctx.cursorLeftOffset - f32(ctx.leftOffset)
+
+    if leftOffset < f32(ctx.rect.left) || leftOffset > f32(ctx.rect.right) { return }
+
+    renderRect(float2{ leftOffset, topOffset }, float2{ 3.0, windowData.font.lineHeight }, 
         zIndex, CURSOR_COLOR)
 }
 
@@ -535,8 +587,6 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
 
     editableRectSize := getRectSize(ctx.rect)
 
-    topOffset := f32(ctx.rect.top) - windowData.font.ascent
-
     glyphsCount := 0
     selectionsCount := 0
     hasSelection := ctx.editorState.selection[0] != ctx.editorState.selection[1]
@@ -544,42 +594,48 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
         i32(min(ctx.editorState.selection[0], ctx.editorState.selection[1])),
         i32(max(ctx.editorState.selection[0], ctx.editorState.selection[1])),
     }
+
+    screenPosition := float2{ f32(ctx.rect.left), f32(ctx.rect.top) - windowData.font.ascent }
     
+    if shouldRenderCursor {
+        renderCursor(ctx, zIndex - 3.0)
+    }
+
     for lineIndex in topLine..<bottomLine {
-        if topOffset < -f32(editableRectSize.y) / 2 {
+        if screenPosition.y < -f32(editableRectSize.y) / 2 {
             break
         }
         line := ctx.lines[lineIndex]
 
-        leftOffset: f32 = f32(ctx.rect.left)
-        
+        screenPosition.x = f32(ctx.rect.left)
+
         if lineIndex == ctx.cursorLineIndex {
-            renderRect(float2{ leftOffset, topOffset + windowData.font.descent }, float2{ f32(editableRectSize.x), windowData.font.lineHeight }, zIndex, CURSOR_LINE_BG_COLOR)
+            renderRect(float2{ screenPosition.x, screenPosition.y + windowData.font.descent }, float2{ f32(editableRectSize.x), windowData.font.lineHeight }, zIndex, CURSOR_LINE_BG_COLOR)
         }
 
         byteIndex := line.x
+        lineLeftOffset: f32 = 0.0
         for byteIndex <= line.y {
             // TODO: add RUNE_ERROR handling
             char, charSize := utf8.decode_rune(stringToRender[byteIndex:])
-
             defer byteIndex += i32(charSize)
 
             fontChar := windowData.font.chars[char]
-
+            
             glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-            glyphPosition: int2 = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
-
-            if shouldRenderCursor && int(byteIndex) == ctx.editorState.selection[0] {
-                renderCursor({ glyphPosition.x, glyphPosition.y + i32(windowData.font.descent) }, zIndex - 3.0)
-            }
+            glyphPosition: int2 = { i32(screenPosition.x) + fontChar.offset.x, i32(screenPosition.y) - glyphSize.y - fontChar.offset.y }
 
             // NOTE: last symbol in string is EOF which has 0 length
             // TODO: optimize it
             if charSize == 0 { break }
 
+            lineLeftOffset += fontChar.xAdvance
+
+            if lineLeftOffset < f32(ctx.leftOffset) { continue }
+
             if hasSelection && byteIndex >= selectionRange.x && byteIndex < selectionRange.y  {
                 rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
-                    { leftOffset, topOffset, zIndex - 1.0 }, 
+                    { screenPosition.x, screenPosition.y, zIndex - 1.0 }, 
                     { 0.0, 0.0, 0.0 }, 
                     { fontChar.xAdvance, windowData.font.lineHeight, 1.0 },
                 ))
@@ -598,10 +654,10 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
             }
             glyphsCount += 1
         
-            leftOffset += fontChar.xAdvance
+            screenPosition.x += fontChar.xAdvance
         }
         
-        topOffset -= windowData.font.lineHeight
+        screenPosition.y -= windowData.font.lineHeight
     }
 
     return i32(glyphsCount), i32(selectionsCount)

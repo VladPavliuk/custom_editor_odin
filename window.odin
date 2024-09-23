@@ -46,12 +46,18 @@ inputState: InputState
 EditableTextContext :: struct {
     text: strings.Builder,
     rect: Rect,
+    leftOffset: i32,
+
     editorState: edit.State,
     disableNewLines: bool,
+    maxLineWidth: f32,
 
     lineIndex: i32, // top line index from which text is rendered
     cursorLineIndex: i32,
+    cursorLeftOffset: f32, // offset from line start
     lines: [dynamic]int2,
+
+    //TODO: probabyly put word wrapping property here
 }
 
 WindowData :: struct {
@@ -149,7 +155,7 @@ createWindow :: proc(size: int2) {
 
     windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
 
-    windowData.editorPadding = { top = 25, bottom = 10, left = 50, right = 15 }
+    windowData.editorPadding = { top = 25, bottom = 15, left = 50, right = 15 }
 
     windowData.editorCtx.text = strings.builder_make()
     windowData.editorCtx.lineIndex = 0
@@ -160,6 +166,8 @@ createWindow :: proc(size: int2) {
         left = -windowData.size.x / 2 + windowData.editorPadding.left,
         right = windowData.size.x / 2 - windowData.editorPadding.right,
     }
+
+    //windowData.editorCtx.leftOffset = 40
 
     // fileContent := os.read_entire_file_from_filename("../test_data/test_text_file.txt") or_else panic("Failed to read file")
     // originalFileText := string(fileContent[:])
@@ -188,7 +196,7 @@ createWindow :: proc(size: int2) {
     windowData.maxZIndex = 100.0
 
     //> default settings
-    windowData.wordWrapping = true
+    windowData.wordWrapping = false
     //<
 
     // set default editable context

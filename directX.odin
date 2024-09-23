@@ -104,6 +104,7 @@ initDirectX :: proc() {
     rasterizerDesc := d3d11.RASTERIZER_DESC{
 		FillMode = .SOLID,
 		CullMode = .BACK,
+        ScissorEnable = true,
 	}
 	res = directXState.device->CreateRasterizerState(&rasterizerDesc, &directXState.rasterizerState)
     assert(res == 0)

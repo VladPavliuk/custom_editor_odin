@@ -253,6 +253,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
     case win32.VK_RETURN, win32.VK_TAB,
         win32.VK_LEFT, win32.VK_RIGHT, win32.VK_UP, win32.VK_DOWN,
         win32.VK_BACK, win32.VK_DELETE,
+        win32.VK_HOME, win32.VK_END,
         win32.VK_V, win32.VK_X, win32.VK_Z:
             calculateLines(editorCtx)
             updateCusrorData(editorCtx)
@@ -271,6 +272,7 @@ windowSizeChangedHandler :: proc "c" (width, height: i32) {
         left = -windowData.size.x / 2 + windowData.editorPadding.left,
         right = windowData.size.x / 2 - windowData.editorPadding.right,
     }
+    resetClipRect()
 
     directXState.ctx->OMSetRenderTargets(0, nil, nil)
     directXState.backBufferView->Release()

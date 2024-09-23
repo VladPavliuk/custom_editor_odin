@@ -64,11 +64,23 @@ renderEditorContent :: proc() {
 
     editorRectSize := getRectSize(windowData.editorCtx.rect)
 
-    scrollWidth := windowData.editorPadding.right
-    scrollHeight := i32(f32(editorRectSize.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
+    @(static)
+    verticalOffset: i32 = 0
+
+    verticalScrollWidth := windowData.editorPadding.right
+    verticalScrollSize := i32(f32(editorRectSize.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
 
     @(static)
-    offset: i32 = 0
+    horizontalOffset: i32 = 0
+
+    horizontalScrollHeight := windowData.editorPadding.bottom
+    horizontalScrollSize := editorRectSize.x
+
+    hasHorizontalScroll := windowData.editorCtx.maxLineWidth > f32(editorRectSize.x)
+
+    if hasHorizontalScroll {
+        horizontalScrollSize = i32(f32(editorRectSize.x) * f32(editorRectSize.x) / windowData.editorCtx.maxLineWidth)
+    }
 
     beginScroll(&windowData.uiContext)
 
@@ -79,25 +91,39 @@ renderEditorContent :: proc() {
     calculateLines(&windowData.editorCtx)
     updateCusrorData(&windowData.editorCtx)
 
+    setClipRect(directXToScreenRect(windowData.editorCtx.rect))
     glyphsCount, selectionsCount := fillTextBuffer(&windowData.editorCtx, windowData.maxZIndex)
     
     renderText(glyphsCount, selectionsCount, WHITE_COLOR, TEXT_SELECTION_BG_COLOR)
-    
-    scrollActions := endScroll(&windowData.uiContext, UiScroll{
+    resetClipRect()
+
+    verticalScrollActions, horizontalScrollActions := endScroll(&windowData.uiContext, UiScroll{
         bgRect = {
             top = windowData.editorCtx.rect.top,
             bottom = windowData.editorCtx.rect.bottom,
             left = windowData.editorCtx.rect.right,
-            right = windowData.editorCtx.rect.right + scrollWidth,
+            right = windowData.editorCtx.rect.right + verticalScrollWidth,
         },
-        height = scrollHeight,
-        offset = &offset,
+        size = verticalScrollSize,
+        offset = &verticalOffset,
+        color = float4{ 0.7, 0.7, 0.7, 1.0 },
+        hoverColor = float4{ 1.0, 1.0, 1.0, 1.0 },
+        bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
+    }, UiScroll{
+        bgRect = {
+            top = windowData.editorCtx.rect.bottom,
+            bottom = windowData.editorCtx.rect.bottom - horizontalScrollHeight,
+            left = windowData.editorCtx.rect.left,
+            right = windowData.editorCtx.rect.right,
+        },
+        size = horizontalScrollSize,
+        offset = &horizontalOffset,
         color = float4{ 0.7, 0.7, 0.7, 1.0 },
         hoverColor = float4{ 1.0, 1.0, 1.0, 1.0 },
         bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
     })
 
-    if .MOUSE_WHEEL_SCROLL in scrollActions {
+    if .MOUSE_WHEEL_SCROLL in verticalScrollActions {
          if inputState.scrollDelta > 5 {
             windowData.editorCtx.lineIndex -= 1
         } else if inputState.scrollDelta < -5 {
@@ -107,13 +133,19 @@ renderEditorContent :: proc() {
         validateTopLine(&windowData.editorCtx)
     }
 
-    if .ACTIVE in scrollActions {
-        windowData.editorCtx.lineIndex = i32(f32(totalLines) * (f32(offset) / f32(editorRectSize.y - scrollHeight)))
+    if .ACTIVE in verticalScrollActions {
+        windowData.editorCtx.lineIndex = i32(f32(totalLines) * (f32(verticalOffset) / f32(editorRectSize.y - verticalScrollSize)))
 
         // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
         windowData.editorCtx.lineIndex = min(i32(totalLines) - 1, windowData.editorCtx.lineIndex)
     } else {
-        offset = i32(f32(windowData.editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(editorRectSize.y))
+        verticalOffset = i32(f32(windowData.editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(editorRectSize.y))
+    }
+
+    if .ACTIVE in horizontalScrollActions {
+        windowData.editorCtx.leftOffset = i32(windowData.editorCtx.maxLineWidth * f32(horizontalOffset) / f32(editorRectSize.x))
+    } else {
+        horizontalOffset = i32(f32(editorRectSize.x) * f32(windowData.editorCtx.leftOffset) / windowData.editorCtx.maxLineWidth)
     }
 }
 
@@ -233,6 +265,15 @@ screenToDirectXCoords :: proc(coords: int2) -> int2 {
     return {
         coords.x - windowData.size.x / 2,
         -coords.y + windowData.size.y / 2,
+    }
+}
+
+directXToScreenRect :: proc(rect: Rect) -> Rect {
+    return Rect{
+        top = windowData.size.y / 2 - rect.top, 
+        bottom = windowData.size.y / 2 - rect.bottom, 
+        left = rect.left + windowData.size.x / 2, 
+        right = rect.right + windowData.size.x / 2, 
     }
 }
 

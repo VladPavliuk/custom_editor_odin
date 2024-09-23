@@ -4,16 +4,54 @@ import "core:strings"
 import "core:unicode/utf8"
 import "core:fmt"
 
-getCursorPosition :: proc(ctx: ^EditableTextContext) -> int {
+/*
+    CURRENT APPROACH
+    
+    Current approach is really slow and works like the following:
+
+    1. 
+
+*/
+
+/*
+    It seeems that for wrapping and non wrapping there should be 2 different algorithms
+    Each algorithm consits of 2 parts:
+    1. Aproximate vertical and horizontal scrolls size and current position
+    2. Draw text based on the position in the file (position should be calculated based on scrolls positions)
+
+    First, let's implement non-wrapping algorithm.
+
+    NON-WRAPPING
+    SCROLL
+
+    It seems there are 2 options
+    heuristic vs precise approaches (and their combination)
+
+    heuristic algorithm:
+    1. Calculate average length of any n lines
+    2. 
+
+    1. Pick any char by index
+
+*/
+newStaff :: proc(text: string) {
+    pivotCharIndex: i32 // visible top left char index in buffer
+    pivotCharOffset: int2 // offset to top-left rendering corner
+
+
+
+}
+
+getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext) -> int {
     stringToRender := strings.to_string(ctx.text)
 
     mousePosition := screenToDirectXCoords(inputState.mousePosition)
 
     mousePosition = {
-        mousePosition.x - ctx.rect.left,
+        mousePosition.x - ctx.rect.left + ctx.leftOffset,
         ctx.rect.top - mousePosition.y,
     }
-    fmt.println(mousePosition)
+
     lineIndex := i16(f32(mousePosition.y) / windowData.font.lineHeight) + i16(ctx.lineIndex)
     
     // if user clicks lower on the screen where text was rendered take last line
@@ -61,7 +99,7 @@ updateCusrorData :: proc(ctx: ^EditableTextContext) {
     }
 
     // find cursor left offset
-    cursorLeftOffset: f32 = 0.0
+    ctx.cursorLeftOffset = 0.0
     stringToRender := strings.to_string(ctx.text)
     charIndex := cursorLine.x
     for charIndex < cursorLine.y {
@@ -71,7 +109,7 @@ updateCusrorData :: proc(ctx: ^EditableTextContext) {
         if cursorIndex == charIndex { break }
 
         fontChar := windowData.font.chars[char]
-        cursorLeftOffset += fontChar.xAdvance
+        ctx.cursorLeftOffset += fontChar.xAdvance
     }
 
     cursorLineIndex := ctx.cursorLineIndex
@@ -90,7 +128,7 @@ updateCusrorData :: proc(ctx: ^EditableTextContext) {
             
             fontChar := windowData.font.chars[char]
             leftOffset += fontChar.xAdvance
-            if leftOffset > cursorLeftOffset {
+            if leftOffset > ctx.cursorLeftOffset {
                 ctx.editorState.up_index = int(charIndex)
                 break
             }
@@ -113,7 +151,7 @@ updateCusrorData :: proc(ctx: ^EditableTextContext) {
             
             fontChar := windowData.font.chars[char]
             leftOffset += fontChar.xAdvance
-            if leftOffset > cursorLeftOffset {
+            if leftOffset > ctx.cursorLeftOffset {
                 ctx.editorState.down_index = int(charIndex)
                 break
             }
@@ -136,6 +174,12 @@ jumpToCursor :: proc(ctx: ^EditableTextContext) {
     } else if ctx.cursorLineIndex >= ctx.lineIndex + maxLinesOnScreen {
         ctx.lineIndex = ctx.cursorLineIndex - maxLinesOnScreen + 1
     }
+
+    if ctx.leftOffset > i32(ctx.cursorLeftOffset) {
+        ctx.leftOffset = i32(ctx.cursorLeftOffset)
+    } else if ctx.leftOffset < i32(ctx.cursorLeftOffset) - getRectSize(ctx.rect).x {
+        ctx.leftOffset = i32(ctx.cursorLeftOffset) - getRectSize(ctx.rect).x
+    }
 }
 
 calculateLines :: proc(ctx: ^EditableTextContext) {
@@ -147,6 +191,7 @@ calculateLines :: proc(ctx: ^EditableTextContext) {
 
     lineWidth := f32(getRectSize(windowData.editorCtx.rect).x)
     lineBoundaryIndexes: int2 = { 0, 0 }
+    ctx.maxLineWidth = -1.0
     
     for charIndex := 0; charIndex < stringLength; {
         char, charSize := utf8.decode_rune(stringToRender[charIndex:])
@@ -166,13 +211,21 @@ calculateLines :: proc(ctx: ^EditableTextContext) {
 
         // text wrapping
         // TODO: make two functions, 1 - with wrapping, 2 - no wrapping, to avoid additional check
-        if windowData.wordWrapping && cursor >= lineWidth {
-            cursor = 0.0
+        if windowData.wordWrapping {
+            if cursor >= lineWidth {
+                cursor = 0.0
 
-            // since we do text wrapping, line should end on the previous symbol
-            lineBoundaryIndexes.y = i32(charIndex) - i32(charSize)
-            append(&ctx.lines, lineBoundaryIndexes)
-            lineBoundaryIndexes.x = lineBoundaryIndexes.y + i32(charSize)
+                // since we do text wrapping, line should end on the previous symbol
+                lineBoundaryIndexes.y = i32(charIndex) - i32(charSize)
+                append(&ctx.lines, lineBoundaryIndexes)
+                lineBoundaryIndexes.x = lineBoundaryIndexes.y + i32(charSize)
+            }
+        } else {
+            // TODO: make two functions, 1 - with wrapping, 2 - no wrapping, to avoid additional check
+            // maxLineWidth makes sense only if in word wrapping is off
+            if cursor >= ctx.maxLineWidth {
+                ctx.maxLineWidth = cursor
+            }
         }
     }
     

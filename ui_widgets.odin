@@ -166,19 +166,22 @@ renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 =
     }
 
     if ctx.focusedId == uiId {
-        // fmt.println(actions)
         calculateLines(&windowData.uiContext.textInputCtx)
         updateCusrorData(&windowData.uiContext.textInputCtx)
     
         handleTextInputActions(&windowData.uiContext.textInputCtx, actions)
 
+        setClipRect(directXToScreenRect(uiRect))
         glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiContext.textInputCtx, ctx.zIndex)
 
         renderText(glyphsCount, selectionsCount, BLACK_COLOR, TEXT_SELECTION_BG_COLOR)
+        resetClipRect()
     } else {
+        setClipRect(directXToScreenRect(uiRect))
         renderLine(textField.text, &windowData.font, { uiRect.left + 5, uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2) }, 
             BLACK_COLOR, ctx.zIndex)
         advanceUiZIndex(ctx)
+        resetClipRect()
     }
 
     return actions
@@ -186,12 +189,12 @@ renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 =
 
 handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: UiActions) {
     if .GOT_ACTIVE in actions {
-        pos := getCursorPosition(ctx)
+        pos := getCursorIndexByMousePosition(ctx)
         ctx.editorState.selection = { pos, pos }
     }
 
     if .ACTIVE in actions {
-        ctx.editorState.selection[0] = getCursorPosition(ctx)
+        ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
     }   
 }
 
@@ -355,11 +358,11 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
                     left = dropdown.position.x + dropdown.size.x - scrollWidth,
                 },
                 offset = dropdown.scrollOffset,
-                height = scrollHeight,
+                size = scrollHeight,
                 color = WHITE_COLOR,
                 hoverColor = LIGHT_GRAY_COLOR,
                 bgColor = BLACK_COLOR,
-            }, customId, loc)
+            }, customId = customId, loc = loc)
         }
     }
 
@@ -490,10 +493,20 @@ renderActiveAlert :: proc(ctx: ^UiContext, customId: i32 = 0, loc := #caller_loc
     return alertActions
 }
 
+// Scroll :: struct {
+//     offset: i32,
+//     size: i32,
+// }
+
 UiScroll :: struct {
     bgRect: Rect,
+    
     offset: ^i32,
-    height: i32,
+    size: i32,
+
+    // verticalScroll: ^Scroll,
+    // horizontalScroll: ^Scroll,
+
     color, hoverColor, bgColor: float4,
 }
 
@@ -501,7 +514,24 @@ beginScroll :: proc(ctx: ^UiContext) {
     append(&ctx.scrollableElements, make(map[uiId]struct{}))
 }
 
-endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #caller_location) -> UiActions {
+endScroll :: proc(ctx: ^UiContext, verticalScroll: UiScroll, horizontalScroll: UiScroll = {}, customId: i32 = 0, loc := #caller_location) -> (UiActions, UiActions) {
+    customId := customId
+    verticalScrollActions := renderVerticalScroll(ctx, verticalScroll, customId, loc)
+    horizontalScrollActions: UiActions = {}
+
+    if horizontalScroll.offset != nil {
+        customId += 1
+        horizontalScrollActions = renderHorizontalScroll(ctx, horizontalScroll, customId, loc)
+    }
+
+    // if ctx.hotId in scrollableElements && abs(inputState.scrollDelta) > 0 {
+    //     scrollAction += {.MOUSE_WHEEL_SCROLL}
+    // }
+
+    return verticalScrollActions, horizontalScrollActions
+}
+
+renderVerticalScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #caller_location) -> UiActions {
     assert(scroll.offset != nil)
     scrollableElements := pop(&ctx.scrollableElements)
     defer delete(scrollableElements)
@@ -512,7 +542,7 @@ endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #
 
     position, size := fromRect(scroll.bgRect)
 
-    if size.y == scroll.height { return {} }
+    if size.y == scroll.size { return {} }
 
     position += getAbsolutePosition(ctx)
 
@@ -520,7 +550,7 @@ endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #
 
     scrollRect := Rect{
         top = bgRect.top - scroll.offset^,
-        bottom = bgRect.top - scroll.offset^ - scroll.height,
+        bottom = bgRect.top - scroll.offset^ - scroll.size,
         left = bgRect.left,
         right = bgRect.right,
     }
@@ -556,20 +586,80 @@ endScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #
 
         scroll.offset^ += delta
 
-        validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
+        validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.size)
     }
 
     if ctx.hotId in scrollableElements || .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction {
         scroll.offset^ -= inputState.scrollDelta
-        // fmt.println(inputState.scrollDelta)
-        validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.height)
+        validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.size)
     }
 
     if ctx.hotId in scrollableElements && abs(inputState.scrollDelta) > 0 {
         scrollAction += {.MOUSE_WHEEL_SCROLL}
     }
 
-    return scrollAction
+    return scrollAction    
+}
+
+renderHorizontalScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 0, loc := #caller_location) -> UiActions {
+    // assert(scroll.offset != nil)
+    // scrollableElements := pop(&ctx.scrollableElements)
+    // defer delete(scrollableElements)
+
+    scrollUiId := getUiId(customId, loc)
+    
+    bgUiId := getUiId((customId + 1) * 99999999, loc)
+
+    position, size := fromRect(scroll.bgRect)
+
+    if size.x == scroll.size { return {} }
+
+    position += getAbsolutePosition(ctx)
+
+    bgRect := toRect(position, size)
+
+    scrollRect := Rect{
+        top = bgRect.top,
+        bottom = bgRect.bottom,
+        left = bgRect.left + scroll.offset^,
+        right = bgRect.left + scroll.offset^ + scroll.size,
+    }
+
+    // background
+    renderRect(bgRect, ctx.zIndex, scroll.bgColor)
+    advanceUiZIndex(ctx)
+    
+    bgAction := checkUiState(ctx, bgUiId, bgRect, true)
+
+    // scroll
+    isHover := ctx.activeId == scrollUiId || ctx.hotId == scrollUiId
+    renderRect(scrollRect, ctx.zIndex, isHover ? scroll.hoverColor : scroll.color)
+    advanceUiZIndex(ctx)
+
+    scrollAction := checkUiState(ctx, scrollUiId, scrollRect, true)
+
+    validateScrollOffset :: proc(offset: ^i32, maxOffset: i32) {
+        offset^ = max(0, offset^)
+        offset^ = min(maxOffset, offset^)
+    }
+
+    if .ACTIVE in scrollAction {
+        mouseX := screenToDirectXCoords(inputState.mousePosition).x
+
+        delta := inputState.deltaMousePosition.x
+
+        if mouseX < bgRect.left {
+            delta = -abs(delta)
+        } else if mouseX > bgRect.right {
+            delta = abs(delta)
+        }
+
+        scroll.offset^ += delta
+
+        validateScrollOffset(scroll.offset, bgRect.right - bgRect.left - scroll.size)
+    }
+
+    return scrollAction    
 }
 
 UiPanel :: struct {
