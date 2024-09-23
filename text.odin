@@ -2,16 +2,6 @@ package main
 
 import "core:strings"
 import "core:unicode/utf8"
-import "core:fmt"
-
-/*
-    CURRENT APPROACH
-    
-    Current approach is really slow and works like the following:
-
-    1. 
-
-*/
 
 /*
     It seeems that for wrapping and non wrapping there should be 2 different algorithms
@@ -34,13 +24,6 @@ import "core:fmt"
     1. Pick any char by index
 
 */
-newStaff :: proc(text: string) {
-    pivotCharIndex: i32 // visible top left char index in buffer
-    pivotCharOffset: int2 // offset to top-left rendering corner
-
-
-
-}
 
 getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext) -> int {
     stringToRender := strings.to_string(ctx.text)

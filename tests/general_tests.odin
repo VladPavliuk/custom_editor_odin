@@ -31,7 +31,7 @@ just_run_and_close :: proc(t: ^testing.T) {
 
     typeStringOnKeyboard(windowData.parentHwnd, text)
 
-    testing.expect_value(t, strings.to_string(windowData.text), text)
+    testing.expect_value(t, strings.to_string(main.windowData.editorCtx.text), text)
 }
 
 @(test)
@@ -45,12 +45,13 @@ type_and_save :: proc(t: ^testing.T) {
 
     typeStringOnKeyboard(windowData.parentHwnd, text)
 
+    // time.sleep(1_00_000_000)
     windowRect: win32.RECT
     win32.GetWindowRect(windowData.parentHwnd, &windowRect)
-    
+
     clickMouse({
         { windowRect.left + 30, windowRect.top + 50 },
-        { windowRect.left + 30, windowRect.top + 100 },
+        { windowRect.left + 30, windowRect.top + 90 },
     })
 
     time.sleep(2_000_000_000)

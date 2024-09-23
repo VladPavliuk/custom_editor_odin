@@ -3,7 +3,6 @@ package main
 import win32 "core:sys/windows"
 import "core:text/edit"
 import "core:time"
-import "core:fmt"
 
 main :: proc() {
     createWindow({ 800, 800 })

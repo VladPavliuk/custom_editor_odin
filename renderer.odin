@@ -7,9 +7,7 @@ import "base:intrinsics"
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
 import "core:unicode/utf8"
-import "core:fmt"
 
-import "core:time"
 import "core:math"
 import "core:strconv"
 
@@ -116,6 +114,9 @@ resetClipRect :: proc() {
 }
 
 setClipRect :: proc(rect: Rect) {
+    rect := rect
+    rect = directXToScreenRect(rect)
+
     scissorRect := d3d11.RECT{
         top = rect.top,
         bottom = rect.bottom,
@@ -139,10 +140,10 @@ renderTopMenu :: proc() {
     topItemPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - windowData.editorPadding.top }
     itemHeight := windowData.editorPadding.top
 
-    fileItems := []string{
-        "Open...",
-        "Save",
-        "Save as...",
+    fileItems := []UiDropdownItem{
+        { text = "Open..." },
+        { text = "Save" },
+        { text = "Save as..." },
     }
 
     @(static)
@@ -156,7 +157,10 @@ renderTopMenu :: proc() {
         selectedItemIndex = -1,
         maxItemShow = 5,
         isOpen = &isOpen,
-        itemSize = { 120, 0 }
+        itemStyles = {
+            size = { 150, 0 },
+            padding = Rect{ left = 20 },
+        },
     }); .SUBMIT in actions {
         switch selected {
         case 0:
@@ -184,7 +188,7 @@ renderTopMenu :: proc() {
         case 1:
             saveToOpenedFile()            
         case 2:
-            ok := showSaveAsFileDialog()
+            showSaveAsFileDialog()
         }
     }
     topItemPosition.x += 60
@@ -325,6 +329,28 @@ uiStaff :: proc() {
     renderEditorContent()
 
     // @(static)
+    // isDropdownOpen := false
+
+    // dropDonButtonActions := renderButton(&windowData.uiContext, UiTextButton{
+    //     position = { -200, -100 }, size = { 150, 30 },
+    //     text = "test dropdown",
+    //     bgColor = THEME_COLOR_1,
+    // }) 
+    
+    // if .SUBMIT in dropDonButtonActions {
+    //     isDropdownOpen = !isDropdownOpen
+    // }
+
+    // beginDropdown(&windowData.uiContext, UiNewDropdown{
+    //     position = { 0, -300 }, size = { 200, 300 },
+    //     isOpen = &isDropdownOpen,
+    //     bgColor = THEME_COLOR_2,
+    // }, dropDonButtonActions)
+
+
+    // endDropdown(&windowData.uiContext)
+
+    // @(static)
     // showPanel := false
     
     // if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
@@ -361,44 +387,58 @@ uiStaff :: proc() {
     //         bgColor = GREEN_COLOR,
     //         hoverBgColor = BLACK_COLOR,
     //     })
+        @(static)
+        testinItemCheckbox := false
 
-    //     testItems := []string{
-    //         "item 1",
-    //         "item 2",
-    //         "item 3",
-    //         "item 4",
-    //         "item 5",
-    //         "item 6",
-    //         "item 7",
-    //         "item 8",
-    //         "item 9",
-    //         "item 10",
-    //         "item 11",
-    //         "item 12",
-    //         "item 13",
-    //         "item 14",
-    //         "item 15",
-    //         "item 16",
-    //         "item 17",
-    //     }
-    //     @(static)
-    //     selectedItem: i32 = -1
-    //     @(static)
-    //     dropdownScrollOffset: i32 = 0
-    //     @(static)
-    //     isOpen: bool = false
-    //     if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
-    //         text = "YEAH",
-    //         position = { 0, 100 }, size = { 120, 40 },
-    //         items = testItems,
-    //         bgColor = THEME_COLOR_2,
-    //         selectedItemIndex = selectedItem,
-    //         maxItemShow = 5,
-    //         isOpen = &isOpen,
-    //         scrollOffset = &dropdownScrollOffset,
-    //     }); .SUBMIT in actions {
-    //         selectedItem = selected
-    //     }
+        testItems := []UiDropdownItem{
+            {
+                text = "item 1",
+            },
+            {
+                text = "item 2",
+                checkbox = &testinItemCheckbox,
+            },
+            {
+                text = "item 3", 
+            },
+            {
+                text = "item 4", 
+            },
+            {
+                text = "item 5",
+                rightText = "asdasd",
+            },
+            {
+                text = "item 6asdsadasdasdadsasdsadsadsadasd", 
+            },
+            {
+                text = "item 7", 
+            },
+        }
+        @(static)
+        selectedItem: i32 = 0
+        @(static)
+        dropdownScrollOffset: i32 = 0
+        @(static)
+        isOpen: bool = false
+        if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+            // text = "YEAH",
+            position = { 0, 100 }, size = { 120, 40 },
+            items = testItems,
+            bgColor = THEME_COLOR_2,
+            selectedItemIndex = selectedItem,
+            maxItemShow = 5,
+            isOpen = &isOpen,
+            scrollOffset = &dropdownScrollOffset,
+            itemStyles = {
+                size = { 200, 0 },
+                padding = Rect{ top = 3, bottom = 3, left = 35, right = 5 },
+                bgColor = THEME_COLOR_3,
+                hoverColor = THEME_COLOR_4,
+            },
+        }); .SUBMIT in actions {
+            selectedItem = selected
+        }
 
     //     endPanel(&windowData.uiContext)
     // }
@@ -458,17 +498,16 @@ renderRectVec_Float :: proc(position, size: float2, zValue: f32, color: float4) 
 
 renderImageRect :: proc{renderImageRectVec_Float, renderImageRectVec_Int, renderImageRect_Int}
 
-renderImageRect_Int :: proc(rect: Rect, zValue: f32, texture: TextureType, bgColor: float4) {
+renderImageRect_Int :: proc(rect: Rect, zValue: f32, texture: TextureType) {
     renderImageRectVec_Float({ f32(rect.left), f32(rect.bottom) }, 
-        { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, texture, bgColor)
+        { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, texture)
 }
 
-renderImageRectVec_Int :: proc(position, size: int2, zValue: f32, texture: TextureType, bgColor: float4) {
-    renderImageRectVec_Float({ f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, texture, bgColor)
+renderImageRectVec_Int :: proc(position, size: int2, zValue: f32, texture: TextureType) {
+    renderImageRectVec_Float({ f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, texture)
 }
 
-renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: TextureType, bgColor: float4) {
-    bgColor := bgColor
+renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: TextureType) {
     ctx := directXState.ctx
 
     ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)
@@ -476,7 +515,6 @@ renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: T
     ctx->VSSetConstantBuffers(1, 1, &directXState.constantBuffers[.MODEL_TRANSFORMATION].gpuBuffer)
 
     ctx->PSSetShader(directXState.pixelShaders[.TEXTURE], nil, 0)
-    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
     ctx->PSSetShaderResources(0, 1, &directXState.textures[texture].srv)
 
     modelMatrix := getTransformationMatrix(
@@ -484,7 +522,6 @@ renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: T
         { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 })
 
     updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION])
-    updateGpuBuffer(&bgColor, directXState.constantBuffers[.COLOR])
 
     directXState.ctx->DrawIndexed(directXState.indexBuffers[.QUAD].length, 0, 0)
 }
@@ -631,7 +668,8 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
 
             lineLeftOffset += fontChar.xAdvance
 
-            if lineLeftOffset < f32(ctx.leftOffset) { continue }
+            if lineLeftOffset > f32(ctx.leftOffset + editableRectSize.x) { break } // stop line rendering if outside of line rigth boundary
+            else if lineLeftOffset < f32(ctx.leftOffset) { continue } // don't render glyphs until their position is inside visible region 
 
             if hasSelection && byteIndex >= selectionRange.x && byteIndex < selectionRange.y  {
                 rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(

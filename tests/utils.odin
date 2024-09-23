@@ -98,7 +98,10 @@ clickMouse :: proc{clickMouse_Single, clickMouse_Multiple}
 
 clickMouse_Multiple :: proc(points: [][2]i32) {
     for point in points {
-        clickMouse_Single(point[0], point[1])        
+        moveMouse(point[0], point[1])
+        time.sleep(10_000_000)
+        clickMouse_Single(point[0], point[1])
+        time.sleep(10_000_000)       
     }
 }
 
@@ -117,6 +120,13 @@ clickMouse_Single :: proc(x, y: i32) {
                 dwFlags = 0x0001 | 0x0002 | 0x8000, // MOUSEEVENTF_MOVE | MOUSEEVENTF_LEFTDOWN | MOUSEEVENTF_ABSOLUTE
             },
         },
+    }
+
+    win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
+    
+    time.sleep(10_000_000)
+    
+    input = []win32.INPUT {
         {
             type = win32.INPUT_TYPE.MOUSE,
             mi = win32.MOUSEINPUT{
@@ -126,7 +136,6 @@ clickMouse_Single :: proc(x, y: i32) {
             },
         },
     }
-
     win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
 }
 

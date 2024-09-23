@@ -17,6 +17,7 @@ import "core:bytes"
 TextureType :: enum {
     FONT,
     CLOSE_ICON,
+    CHECK_ICON,
 }
 
 GpuTexture :: struct {
@@ -138,6 +139,7 @@ memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T 
 loadTextures :: proc() {
     directXState.textures[.FONT], windowData.font = loadFont("c:/windows/fonts/arial.TTF")
     directXState.textures[.CLOSE_ICON] = loadTextureFromImage(#load("./resources/images/close_icon.png", []u8))
+    directXState.textures[.CHECK_ICON] = loadTextureFromImage(#load("./resources/images/check_icon.png", []u8))
 }
 
 compileVertexShader :: proc(fileContent: string) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {

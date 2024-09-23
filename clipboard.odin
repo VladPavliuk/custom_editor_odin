@@ -1,6 +1,5 @@
 package main
 
-import "core:fmt"
 import "core:mem"
 
 import win32 "core:sys/windows"

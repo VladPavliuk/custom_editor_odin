@@ -1,6 +1,5 @@
 package main
 
-import "core:fmt"
 import "core:mem"
 
 @(private="file")
@@ -70,9 +69,11 @@ renderTextButton :: proc(ctx: ^UiContext, button: UiTextButton, customId: i32 = 
 
     fontColor := button.color.a != 0.0 ? button.color : WHITE_COLOR
 
+    setClipRect(uiRect)
     renderLine(button.text, &windowData.font, { i32(leftTextPadding) + uiRect.left, i32(bottomTextPadding) + uiRect.bottom }, 
         fontColor, ctx.zIndex)
     advanceUiZIndex(ctx)
+    resetClipRect()
 
     return actions
 }
@@ -96,7 +97,7 @@ renderImageButton :: proc(ctx: ^UiContext, button: UiImageButton, customId: i32 
     uiRect.left += button.texturePadding
     uiRect.right -= button.texturePadding
 
-    renderImageRect(uiRect, ctx.zIndex, button.texture, button.bgColor)
+    renderImageRect(uiRect, ctx.zIndex, button.texture)
     advanceUiZIndex(ctx)
 
     return actions
@@ -109,7 +110,6 @@ UiLabel :: struct {
 }
 
 renderLabel :: proc(ctx: ^UiContext, label: UiLabel, customId: i32 = 0, loc := #caller_location) -> UiActions {
-    uiId := getUiId(customId, loc)
     position := label.position + getAbsolutePosition(ctx)
     actions := UiActions{}
 
@@ -166,18 +166,18 @@ renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 =
     }
 
     if ctx.focusedId == uiId {
-        calculateLines(&windowData.uiContext.textInputCtx)
-        updateCusrorData(&windowData.uiContext.textInputCtx)
+        calculateLines(&ctx.textInputCtx)
+        updateCusrorData(&ctx.textInputCtx)
     
-        handleTextInputActions(&windowData.uiContext.textInputCtx, actions)
+        handleTextInputActions(&ctx.textInputCtx, actions)
 
-        setClipRect(directXToScreenRect(uiRect))
-        glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiContext.textInputCtx, ctx.zIndex)
+        setClipRect(uiRect)
+        glyphsCount, selectionsCount := fillTextBuffer(&ctx.textInputCtx, ctx.zIndex)
 
         renderText(glyphsCount, selectionsCount, BLACK_COLOR, TEXT_SELECTION_BG_COLOR)
         resetClipRect()
     } else {
-        setClipRect(directXToScreenRect(uiRect))
+        setClipRect(uiRect)
         renderLine(textField.text, &windowData.font, { uiRect.left + 5, uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2) }, 
             BLACK_COLOR, ctx.zIndex)
         advanceUiZIndex(ctx)
@@ -250,18 +250,31 @@ renderCheckbox :: proc(ctx: ^UiContext, checkbox: UiCheckbox, customId: i32 = 0,
     return action
 }
 
+UiDropdownItem :: struct {
+    text: string,
+    rightText: string, // optional
+    checkbox: ^bool, // if nil, don't show it
+    isSeparator: bool,
+    //TODO: add context menu item
+}
+
+UiDropdownItemStyle :: struct {
+    size: int2,
+    padding: Rect,
+    bgColor, hoverColor, activeColor: float4,
+}
+
 UiDropdown :: struct {
     text: string,
     position: int2,
     size: int2,
     bgColor: float4,
-    items: []string,
+    items: []UiDropdownItem, // TODO: maybe union{[]UiDropdownItem, []string}, ???
     selectedItemIndex: i32,
     isOpen: ^bool,
     scrollOffset: ^i32,
     maxItemShow: i32,
-    //TODO: make item and button more configurable
-    itemSize: int2,
+    itemStyles: UiDropdownItemStyle,
 }
 
 renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0, loc := #caller_location) -> (UiActions, i32) {
@@ -280,7 +293,7 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
     if len(dropdown.text) > 0 { text = dropdown.text }
     else {
         assert(dropdown.selectedItemIndex >= 0)
-        text = dropdown.items[dropdown.selectedItemIndex]
+        text = dropdown.items[dropdown.selectedItemIndex].text
     }
 
     buttonActions := renderButton(ctx, UiTextButton{
@@ -300,7 +313,8 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
     }
 
     if dropdown.isOpen^ {
-        itemHeight := i32(getTextHeight(&windowData.font))
+        itemPadding := dropdown.itemStyles.padding
+        itemHeight := i32(getTextHeight(&windowData.font)) + itemPadding.bottom + itemPadding.top
         offset := dropdown.position.y - itemHeight
 
         scrollOffsetIndex: i32 = 0
@@ -308,18 +322,19 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
         scrollHeight: i32 = -1
         itemsToShow := min(dropdown.maxItemShow, itemsCount)
         itemsContainerHeight := itemsToShow * itemHeight
+        itemsContainerWidth := dropdown.itemStyles.size.x > 0 ? dropdown.itemStyles.size.x : dropdown.size.x
         
         // show scrollbar
         if itemsCount > dropdown.maxItemShow {
             hasScrollBar = true
             scrollHeight = i32(f32(dropdown.maxItemShow) / f32(itemsCount) * f32(itemsContainerHeight))
 
-            beginScroll(&windowData.uiContext)
+            beginScroll(ctx)
 
             scrollOffsetIndex = i32(f32(f32(dropdown.scrollOffset^) / f32(itemsContainerHeight - scrollHeight)) * f32(itemsCount - dropdown.maxItemShow))
         }
         
-        itemWidth := dropdown.itemSize.x > 0 ? dropdown.itemSize.x : dropdown.size.x
+        itemWidth := itemsContainerWidth
 
         if hasScrollBar { itemWidth -= scrollWidth } 
 
@@ -329,19 +344,55 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
             item := dropdown.items[index]
             customId += 1
 
-            itemActions := renderButton(&windowData.uiContext, UiTextButton{
-                position = { dropdown.position.x, offset },
-                size = { itemWidth, itemHeight },
-                text = item,
-                bgColor = i32(index) == selectedItemIndex ? getDarkerColor(dropdown.bgColor) : dropdown.bgColor,
-                ignoreFocusUpdate = true,
-                noBorder = true,
-            }, customId, loc)
+            itemRect := toRect({ dropdown.position.x, offset }, { itemWidth, itemHeight })
+            itemActions := putEmptyUiElement(ctx, itemRect, true, customId, loc)
+
+            bgColor := getOrDefaultColor(dropdown.itemStyles.bgColor, dropdown.bgColor)
+
+            if .HOT in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.hoverColor, getDarkerColor(bgColor)) }
+            if .ACTIVE in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.activeColor, getDarkerColor(bgColor)) } 
+
+            setClipRect(itemRect)
+            renderRect(itemRect, ctx.zIndex, bgColor)
+            advanceUiZIndex(ctx)
+
+            renderLine(item.text, &windowData.font, { dropdown.position.x + itemPadding.left, offset + itemPadding.bottom }, WHITE_COLOR, ctx.zIndex)
+            advanceUiZIndex(ctx)
+
+            // optional checkbox
+            if item.checkbox != nil {
+                checkboxSize := itemHeight
+
+                checkboxPosition: int2 = { dropdown.position.x, offset }
+                checkboxRect := toRect(checkboxPosition, { checkboxSize, checkboxSize })
+                if item.checkbox^ {
+                    renderImageRect(shrinkRect(checkboxRect, 3), ctx.zIndex, TextureType.CHECK_ICON)
+                    advanceUiZIndex(ctx)
+                }
+                
+                renderRectBorder(checkboxRect, 2.0, ctx.zIndex, DARK_GRAY_COLOR) 
+                advanceUiZIndex(ctx)
+
+                if .SUBMIT in putEmptyUiElement(ctx, checkboxRect, true) {
+                    item.checkbox^ = !item.checkbox^
+                }
+            }
+
+            if len(item.rightText) > 0 {
+                rightTextPositionX := dropdown.position.x + itemWidth - i32(getTextWidth(item.rightText, &windowData.font)) - itemPadding.right
+                renderLine(item.rightText, &windowData.font, { rightTextPositionX, offset + itemPadding.bottom }, WHITE_COLOR, ctx.zIndex)
+                advanceUiZIndex(ctx)
+            }
+            resetClipRect()
 
             if .SUBMIT in itemActions {
                 selectedItemIndex = i32(index)
                 actions += {.SUBMIT}
                 dropdown.isOpen^ = false
+
+                if checkbox := dropdown.items[selectedItemIndex].checkbox; checkbox != nil {
+                    checkbox^ = !checkbox^
+                }
             }
 
             offset -= itemHeight
@@ -354,8 +405,8 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
                 bgRect = Rect{
                     top = dropdown.position.y,
                     bottom = dropdown.position.y - itemsContainerHeight,
-                    right = dropdown.position.x + dropdown.size.x,
-                    left = dropdown.position.x + dropdown.size.x - scrollWidth,
+                    right = dropdown.position.x + itemsContainerWidth,
+                    left = dropdown.position.x + itemsContainerWidth - scrollWidth,
                 },
                 offset = dropdown.scrollOffset,
                 size = scrollHeight,
@@ -608,7 +659,7 @@ renderHorizontalScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 
 
     scrollUiId := getUiId(customId, loc)
     
-    bgUiId := getUiId((customId + 1) * 99999999, loc)
+    // bgUiId := getUiId((customId + 1) * 99999999, loc)
 
     position, size := fromRect(scroll.bgRect)
 
@@ -629,7 +680,7 @@ renderHorizontalScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 
     renderRect(bgRect, ctx.zIndex, scroll.bgColor)
     advanceUiZIndex(ctx)
     
-    bgAction := checkUiState(ctx, bgUiId, bgRect, true)
+    //bgAction := checkUiState(ctx, bgUiId, bgRect, true)
 
     // scroll
     isHover := ctx.activeId == scrollUiId || ctx.hotId == scrollUiId

@@ -2,9 +2,6 @@ package main
 
 import "core:strings"
 import "core:text/edit"
-import "core:fmt"
-
-import "core:unicode/utf16"
 
 import win32 "core:sys/windows"
 
@@ -244,6 +241,12 @@ removeWindowData :: proc() {
     delete(windowData.editorCtx.lines)
     edit.destroy(&windowData.editorCtx.editorState)
     strings.builder_destroy(&windowData.editorCtx.text)
+
+    delete(windowData.uiContext.scrollableElements)
+    delete(windowData.uiContext.parentPositionsStack)
+    delete(windowData.uiContext.textInputCtx.lines)
+    edit.destroy(&windowData.uiContext.textInputCtx.editorState)
+    strings.builder_destroy(&windowData.uiContext.textInputCtx.text)
 
     win32.DestroyWindow(windowData.parentHwnd)
 

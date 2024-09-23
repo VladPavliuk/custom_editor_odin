@@ -2,8 +2,6 @@ package main
 
 import "base:runtime"
 
-import "core:fmt"
-
 uiId :: i64
 
 UiActions :: bit_set[UiAction; u32]
@@ -91,7 +89,7 @@ renderEditorContent :: proc() {
     calculateLines(&windowData.editorCtx)
     updateCusrorData(&windowData.editorCtx)
 
-    setClipRect(directXToScreenRect(windowData.editorCtx.rect))
+    setClipRect(windowData.editorCtx.rect)
     glyphsCount, selectionsCount := fillTextBuffer(&windowData.editorCtx, windowData.maxZIndex)
     
     renderText(glyphsCount, selectionsCount, WHITE_COLOR, TEXT_SELECTION_BG_COLOR)
@@ -149,10 +147,10 @@ renderEditorContent :: proc() {
     }
 }
 
-putEmptyUiElement :: proc(ctx: ^UiContext, rect: Rect, customId: i32 = 0, loc := #caller_location) -> UiActions {
+putEmptyUiElement :: proc(ctx: ^UiContext, rect: Rect, ignoreFocusUpdate := false, customId: i32 = 0, loc := #caller_location) -> UiActions {
     uiId := getUiId(customId, loc)
 
-    return checkUiState(ctx, uiId, rect)
+    return checkUiState(ctx, uiId, rect, ignoreFocusUpdate)
 }
 
 advanceUiZIndex :: proc(uiContext: ^UiContext) {

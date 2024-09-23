@@ -1,8 +1,6 @@
 package main
 
 import "base:runtime"
-import "core:os"
-import "core:strings"
 import "core:text/edit"
 import "vendor:directx/d3d11"
 
