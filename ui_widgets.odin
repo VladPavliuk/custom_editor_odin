@@ -344,10 +344,26 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
             item := dropdown.items[index]
             customId += 1
 
+            defer offset -= itemHeight
+
             itemRect := toRect({ dropdown.position.x, offset }, { itemWidth, itemHeight })
-            itemActions := putEmptyUiElement(ctx, itemRect, true, customId, loc)
 
             bgColor := getOrDefaultColor(dropdown.itemStyles.bgColor, dropdown.bgColor)
+
+            if item.isSeparator {
+                putEmptyUiElement(ctx, itemRect, true, customId, loc) // just to prevent closing dropdown on seperator click
+
+                renderRect(itemRect, ctx.zIndex, bgColor)
+                advanceUiZIndex(ctx)
+
+                separatorHorizontalPadding: i32 = 10
+                renderRect(int2{ dropdown.position.x + separatorHorizontalPadding, offset + itemHeight / 2 }, 
+                    int2{ itemWidth - 2 * separatorHorizontalPadding, 1 }, ctx.zIndex, WHITE_COLOR)
+                advanceUiZIndex(ctx)
+                continue
+            }
+
+            itemActions := putEmptyUiElement(ctx, itemRect, true, customId, loc)
 
             if .HOT in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.hoverColor, getDarkerColor(bgColor)) }
             if .ACTIVE in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.activeColor, getDarkerColor(bgColor)) } 
@@ -394,8 +410,6 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
                     checkbox^ = !checkbox^
                 }
             }
-
-            offset -= itemHeight
         }
 
         if hasScrollBar {

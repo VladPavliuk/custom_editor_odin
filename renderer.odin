@@ -399,20 +399,23 @@ uiStaff :: proc() {
                 checkbox = &testinItemCheckbox,
             },
             {
-                text = "item 3", 
+                checkbox = &testinItemCheckbox,
             },
             {
-                text = "item 4", 
+                rightText = "item 4", 
             },
             {
                 text = "item 5",
                 rightText = "asdasd",
             },
             {
-                text = "item 6asdsadasdasdadsasdsadsadsadasd", 
+                text = "item 6asdsadasdasdadsasdsadsadsadasd",
             },
             {
-                text = "item 7", 
+                isSeparator = true,
+            },
+            {
+                rightText = "item 7 loooooooooooooooooooooooooooong", 
             },
         }
         @(static)
