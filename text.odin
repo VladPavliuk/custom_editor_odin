@@ -172,7 +172,7 @@ calculateLines :: proc(ctx: ^EditableTextContext) {
  
     cursor: f32 = 0.0
 
-    lineWidth := f32(getRectSize(windowData.editorCtx.rect).x)
+    lineWidth := f32(getRectSize(getActiveTabContext().rect).x)
     lineBoundaryIndexes: int2 = { 0, 0 }
     ctx.maxLineWidth = -1.0
     

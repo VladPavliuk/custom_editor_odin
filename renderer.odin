@@ -11,8 +11,6 @@ import "core:unicode/utf8"
 import "core:math"
 import "core:strconv"
 
-import "core:text/edit"
-
 // TODO: make all them configurable
 RED_COLOR := float4{ 1.0, 0.0, 0.0, 1.0 }
 GREEN_COLOR := float4{ 0.0, 1.0, 0.0, 1.0 }
@@ -571,8 +569,9 @@ renderLineNumbers :: proc() {
     lineNumberStrBuffer: [255]byte
     glyphsCount := 0
     
-    firstNumber := windowData.editorCtx.lineIndex + 1
-    lastNumber := min(i32(len(windowData.editorCtx.lines)), windowData.editorCtx.lineIndex + maxLinesOnScreen)
+    editorCtx := getActiveTabContext()
+    firstNumber := editorCtx.lineIndex + 1
+    lastNumber := min(i32(len(editorCtx.lines)), editorCtx.lineIndex + maxLinesOnScreen)
 
     for lineIndex in firstNumber..=lastNumber {
         lineNumberStr := strconv.itoa(lineNumberStrBuffer[:], int(lineIndex))

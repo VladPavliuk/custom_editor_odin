@@ -1,13 +1,55 @@
 package main
 
-import win32 "core:sys/windows"
 import "core:strings"
 import "core:unicode/utf8"
 import "core:os"
 
+import win32 "core:sys/windows"
+
+showOpenFileDialog :: proc() -> (res: string, success: bool) {
+    hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
+    assert(hr == 0)
+    defer win32.CoUninitialize()
+
+    pFileOpen: ^win32.IFileOpenDialog
+    hr = win32.CoCreateInstance(win32.CLSID_FileOpenDialog, nil, 
+        win32.CLSCTX_INPROC_SERVER | win32.CLSCTX_INPROC_HANDLER | win32.CLSCTX_LOCAL_SERVER | win32.CLSCTX_REMOTE_SERVER, 
+        win32.IID_IFileOpenDialog, 
+        cast(^win32.LPVOID)(&pFileOpen))
+    assert(hr == 0)
+    defer pFileOpen->Release()
+
+    fileTypes: []win32.COMDLG_FILTERSPEC = {
+        { win32.utf8_to_wstring("All Files"), win32.utf8_to_wstring("*") },
+        { win32.utf8_to_wstring("Text files (*.txt | *.odin)"), win32.utf8_to_wstring("*.txt;*.odin") },
+    }
+
+    hr = pFileOpen->SetFileTypes(u32(len(fileTypes)), raw_data(fileTypes[:]))
+    assert(hr == 0)
+
+    // show window
+    hr = pFileOpen->Show(windowData.parentHwnd)
+    if hr != 0 { return }
+
+    // get path name
+    pItem: ^win32.IShellItem
+    hr = pFileOpen->GetResult(&pItem)
+    assert(hr == 0)
+    defer pItem->Release()
+
+    pszFilePath: ^u16
+    hr = pItem->GetDisplayName(win32.SIGDN.FILESYSPATH, &pszFilePath)
+    assert(hr == 0)
+    defer win32.CoTaskMemFree(pszFilePath)
+    
+    resStr, err := win32.wstring_to_utf8(win32.wstring(pszFilePath), -1)
+
+    return resStr, err == nil
+}
+
 saveToOpenedFile :: proc() -> (success: bool) {
     if len(windowData.openedFilePath) > 0 {
-        err := os.write_entire_file_or_err(windowData.openedFilePath, windowData.editorCtx.text.buf[:])
+        err := os.write_entire_file_or_err(windowData.openedFilePath, getActiveTabContext().text.buf[:])
         assert(err == nil)
     } else {
         showSaveAsFileDialog()
@@ -41,7 +83,7 @@ showSaveAsFileDialog :: proc() -> (success: bool) {
     // set default file name
     defaultFileName := "New Text File.txt"
     
-    text := strings.to_string(windowData.editorCtx.text)
+    text := strings.to_string(getActiveTabContext().text)
 
     defaultFileNameBuilder, ok := tryGetDefaultFileName(text)
     defer strings.builder_destroy(&defaultFileNameBuilder)
@@ -82,7 +124,7 @@ showSaveAsFileDialog :: proc() -> (success: bool) {
 
     filePath, _ := win32.wstring_to_utf8(filePathW, -1)
 
-    err := os.write_entire_file_or_err(filePath, windowData.editorCtx.text.buf[:])
+    err := os.write_entire_file_or_err(filePath, getActiveTabContext().text.buf[:])
     assert(err == nil)
 
     windowData.openedFilePath = filePath

@@ -5,6 +5,7 @@ import "base:runtime"
 import "core:os"
 import "core:strings"
 import "core:text/edit"
+import "core:path/filepath"
 
 uiId :: i64
 
@@ -111,14 +112,12 @@ renderTopMenu :: proc() {
                 delete(fileContent)
             }
 
-            strings.builder_reset(&windowData.editorCtx.text)
+            addEmptyTab()
+            editorCtx := getActiveTabContext()
 
-            strings.write_string(&windowData.editorCtx.text, testText)
-            
-            edit.init(&windowData.editorCtx.editorState, context.allocator, context.allocator)
-            edit.setup_once(&windowData.editorCtx.editorState, &windowData.editorCtx.text)
-            windowData.editorCtx.editorState.selection = { 0, 0 }
-            windowData.editorCtx.lineIndex = 0
+            strings.write_string(&editorCtx.text, testText)
+
+            windowData.fileTabs[windowData.activeFileTab].name = filepath.base(filePath)
         case 1:
             saveToOpenedFile()            
         case 2:
@@ -200,7 +199,7 @@ renderTopMenu :: proc() {
         }) {
             //TODO: looks a bit hacky
             if windowData.wordWrapping {
-                windowData.editorCtx.leftOffset = 0
+                getActiveTabContext().leftOffset = 0
             }
             // jumpToCursor(&windowData.editorCtx)
         }
@@ -219,47 +218,50 @@ renderEditorFileTabs :: proc() {
         windowData.uiContext.zIndex, GRAY_COLOR)
     advanceUiZIndex(&windowData.uiContext)
 
-    @(static)
-    activeTab: i32 = 0
+    tabItems := make([dynamic]UiTabsItem)
+    defer delete(tabItems)
+
+    for fileTab in windowData.fileTabs {
+        tab := UiTabsItem{
+            text = fileTab.name,
+        }
+
+        append(&tabItems, tab)
+    }
+
     tabActions := renderTabs(&windowData.uiContext, UiTabs{
         position = { -windowData.size.x / 2, windowData.size.y / 2 - topOffset - tabsHeight },
-        activeTabIndex = &activeTab,
-        items = []UiTabsItem{
-            {
-                text = "yeah 1",
-                icon = .CHECK_ICON,
-            },
-            {
-                text = "yeah 2 asdasdsaasd ", 
-            },
-            {
-                text = "yeah 3", 
-            },
-        },
+        activeTabIndex = &windowData.activeFileTab,
+        items = tabItems[:],
         itemStyles = {
             padding = { top = 2, bottom = 2, left = 15, right = 30 },
-            size = { 100, tabsHeight },
+            size = { 120, tabsHeight },
         },
         bgColor = GRAY_COLOR,
-        hasClose = true,
+        hasClose = len(tabItems) > 1, // we always want to show at least one file tab, so remove close icon if only tab
     })
 
-    #partial switch action in tabActions {
+    switch action in tabActions {
+        case UiTabsSwitched:
+            switchInputContextToEditor()
         case UiTabsActionClose:
-            fmt.println(action.closedTabIndex)
+            tryCloseFileTab(action.closedTabIndex)
     }
 
-    if activeTab == 1 {
-        testingButtons()
-    }
+    //windowData.editorCtx = windowData.fileTabs[windowData.activeFileTab].ctx
+
+    // if activeTab == 1 {
+    //     testingButtons()
+    // }
 }
 
 // TODO: move it from here
 renderEditorContent :: proc() {
+    editorCtx := getActiveTabContext()
     maxLinesOnScreen := getEditorSize().y / i32(windowData.font.lineHeight)
-    totalLines := i32(len(windowData.editorCtx.lines))
+    totalLines := i32(len(editorCtx.lines))
 
-    editorRectSize := getRectSize(windowData.editorCtx.rect)
+    editorRectSize := getRectSize(editorCtx.rect)
 
     @(static)
     verticalOffset: i32 = 0
@@ -273,33 +275,33 @@ renderEditorContent :: proc() {
     horizontalScrollHeight := windowData.editorPadding.bottom
     horizontalScrollSize := editorRectSize.x
 
-    hasHorizontalScroll := windowData.editorCtx.maxLineWidth > f32(editorRectSize.x)
+    hasHorizontalScroll := editorCtx.maxLineWidth > f32(editorRectSize.x)
 
     if hasHorizontalScroll {
-        horizontalScrollSize = i32(f32(editorRectSize.x) * f32(editorRectSize.x) / windowData.editorCtx.maxLineWidth)
+        horizontalScrollSize = i32(f32(editorRectSize.x) * f32(editorRectSize.x) / editorCtx.maxLineWidth)
     }
 
     beginScroll(&windowData.uiContext)
 
-    editorContentActions := putEmptyUiElement(&windowData.uiContext, windowData.editorCtx.rect)
+    editorContentActions := putEmptyUiElement(&windowData.uiContext, editorCtx.rect)
 
-    handleTextInputActions(&windowData.editorCtx, editorContentActions)
+    handleTextInputActions(editorCtx, editorContentActions)
 
-    calculateLines(&windowData.editorCtx)
-    updateCusrorData(&windowData.editorCtx)
+    calculateLines(editorCtx)
+    updateCusrorData(editorCtx)
 
-    setClipRect(windowData.editorCtx.rect)
-    glyphsCount, selectionsCount := fillTextBuffer(&windowData.editorCtx, windowData.maxZIndex)
+    setClipRect(editorCtx.rect)
+    glyphsCount, selectionsCount := fillTextBuffer(editorCtx, windowData.maxZIndex)
     
     renderText(glyphsCount, selectionsCount, WHITE_COLOR, TEXT_SELECTION_BG_COLOR)
     resetClipRect()
 
     verticalScrollActions, horizontalScrollActions := endScroll(&windowData.uiContext, UiScroll{
         bgRect = {
-            top = windowData.editorCtx.rect.top,
-            bottom = windowData.editorCtx.rect.bottom,
-            left = windowData.editorCtx.rect.right,
-            right = windowData.editorCtx.rect.right + verticalScrollWidth,
+            top = editorCtx.rect.top,
+            bottom = editorCtx.rect.bottom,
+            left = editorCtx.rect.right,
+            right = editorCtx.rect.right + verticalScrollWidth,
         },
         size = verticalScrollSize,
         offset = &verticalOffset,
@@ -308,10 +310,10 @@ renderEditorContent :: proc() {
         bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
     }, UiScroll{
         bgRect = {
-            top = windowData.editorCtx.rect.bottom,
-            bottom = windowData.editorCtx.rect.bottom - horizontalScrollHeight,
-            left = windowData.editorCtx.rect.left,
-            right = windowData.editorCtx.rect.right,
+            top = editorCtx.rect.bottom,
+            bottom = editorCtx.rect.bottom - horizontalScrollHeight,
+            left = editorCtx.rect.left,
+            right = editorCtx.rect.right,
         },
         size = horizontalScrollSize,
         offset = &horizontalOffset,
@@ -322,27 +324,27 @@ renderEditorContent :: proc() {
 
     if .MOUSE_WHEEL_SCROLL in verticalScrollActions {
          if inputState.scrollDelta > 5 {
-            windowData.editorCtx.lineIndex -= 1
+            editorCtx.lineIndex -= 1
         } else if inputState.scrollDelta < -5 {
-            windowData.editorCtx.lineIndex += 1
+            editorCtx.lineIndex += 1
         }
 
-        validateTopLine(&windowData.editorCtx)
+        validateTopLine(editorCtx)
     }
 
     if .ACTIVE in verticalScrollActions {
-        windowData.editorCtx.lineIndex = i32(f32(totalLines) * (f32(verticalOffset) / f32(editorRectSize.y - verticalScrollSize)))
+        editorCtx.lineIndex = i32(f32(totalLines) * (f32(verticalOffset) / f32(editorRectSize.y - verticalScrollSize)))
 
         // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
-        windowData.editorCtx.lineIndex = min(i32(totalLines) - 1, windowData.editorCtx.lineIndex)
+        editorCtx.lineIndex = min(i32(totalLines) - 1, editorCtx.lineIndex)
     } else {
-        verticalOffset = i32(f32(windowData.editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(editorRectSize.y))
+        verticalOffset = i32(f32(editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(editorRectSize.y))
     }
 
     if .ACTIVE in horizontalScrollActions {
-        windowData.editorCtx.leftOffset = i32(windowData.editorCtx.maxLineWidth * f32(horizontalOffset) / f32(editorRectSize.x))
+        editorCtx.leftOffset = i32(editorCtx.maxLineWidth * f32(horizontalOffset) / f32(editorRectSize.x))
     } else {
-        horizontalOffset = i32(f32(editorRectSize.x) * f32(windowData.editorCtx.leftOffset) / windowData.editorCtx.maxLineWidth)
+        horizontalOffset = i32(f32(editorRectSize.x) * f32(editorCtx.leftOffset) / editorCtx.maxLineWidth)
     }
 }
 

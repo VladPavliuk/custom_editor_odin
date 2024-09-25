@@ -57,6 +57,11 @@ EditableTextContext :: struct {
     //TODO: probabyly put word wrapping property here
 }
 
+FileTab :: struct {
+    name: string,
+    ctx: ^EditableTextContext,
+}
+
 WindowData :: struct {
     windowCreated: bool,
     parentHwnd: win32.HWND,
@@ -81,7 +86,10 @@ WindowData :: struct {
     editableTextCtx: ^EditableTextContext,
 
     // TODO: replace it by some list of tabs instead of a single editable text
-    editorCtx: EditableTextContext,
+    //editorCtx: ^EditableTextContext,
+
+    fileTabs: [dynamic]FileTab,
+    activeFileTab: i32,
 
     //> settings
     wordWrapping: bool,
@@ -151,42 +159,14 @@ createWindow :: proc(size: int2) {
     win32.GetClientRect(hwnd, &clientRect)
 
     windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
-
-    windowData.editorPadding = { top = 55, bottom = 15, left = 50, right = 15 }
-
-    windowData.editorCtx.text = strings.builder_make()
-    windowData.editorCtx.lineIndex = 0
-
-    windowData.editorCtx.rect = Rect{
-        top = windowData.size.y / 2 - windowData.editorPadding.top,
-        bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
-        left = -windowData.size.x / 2 + windowData.editorPadding.left,
-        right = windowData.size.x / 2 - windowData.editorPadding.right,
-    }
-
-    //windowData.editorCtx.leftOffset = 40
-
-    // fileContent := os.read_entire_file_from_filename("../test_data/test_text_file.txt") or_else panic("Failed to read file")
-    // originalFileText := string(fileContent[:])
-   
-    // //TODO: add handling Window's \r\n staff
-    // testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
-
-    // if wasNewAllocation {
-    //     delete(fileContent)
-    // }
-
-    // strings.write_string(&windowData.text, testText)
-    
-    edit.init(&windowData.editorCtx.editorState, context.allocator, context.allocator)
-    edit.setup_once(&windowData.editorCtx.editorState, &windowData.editorCtx.text)
-    windowData.editorCtx.editorState.selection = { 0, 0 }
-
-    windowData.editorCtx.editorState.set_clipboard = putTextIntoClipboard
-    windowData.editorCtx.editorState.get_clipboard = getTextFromClipboard
-    windowData.editorCtx.editorState.clipboard_user_data = &windowData.parentHwnd
-
     windowData.parentHwnd = hwnd
+
+    windowData.editorPadding = { top = 50, bottom = 15, left = 50, right = 15 }
+
+    // TODO: load file contexts from some file
+
+    // if no existing contexts found, create an empty one
+    addEmptyTab()
 
     windowData.isInputMode = true
 
@@ -207,29 +187,75 @@ createWindow :: proc(size: int2) {
     windowData.windowCreated = true
 }
 
-// createVerticalScrollBar :: proc() {
-//     rect: win32.RECT
+getActiveTabContext :: proc() -> ^EditableTextContext {
+    return windowData.fileTabs[windowData.activeFileTab].ctx
+}
 
-//     win32.GetClientRect(windowData.parentHwnd, &rect)
+addEmptyTab :: proc() {
+    initFileCtx := createEmptyTextContext()
+    tab := FileTab{
+        name = "(empty)",
+        ctx = initFileCtx,
+    }
+    append(&windowData.fileTabs, tab)
 
-//     WIN32_SBS_HORZ :: 0x0000
+    windowData.activeFileTab = i32(len(windowData.fileTabs) - 1) // switch to new tab
 
-//     sbHeight: i32 = 30
-//     win32.CreateWindowExW(
-//         0,
-//         win32.utf8_to_wstring("SCROLLBAR"),
-//         nil,
-//         win32.WS_CHILD | win32.WS_VISIBLE | WIN32_SBS_HORZ,
-//         rect.left,
-//         rect.bottom - sbHeight, 
-//         rect.right, 
-//         sbHeight,
-//         windowData.parentHwnd,
-//         nil,
-//         win32.HINSTANCE(win32.GetModuleHandleA(nil)),
-//         nil,
-//     )
-// }
+    switchInputContextToEditor()
+}
+
+moveToNextTab :: proc() {
+    windowData.activeFileTab = (windowData.activeFileTab + 1) % i32(len(windowData.fileTabs))
+    switchInputContextToEditor()
+}
+
+moveToPrevTab :: proc() {
+    windowData.activeFileTab = windowData.activeFileTab == 0 ? i32(len(windowData.fileTabs) - 1) : windowData.activeFileTab - 1
+
+    switchInputContextToEditor()
+}
+
+tryCloseFileTab :: proc(index: i32) {
+    tab := windowData.fileTabs[index]
+
+    freeTextContext(tab.ctx)
+    ordered_remove(&windowData.fileTabs, index)
+    windowData.activeFileTab = index == 0 ? index : index - 1
+
+    if len(windowData.fileTabs) == 0 {
+        addEmptyTab()
+    }
+
+    switchInputContextToEditor()
+}
+
+createEmptyTextContext :: proc() -> ^EditableTextContext {
+    ctx := new(EditableTextContext)
+    ctx.text = strings.builder_make(0)
+    ctx.rect = Rect{
+        top = windowData.size.y / 2 - windowData.editorPadding.top,
+        bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
+        left = -windowData.size.x / 2 + windowData.editorPadding.left,
+        right = windowData.size.x / 2 - windowData.editorPadding.right,
+    }
+
+    edit.init(&ctx.editorState, context.allocator, context.allocator)
+    edit.setup_once(&ctx.editorState, &ctx.text)
+    ctx.editorState.selection = { 0, 0 }
+
+    ctx.editorState.set_clipboard = putTextIntoClipboard
+    ctx.editorState.get_clipboard = getTextFromClipboard
+    ctx.editorState.clipboard_user_data = &windowData.parentHwnd
+
+    return ctx
+}
+
+freeTextContext :: proc(ctx: ^EditableTextContext) {
+    delete(ctx.lines)
+    edit.destroy(&ctx.editorState)
+    strings.builder_destroy(&ctx.text)
+    free(ctx)
+}
 
 removeWindowData :: proc() {
     for _, kerning in windowData.font.kerningTable {
@@ -238,9 +264,10 @@ removeWindowData :: proc() {
     delete(windowData.font.kerningTable)
     delete(windowData.font.chars)
 
-    delete(windowData.editorCtx.lines)
-    edit.destroy(&windowData.editorCtx.editorState)
-    strings.builder_destroy(&windowData.editorCtx.text)
+    for tab in windowData.fileTabs {
+        freeTextContext(tab.ctx)
+    }
+    delete(windowData.fileTabs)
 
     delete(windowData.uiContext.scrollableElements)
     delete(windowData.uiContext.parentPositionsStack)
@@ -280,7 +307,7 @@ switchInputContextToUiElement :: proc(rect: Rect, disableNewLines: bool) {
 }
 
 switchInputContextToEditor :: proc() {
-    windowData.editableTextCtx = &windowData.editorCtx 
+    windowData.editableTextCtx = getActiveTabContext() 
 }
 
 tryCloseEditor :: proc() {

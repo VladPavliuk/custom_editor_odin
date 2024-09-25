@@ -55,9 +55,10 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         windowSizeChangedHandler(clientRect.right - clientRect.left, clientRect.bottom - clientRect.top)
 
-        calculateLines(&windowData.editorCtx)
-        updateCusrorData(&windowData.editorCtx)
-        validateTopLine(&windowData.editorCtx)
+        editorCtx := getActiveTabContext()
+        calculateLines(editorCtx)
+        updateCusrorData(editorCtx)
+        validateTopLine(editorCtx)
 
         // NOTE: while resizing we only get resize message, so we can't redraw from main loop, so we do it explicitlly
         render()
@@ -158,7 +159,15 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
             edit.input_text(&editorCtx.editorState, string(editorCtx.text.buf[lineStart:][:whiteSpacesCount]))
         }   
     case win32.VK_TAB:
-        edit.input_rune(&editorCtx.editorState, rune('\t'))
+        if isCtrlPressed() {
+            if isShiftPressed() {
+                moveToPrevTab()
+            } else {
+                moveToNextTab()
+            }
+        } else {
+            edit.input_rune(&editorCtx.editorState, rune('\t'))
+        }
     case win32.VK_LEFT:
         if isCtrlPressed() {
             if isShiftPressed() {
@@ -245,6 +254,10 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         }
     case win32.VK_S:
         saveToOpenedFile()
+    case win32.VK_N:
+        addEmptyTab()
+    case win32.VK_W:
+        tryCloseFileTab(windowData.activeFileTab)
     }
 
     switch wParam {
@@ -264,11 +277,13 @@ windowSizeChangedHandler :: proc "c" (width, height: i32) {
 
     windowData.size = { width, height }
 
-    windowData.editorCtx.rect = Rect{
-        top = windowData.size.y / 2 - windowData.editorPadding.top,
-        bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
-        left = -windowData.size.x / 2 + windowData.editorPadding.left,
-        right = windowData.size.x / 2 - windowData.editorPadding.right,
+    for fileTab in windowData.fileTabs {
+        fileTab.ctx.rect = Rect{
+            top = windowData.size.y / 2 - windowData.editorPadding.top,
+            bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
+            left = -windowData.size.x / 2 + windowData.editorPadding.left,
+            right = windowData.size.x / 2 - windowData.editorPadding.right,
+        }
     }
     resetClipRect()
 

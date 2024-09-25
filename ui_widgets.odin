@@ -832,17 +832,21 @@ UiTabs :: struct {
 }
 
 //TODO: move it higer, since it should be used for all ui staff
-UiNoAction :: struct{}
+//UiNoAction :: struct{}
 
 UiTabsActionClose :: struct {
     closedTabIndex: i32,
 }
 
-UiTabsActions :: union{UiNoAction, UiTabsActionClose}
+UiTabsSwitched :: struct {
+    index: i32,
+}
+
+UiTabsActions :: union {UiTabsSwitched, UiTabsActionClose}
 
 renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #caller_location) -> UiTabsActions {
     customId := customId
-    tabsActions: UiTabsActions = UiNoAction{}
+    tabsActions: UiTabsActions = nil
 
     leftOffset: i32 = 0
     for item, index in tabs.items {
@@ -872,7 +876,10 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
             if .ACTIVE in itemActions { bgColor = getOrDefaultColor(tabs.activeColor, getDarkerColor(bgColor)) }
         }
 
-        if .SUBMIT in itemActions { tabs.activeTabIndex^ = i32(index) }
+        if .SUBMIT in itemActions {
+            tabsActions = UiTabsSwitched{ index = i32(index) } 
+            tabs.activeTabIndex^ = i32(index)
+        }
         
         renderRect(itemRect, ctx.zIndex, bgColor)
         advanceUiZIndex(ctx)
@@ -897,7 +904,7 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
 
         if tabs.hasClose {
             iconSize = 20
-            iconRightPadding: i32 = 5
+            iconRightPadding = 5
             iconPosition: int2 = { position.x + width - iconSize - iconRightPadding, position.y + height / 2 - iconSize / 2 }
             
             customId += 1
@@ -910,7 +917,7 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
                 noBorder = true,
             }, customId, loc) {
                 tabsActions = UiTabsActionClose{
-                    closedTabIndex = i32(index)
+                    closedTabIndex = i32(index),
                 }
             }
         }
