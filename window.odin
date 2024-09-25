@@ -282,3 +282,7 @@ switchInputContextToUiElement :: proc(rect: Rect, disableNewLines: bool) {
 switchInputContextToEditor :: proc() {
     windowData.editableTextCtx = &windowData.editorCtx 
 }
+
+tryCloseEditor :: proc() {
+    win32.DestroyWindow(windowData.parentHwnd)
+}

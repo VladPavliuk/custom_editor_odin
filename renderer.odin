@@ -144,6 +144,8 @@ renderTopMenu :: proc() {
         { text = "Open..." },
         { text = "Save" },
         { text = "Save as..." },
+        { isSeparator = true },
+        { text = "Exit" },
     }
 
     @(static)
@@ -159,7 +161,7 @@ renderTopMenu :: proc() {
         isOpen = &isOpen,
         itemStyles = {
             size = { 150, 0 },
-            padding = Rect{ left = 20 },
+            padding = Rect{ top = 2, bottom = 2, left = 20, right = 5, },
         },
     }); .SUBMIT in actions {
         switch selected {
@@ -189,6 +191,8 @@ renderTopMenu :: proc() {
             saveToOpenedFile()            
         case 2:
             showSaveAsFileDialog()
+        case 4:
+            tryCloseEditor()
         }
     }
     topItemPosition.x += 60
@@ -387,61 +391,61 @@ uiStaff :: proc() {
     //         bgColor = GREEN_COLOR,
     //         hoverBgColor = BLACK_COLOR,
     //     })
-        @(static)
-        testinItemCheckbox := false
+        // @(static)
+        // testinItemCheckbox := false
 
-        testItems := []UiDropdownItem{
-            {
-                text = "item 1",
-            },
-            {
-                text = "item 2",
-                checkbox = &testinItemCheckbox,
-            },
-            {
-                checkbox = &testinItemCheckbox,
-            },
-            {
-                rightText = "item 4", 
-            },
-            {
-                text = "item 5",
-                rightText = "asdasd",
-            },
-            {
-                text = "item 6asdsadasdasdadsasdsadsadsadasd",
-            },
-            {
-                isSeparator = true,
-            },
-            {
-                rightText = "item 7 loooooooooooooooooooooooooooong", 
-            },
-        }
-        @(static)
-        selectedItem: i32 = 0
-        @(static)
-        dropdownScrollOffset: i32 = 0
-        @(static)
-        isOpen: bool = false
-        if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
-            // text = "YEAH",
-            position = { 0, 100 }, size = { 120, 40 },
-            items = testItems,
-            bgColor = THEME_COLOR_2,
-            selectedItemIndex = selectedItem,
-            maxItemShow = 5,
-            isOpen = &isOpen,
-            scrollOffset = &dropdownScrollOffset,
-            itemStyles = {
-                size = { 200, 0 },
-                padding = Rect{ top = 3, bottom = 3, left = 35, right = 5 },
-                bgColor = THEME_COLOR_3,
-                hoverColor = THEME_COLOR_4,
-            },
-        }); .SUBMIT in actions {
-            selectedItem = selected
-        }
+        // testItems := []UiDropdownItem{
+        //     {
+        //         text = "item 1",
+        //     },
+        //     {
+        //         text = "item 2",
+        //         checkbox = &testinItemCheckbox,
+        //     },
+        //     {
+        //         checkbox = &testinItemCheckbox,
+        //     },
+        //     {
+        //         rightText = "item 4", 
+        //     },
+        //     {
+        //         text = "item 5",
+        //         rightText = "asdasd",
+        //     },
+        //     {
+        //         text = "item 6asdsadasdasdadsasdsadsadsadasd",
+        //     },
+        //     {
+        //         isSeparator = true,
+        //     },
+        //     {
+        //         rightText = "item 7 loooooooooooooooooooooooooooong", 
+        //     },
+        // }
+        // @(static)
+        // selectedItem: i32 = 0
+        // @(static)
+        // dropdownScrollOffset: i32 = 0
+        // @(static)
+        // isOpen: bool = false
+        // if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+        //     // text = "YEAH",
+        //     position = { 0, 100 }, size = { 120, 40 },
+        //     items = testItems,
+        //     bgColor = THEME_COLOR_2,
+        //     selectedItemIndex = selectedItem,
+        //     maxItemShow = 5,
+        //     isOpen = &isOpen,
+        //     scrollOffset = &dropdownScrollOffset,
+        //     itemStyles = {
+        //         size = { 200, 0 },
+        //         padding = Rect{ top = 3, bottom = 3, left = 35, right = 5 },
+        //         bgColor = THEME_COLOR_3,
+        //         hoverColor = THEME_COLOR_4,
+        //     },
+        // }); .SUBMIT in actions {
+        //     selectedItem = selected
+        // }
 
     //     endPanel(&windowData.uiContext)
     // }
