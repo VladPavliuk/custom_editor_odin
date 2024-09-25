@@ -2,6 +2,10 @@ package main
 
 import "base:runtime"
 
+import "core:os"
+import "core:strings"
+import "core:text/edit"
+
 uiId :: i64
 
 UiActions :: bit_set[UiAction; u32]
@@ -52,6 +56,201 @@ endUi :: proc(using ctx: ^UiContext, frameDelta: f64) {
     if tmpFocusedId != focusedId {
         prevFocusedId = focusedId
         focusedIdChanged = true
+    }
+}
+
+renderTopMenu :: proc() {
+    // top menu background
+    fileMenuHeight: i32 = 25
+    renderRect(Rect{ 
+        top = windowData.size.y / 2,
+        bottom = windowData.size.y / 2 - fileMenuHeight,
+        left = -windowData.size.x / 2,
+        right = windowData.size.x / 2,
+    }, windowData.uiContext.zIndex, DARKER_GRAY_COLOR)
+    advanceUiZIndex(&windowData.uiContext)
+
+    topItemPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - fileMenuHeight }
+
+    fileItems := []UiDropdownItem{
+        { text = "Open..." },
+        { text = "Save" },
+        { text = "Save as..." },
+        { isSeparator = true },
+        { text = "Exit" },
+    }
+
+    @(static)
+    isOpen: bool = false
+
+    if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+        text = "File",
+        position = topItemPosition, size = { 60, fileMenuHeight },
+        items = fileItems,
+        bgColor = DARKER_GRAY_COLOR,
+        selectedItemIndex = -1,
+        maxItemShow = 5,
+        isOpen = &isOpen,
+        itemStyles = {
+            size = { 150, 0 },
+            padding = Rect{ top = 2, bottom = 3, left = 20, right = 5, },
+        },
+    }); .SUBMIT in actions {
+        switch selected {
+        case 0:
+            filePath, ok := showOpenFileDialog()
+            if !ok { break }
+
+            windowData.openedFilePath = filePath
+            fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
+            originalFileText := string(fileContent[:])
+        
+            testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
+
+            if wasNewAllocation {
+                delete(fileContent)
+            }
+
+            strings.builder_reset(&windowData.editorCtx.text)
+
+            strings.write_string(&windowData.editorCtx.text, testText)
+            
+            edit.init(&windowData.editorCtx.editorState, context.allocator, context.allocator)
+            edit.setup_once(&windowData.editorCtx.editorState, &windowData.editorCtx.text)
+            windowData.editorCtx.editorState.selection = { 0, 0 }
+            windowData.editorCtx.lineIndex = 0
+        case 1:
+            saveToOpenedFile()            
+        case 2:
+            showSaveAsFileDialog()
+        case 4:
+            tryCloseEditor()
+        }
+    }
+    topItemPosition.x += 60
+
+    @(static)
+    showSettings := false
+    if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+        text = "Settings",
+        position = topItemPosition, size = { 100, fileMenuHeight },
+        bgColor = DARKER_GRAY_COLOR,
+        noBorder = true,
+    }) {
+        showSettings = !showSettings
+    }
+
+    if showSettings {
+        @(static)
+        panelPosition: int2 = { -250, -100 } 
+
+        @(static)
+        panelSize: int2 = { 250, 300 }
+
+        beginPanel(&windowData.uiContext, UiPanel{
+            title = "Settings",
+            position = &panelPosition,
+            size = &panelSize,
+            bgColor = GRAY_COLOR,
+            // hoverBgColor = THEME_COLOR_5,
+        }, &showSettings)
+
+        renderLabel(&windowData.uiContext, UiLabel{
+            text = "Custom Font",
+            position = { 0, 250 },
+            color = WHITE_COLOR,
+        })
+
+        renderTextField(&windowData.uiContext, UiTextField{
+            text = strings.to_string(windowData.uiContext.textInputCtx.text),
+            position = { 0, 220 },
+            size = { 200, 30 },
+            bgColor = LIGHT_GRAY_COLOR,
+        })
+
+        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+            text = "Load Font",
+            position = { 0, 190 },
+            size = { 100, 30 },
+            bgColor = THEME_COLOR_1,
+            disabled = strings.builder_len(windowData.uiContext.textInputCtx.text) == 0,
+        }) {
+            // try load font
+            fontPath := strings.to_string(windowData.uiContext.textInputCtx.text)
+
+            if os.exists(fontPath) {
+                directXState.textures[.FONT], windowData.font = loadFont(fontPath)
+            } else {
+                pushAlert(&windowData.uiContext, UiAlert{
+                    text = "Specified file does not exist!",
+                    bgColor = RED_COLOR,
+                })
+            }
+        }
+        
+        @(static)
+        checked := false
+        if .SUBMIT in renderCheckbox(&windowData.uiContext, UiCheckbox{
+            text = "word wrapping",
+            checked = &windowData.wordWrapping,
+            position = { 0, 40 },
+            color = WHITE_COLOR,
+            bgColor = GREEN_COLOR,
+            hoverBgColor = BLACK_COLOR,
+        }) {
+            //TODO: looks a bit hacky
+            if windowData.wordWrapping {
+                windowData.editorCtx.leftOffset = 0
+            }
+            // jumpToCursor(&windowData.editorCtx)
+        }
+
+        //testingButtons()
+        
+        endPanel(&windowData.uiContext)
+    }
+}
+
+renderEditorFileTabs :: proc() {
+    tabsHeight: i32 = 25
+    topOffset: i32 = 25 // TODO: calcualte it
+    
+    renderRect(toRect({ -windowData.size.x / 2, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x, tabsHeight }), 
+        windowData.uiContext.zIndex, GRAY_COLOR)
+    advanceUiZIndex(&windowData.uiContext)
+
+    @(static)
+    activeTab: i32 = 0
+    tabActions := renderTabs(&windowData.uiContext, UiTabs{
+        position = { -windowData.size.x / 2, windowData.size.y / 2 - topOffset - tabsHeight },
+        activeTabIndex = &activeTab,
+        items = []UiTabsItem{
+            {
+                text = "yeah 1",
+                icon = .CHECK_ICON,
+            },
+            {
+                text = "yeah 2 asdasdsaasd ", 
+            },
+            {
+                text = "yeah 3", 
+            },
+        },
+        itemStyles = {
+            padding = { top = 2, bottom = 2, left = 15, right = 30 },
+            size = { 100, tabsHeight },
+        },
+        bgColor = GRAY_COLOR,
+        hasClose = true,
+    })
+
+    #partial switch action in tabActions {
+        case UiTabsActionClose:
+            fmt.println(action.closedTabIndex)
+    }
+
+    if activeTab == 1 {
+        testingButtons()
     }
 }
 

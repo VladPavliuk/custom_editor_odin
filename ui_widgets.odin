@@ -558,19 +558,11 @@ renderActiveAlert :: proc(ctx: ^UiContext, customId: i32 = 0, loc := #caller_loc
     return alertActions
 }
 
-// Scroll :: struct {
-//     offset: i32,
-//     size: i32,
-// }
-
 UiScroll :: struct {
     bgRect: Rect,
     
     offset: ^i32,
     size: i32,
-
-    // verticalScroll: ^Scroll,
-    // horizontalScroll: ^Scroll,
 
     color, hoverColor, bgColor: float4,
 }
@@ -818,4 +810,114 @@ beginPanel :: proc(ctx: ^UiContext, panel: UiPanel, open: ^bool, customId: i32 =
 
 endPanel :: proc(ctx: ^UiContext) {
     pop(&ctx.parentPositionsStack)
+}
+
+UiTabsItem :: struct {
+    text: string,
+    icon: TextureType,
+}
+
+UiTabsItemStyles :: struct {
+    size: int2,
+    padding: Rect,
+}
+
+UiTabs :: struct {
+    position: int2,
+    activeTabIndex: ^i32,
+    items: []UiTabsItem,
+    itemStyles: UiTabsItemStyles,
+    bgColor, hoverBgColor, activeColor: float4,
+    hasClose: bool,
+}
+
+//TODO: move it higer, since it should be used for all ui staff
+UiNoAction :: struct{}
+
+UiTabsActionClose :: struct {
+    closedTabIndex: i32,
+}
+
+UiTabsActions :: union{UiNoAction, UiTabsActionClose}
+
+renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #caller_location) -> UiTabsActions {
+    customId := customId
+    tabsActions: UiTabsActions = UiNoAction{}
+
+    leftOffset: i32 = 0
+    for item, index in tabs.items {
+        position: int2 = { tabs.position.x + leftOffset, tabs.position.y }
+        padding := tabs.itemStyles.padding
+        
+        width := tabs.itemStyles.size.x
+        if width == 0 { width = i32(getTextWidth(item.text, &windowData.font)) }
+        
+        height := tabs.itemStyles.size.y
+        if height == 0 { height = i32(getTextHeight(&windowData.font)) }
+
+        // size: int2 = { 
+        //     width + padding.left + padding.right,
+        //     height + padding.top + padding.bottom,
+        // }
+        itemRect := toRect(position, { width, height })
+
+        itemActions := putEmptyUiElement(ctx, itemRect, customId = customId, loc = loc)
+
+        bgColor := tabs.bgColor
+
+        if tabs.activeTabIndex^ == i32(index) {
+            bgColor = getDarkerColor(bgColor)
+        } else {    
+            if .HOT in itemActions { bgColor = getOrDefaultColor(tabs.hoverBgColor, getDarkerColor(bgColor)) }
+            if .ACTIVE in itemActions { bgColor = getOrDefaultColor(tabs.activeColor, getDarkerColor(bgColor)) }
+        }
+
+        if .SUBMIT in itemActions { tabs.activeTabIndex^ = i32(index) }
+        
+        renderRect(itemRect, ctx.zIndex, bgColor)
+        advanceUiZIndex(ctx)
+
+        // icon
+        iconSize: i32 = 0
+        iconRightPadding: i32 = 0
+        if item.icon != .NONE {
+            iconSize = 10
+            iconRightPadding = 5
+            iconPosition: int2 = { position.x + padding.left, position.y + height / 2 - iconSize / 2 }
+            
+            renderImageRect(toRect(iconPosition, { iconSize, iconSize }), ctx.zIndex, item.icon)
+            advanceUiZIndex(ctx)
+        }
+
+        textPosition: int2 = { position.x + padding.left + iconSize + iconRightPadding, position.y + padding.bottom }
+        setClipRect(Rect { top = itemRect.top, bottom = itemRect.bottom, left = textPosition.x, right = itemRect.right - padding.right })
+        renderLine(item.text, &windowData.font, textPosition, WHITE_COLOR, ctx.zIndex)
+        advanceUiZIndex(ctx)
+        resetClipRect()
+
+        if tabs.hasClose {
+            iconSize = 20
+            iconRightPadding: i32 = 5
+            iconPosition: int2 = { position.x + width - iconSize - iconRightPadding, position.y + height / 2 - iconSize / 2 }
+            
+            customId += 1
+            if .SUBMIT in renderButton(ctx, UiImageButton{
+                position = iconPosition,
+                size = { iconSize, iconSize },
+                texture = .CLOSE_ICON,
+                texturePadding = 3,
+                bgColor = bgColor,
+                noBorder = true,
+            }, customId, loc) {
+                tabsActions = UiTabsActionClose{
+                    closedTabIndex = i32(index)
+                }
+            }
+        }
+
+        customId += 1
+        leftOffset += width
+    }
+
+    return tabsActions
 }

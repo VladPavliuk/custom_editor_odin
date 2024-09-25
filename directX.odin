@@ -173,8 +173,8 @@ clearDirectX :: proc() {
     directXState.blendState->Release()
 
     for texture in directXState.textures {
-        texture.buffer->Release()
-        texture.srv->Release()
+        if texture.buffer != nil { texture.buffer->Release() }
+        if texture.srv != nil { texture.srv->Release() }
     }
 
     for buffer in directXState.vertexBuffers {

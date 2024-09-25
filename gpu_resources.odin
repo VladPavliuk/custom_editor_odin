@@ -15,6 +15,7 @@ _ :: png._MAX_IDAT
 import "core:bytes"
 
 TextureType :: enum {
+    NONE,
     FONT,
     CLOSE_ICON,
     CHECK_ICON,

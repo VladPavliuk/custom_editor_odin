@@ -152,7 +152,7 @@ createWindow :: proc(size: int2) {
 
     windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
 
-    windowData.editorPadding = { top = 25, bottom = 15, left = 50, right = 15 }
+    windowData.editorPadding = { top = 55, bottom = 15, left = 50, right = 15 }
 
     windowData.editorCtx.text = strings.builder_make()
     windowData.editorCtx.lineIndex = 0
