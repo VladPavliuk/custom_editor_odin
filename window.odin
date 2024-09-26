@@ -225,7 +225,7 @@ tryCloseFileTab :: proc(index: i32) {
             windowData.parentHwnd,
             win32.utf8_to_wstring("Do you want to save the changes?"),
             win32.utf8_to_wstring("Edi the editor"),
-            win32.MB_YESNOCANCEL | win32.MB_ICONEXCLAMATION,
+            win32.MB_YESNOCANCEL | win32.MB_ICONWARNING,
         )
 
         switch result {

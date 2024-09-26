@@ -4,6 +4,7 @@ import "base:runtime"
 
 import "core:os"
 import "core:strings"
+import "core:text/edit"
 
 uiId :: i64
 
@@ -71,125 +72,173 @@ renderTopMenu :: proc() {
 
     topItemPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - fileMenuHeight }
 
-    fileItems := []UiDropdownItem{
-        { text = "New File", rightText = "Ctrl+N" },
-        { text = "Open...", rightText = "Ctrl+O" },
-        { text = "Save", rightText = "Ctrl+S" },
-        { text = "Save as..." },
-        { isSeparator = true },
-        { text = "Exit", rightText = "Alt+F4" },
-    }
-
-    @(static)
-    isOpen: bool = false
-
-    if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
-        text = "File",
-        position = topItemPosition, size = { 60, fileMenuHeight },
-        items = fileItems,
-        bgColor = DARKER_GRAY_COLOR,
-        selectedItemIndex = -1,
-        maxItemShow = i32(len(fileItems)),
-        isOpen = &isOpen,
-        itemStyles = {
-            size = { 250, 0 },
-            padding = Rect{ top = 2, bottom = 3, left = 20, right = 10, },
-        },
-    }); .SUBMIT in actions {
-        switch selected {
-        case 0:
-            addEmptyTab()
-        case 1:
-            loadFileFromExplorerIntoNewTab()
-        case 2:
-            saveToOpenedFile(getActiveTab())            
-        case 3:
-            showSaveAsFileDialog(getActiveTab())
-        case 5:
-            tryCloseEditor()
+    { // File menu
+        fileItems := []UiDropdownItem{
+            { text = "New File", rightText = "Ctrl+N" },
+            { text = "Open...", rightText = "Ctrl+O" },
+            { text = "Save", rightText = "Ctrl+S" },
+            { text = "Save as..." },
+            { isSeparator = true },
+            { text = "Exit", rightText = "Alt+F4" },
         }
-    }
-    topItemPosition.x += 60
-
-    @(static)
-    showSettings := false
-    if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
-        text = "Settings",
-        position = topItemPosition, size = { 100, fileMenuHeight },
-        bgColor = DARKER_GRAY_COLOR,
-        noBorder = true,
-    }) {
-        showSettings = !showSettings
-    }
-
-    if showSettings {
-        @(static)
-        panelPosition: int2 = { -250, -100 } 
 
         @(static)
-        panelSize: int2 = { 250, 300 }
+        isOpen: bool = false
 
-        beginPanel(&windowData.uiContext, UiPanel{
-            title = "Settings",
-            position = &panelPosition,
-            size = &panelSize,
-            bgColor = GRAY_COLOR,
-            // hoverBgColor = THEME_COLOR_5,
-        }, &showSettings)
+        if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+            text = "File",
+            position = topItemPosition, size = { 60, fileMenuHeight },
+            items = fileItems,
+            bgColor = DARKER_GRAY_COLOR,
+            selectedItemIndex = -1,
+            maxItemShow = i32(len(fileItems)),
+            isOpen = &isOpen,
+            itemStyles = {
+                size = { 250, 0 },
+                padding = Rect{ top = 2, bottom = 3, left = 20, right = 10, },
+            },
+        }); .SUBMIT in actions {
+            switch selected {
+            case 0: addEmptyTab()
+            case 1: loadFileFromExplorerIntoNewTab()
+            case 2: saveToOpenedFile(getActiveTab())            
+            case 3: showSaveAsFileDialog(getActiveTab())
+            case 5: tryCloseEditor()
+            }
+        }
+        topItemPosition.x += 60
+    }
 
-        renderLabel(&windowData.uiContext, UiLabel{
-            text = "Custom Font",
-            position = { 0, 250 },
-            color = WHITE_COLOR,
-        })
+    { // Edit
+        // TODO: add disabling of items that do nothing at the moment
+        editItems := []UiDropdownItem{
+            { text = "Undo", rightText = "Ctrl+Z" },
+            { text = "Redo", rightText = "Ctrl+Shift+Z" },
+            { isSeparator = true },
+            { text = "Cut", rightText = "Ctrl+X" },
+            { text = "Copy", rightText = "Ctrl+C" },
+            { text = "Paste", rightText = "Ctrl+V" },
+            { isSeparator = true },
+            { text = "Find in current file", rightText = "Ctrl+F" },
+            { text = "Replace in current file", rightText = "Ctrl+H" },
+            { isSeparator = true },
+            { text = "Find in files", rightText = "Ctrl+Shift+F" },
+            { text = "Replace in files", rightText = "Ctrl+Shift+H" },
+        }
 
-        renderTextField(&windowData.uiContext, UiTextField{
-            text = strings.to_string(windowData.uiContext.textInputCtx.text),
-            position = { 0, 220 },
-            size = { 200, 30 },
-            bgColor = LIGHT_GRAY_COLOR,
-        })
+        @(static)
+        isOpen: bool = false
 
+        if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+            text = "Edit",
+            position = topItemPosition, size = { 60, fileMenuHeight },
+            items = editItems,
+            bgColor = DARKER_GRAY_COLOR,
+            selectedItemIndex = -1,
+            maxItemShow = i32(len(editItems)),
+            isOpen = &isOpen,
+            itemStyles = {
+                size = { 300, 0 },
+                padding = Rect{ top = 2, bottom = 3, left = 20, right = 10, },
+            },
+        }); .SUBMIT in actions {
+            editorState := &getActiveTabContext().editorState
+            switch selected {
+            case 0: edit.perform_command(editorState, edit.Command.Undo)
+            case 1: edit.perform_command(editorState, edit.Command.Redo)
+            case 3: edit.perform_command(editorState, edit.Command.Cut)
+            case 4:
+                if edit.has_selection(editorState) {
+                    edit.perform_command(editorState, edit.Command.Copy)
+                }
+            case 5: edit.perform_command(editorState, edit.Command.Paste)
+            }
+        }
+        topItemPosition.x += 60
+    }
+
+    { // Settings menu
+        @(static)
+        showSettings := false
         if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
-            text = "Load Font",
-            position = { 0, 190 },
-            size = { 100, 30 },
-            bgColor = THEME_COLOR_1,
-            disabled = strings.builder_len(windowData.uiContext.textInputCtx.text) == 0,
+            text = "Settings",
+            position = topItemPosition, size = { 100, fileMenuHeight },
+            bgColor = DARKER_GRAY_COLOR,
+            noBorder = true,
         }) {
-            // try load font
-            fontPath := strings.to_string(windowData.uiContext.textInputCtx.text)
-
-            if os.exists(fontPath) {
-                directXState.textures[.FONT], windowData.font = loadFont(fontPath)
-            } else {
-                pushAlert(&windowData.uiContext, UiAlert{
-                    text = "Specified file does not exist!",
-                    bgColor = RED_COLOR,
-                })
-            }
-        }
-        
-        @(static)
-        checked := false
-        if .SUBMIT in renderCheckbox(&windowData.uiContext, UiCheckbox{
-            text = "word wrapping",
-            checked = &windowData.wordWrapping,
-            position = { 0, 40 },
-            color = WHITE_COLOR,
-            bgColor = GREEN_COLOR,
-            hoverBgColor = BLACK_COLOR,
-        }) {
-            //TODO: looks a bit hacky
-            if windowData.wordWrapping {
-                getActiveTabContext().leftOffset = 0
-            }
-            // jumpToCursor(&windowData.editorCtx)
+            showSettings = !showSettings
         }
 
-        //testingButtons()
-        
-        endPanel(&windowData.uiContext)
+        if showSettings {
+            @(static)
+            panelPosition: int2 = { -250, -100 } 
+
+            @(static)
+            panelSize: int2 = { 250, 300 }
+
+            beginPanel(&windowData.uiContext, UiPanel{
+                title = "Settings",
+                position = &panelPosition,
+                size = &panelSize,
+                bgColor = GRAY_COLOR,
+                // hoverBgColor = THEME_COLOR_5,
+            }, &showSettings)
+
+            renderLabel(&windowData.uiContext, UiLabel{
+                text = "Custom Font",
+                position = { 0, 250 },
+                color = WHITE_COLOR,
+            })
+
+            renderTextField(&windowData.uiContext, UiTextField{
+                text = strings.to_string(windowData.uiContext.textInputCtx.text),
+                position = { 0, 220 },
+                size = { 200, 30 },
+                bgColor = LIGHT_GRAY_COLOR,
+            })
+
+            if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+                text = "Load Font",
+                position = { 0, 190 },
+                size = { 100, 30 },
+                bgColor = THEME_COLOR_1,
+                disabled = strings.builder_len(windowData.uiContext.textInputCtx.text) == 0,
+            }) {
+                // try load font
+                fontPath := strings.to_string(windowData.uiContext.textInputCtx.text)
+
+                if os.exists(fontPath) {
+                    directXState.textures[.FONT], windowData.font = loadFont(fontPath)
+                } else {
+                    pushAlert(&windowData.uiContext, UiAlert{
+                        text = "Specified file does not exist!",
+                        bgColor = RED_COLOR,
+                    })
+                }
+            }
+            
+            @(static)
+            checked := false
+            if .SUBMIT in renderCheckbox(&windowData.uiContext, UiCheckbox{
+                text = "word wrapping",
+                checked = &windowData.wordWrapping,
+                position = { 0, 40 },
+                color = WHITE_COLOR,
+                bgColor = GREEN_COLOR,
+                hoverBgColor = BLACK_COLOR,
+            }) {
+                //TODO: looks a bit hacky
+                if windowData.wordWrapping {
+                    getActiveTabContext().leftOffset = 0
+                }
+                // jumpToCursor(&windowData.editorCtx)
+            }
+
+            //testingButtons()
+            
+            endPanel(&windowData.uiContext)
+        }
+        topItemPosition += 100
     }
 }
 
