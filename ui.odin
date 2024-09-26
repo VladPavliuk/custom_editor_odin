@@ -4,8 +4,6 @@ import "base:runtime"
 
 import "core:os"
 import "core:strings"
-import "core:text/edit"
-import "core:path/filepath"
 
 uiId :: i64
 
@@ -25,7 +23,7 @@ UiAction :: enum u32 {
 }
 
 getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Location) -> i64 {
-    return i64(customIdentifier + 1) * i64(callerLocation.line + 1) * i64(uintptr(raw_data(callerLocation.file_path)))
+    return i64(customIdentifier + 1) * i64(callerLocation.line + 1) * i64(callerLocation.column) * i64(uintptr(raw_data(callerLocation.file_path)))
 }
 
 beginUi :: proc(using ctx: ^UiContext, initZIndex: f32) {
@@ -206,9 +204,17 @@ renderEditorFileTabs :: proc() {
     tabItems := make([dynamic]UiTabsItem)
     defer delete(tabItems)
 
+    atLeastTwoTabsOpened := len(windowData.fileTabs) > 1
     for fileTab in windowData.fileTabs {
+        rightIcon: TextureType = .NONE
+        
+        if atLeastTwoTabsOpened { rightIcon = .CLOSE_ICON } // we always want to show at least one file tab, so remove close icon if only tab
+        if !fileTab.isSaved { rightIcon = .CIRCLE }
+
         tab := UiTabsItem{
             text = fileTab.name,
+            // leftIcon = fileTab.isSaved ? .NONE : .CHECK_ICON,
+            rightIcon = rightIcon,
         }
 
         append(&tabItems, tab)
@@ -223,7 +229,6 @@ renderEditorFileTabs :: proc() {
             size = { 120, tabsHeight },
         },
         bgColor = GRAY_COLOR,
-        hasClose = len(tabItems) > 1, // we always want to show at least one file tab, so remove close icon if only tab
     })
 
     switch action in tabActions {

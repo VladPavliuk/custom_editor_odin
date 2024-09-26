@@ -814,7 +814,8 @@ endPanel :: proc(ctx: ^UiContext) {
 
 UiTabsItem :: struct {
     text: string,
-    icon: TextureType,
+    leftIcon: TextureType,
+    rightIcon: TextureType,
 }
 
 UiTabsItemStyles :: struct {
@@ -828,11 +829,7 @@ UiTabs :: struct {
     items: []UiTabsItem,
     itemStyles: UiTabsItemStyles,
     bgColor, hoverBgColor, activeColor: float4,
-    hasClose: bool,
 }
-
-//TODO: move it higer, since it should be used for all ui staff
-//UiNoAction :: struct{}
 
 UiTabsActionClose :: struct {
     closedTabIndex: i32,
@@ -871,7 +868,7 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
 
         if tabs.activeTabIndex^ == i32(index) {
             bgColor = getDarkerColor(bgColor)
-        } else {    
+        } else {
             if .HOT in itemActions { bgColor = getOrDefaultColor(tabs.hoverBgColor, getDarkerColor(bgColor)) }
             if .ACTIVE in itemActions { bgColor = getOrDefaultColor(tabs.activeColor, getDarkerColor(bgColor)) }
         }
@@ -887,12 +884,12 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
         // icon
         iconSize: i32 = 0
         iconRightPadding: i32 = 0
-        if item.icon != .NONE {
+        if item.leftIcon != .NONE {
             iconSize = 10
             iconRightPadding = 5
             iconPosition: int2 = { position.x + padding.left, position.y + height / 2 - iconSize / 2 }
             
-            renderImageRect(toRect(iconPosition, { iconSize, iconSize }), ctx.zIndex, item.icon)
+            renderImageRect(toRect(iconPosition, { iconSize, iconSize }), ctx.zIndex, item.leftIcon)
             advanceUiZIndex(ctx)
         }
 
@@ -902,7 +899,7 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
         advanceUiZIndex(ctx)
         resetClipRect()
 
-        if tabs.hasClose {
+        if item.rightIcon != .NONE {
             iconSize = 20
             iconRightPadding = 5
             iconPosition: int2 = { position.x + width - iconSize - iconRightPadding, position.y + height / 2 - iconSize / 2 }
@@ -911,8 +908,8 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
             if .SUBMIT in renderButton(ctx, UiImageButton{
                 position = iconPosition,
                 size = { iconSize, iconSize },
-                texture = .CLOSE_ICON,
-                texturePadding = 3,
+                texture = item.rightIcon,
+                texturePadding = 4,
                 bgColor = bgColor,
                 noBorder = true,
             }, customId, loc) {

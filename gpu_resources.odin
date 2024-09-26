@@ -17,6 +17,7 @@ import "core:bytes"
 TextureType :: enum {
     NONE,
     FONT,
+    CIRCLE,
     CLOSE_ICON,
     CHECK_ICON,
 }
@@ -141,6 +142,7 @@ loadTextures :: proc() {
     directXState.textures[.FONT], windowData.font = loadFont("c:/windows/fonts/arial.TTF")
     directXState.textures[.CLOSE_ICON] = loadTextureFromImage(#load("./resources/images/close_icon.png", []u8))
     directXState.textures[.CHECK_ICON] = loadTextureFromImage(#load("./resources/images/check_icon.png", []u8))
+    directXState.textures[.CIRCLE] = loadTextureFromImage(#load("./resources/images/circle.png", []u8))
 }
 
 compileVertexShader :: proc(fileContent: string) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {

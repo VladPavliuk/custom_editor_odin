@@ -95,7 +95,7 @@ render :: proc() {
     renderLineNumbers()
 
     hr := directXState.swapchain->Present(1, {})
-    assert(hr == 0)
+    assert(hr == 0, fmt.tprintfln("DirectX presentation error: %i", hr))
     //TODO: if pc went to sleep mode hr variable might be not 0, investigate why is that
 }
 

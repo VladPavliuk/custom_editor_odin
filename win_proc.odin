@@ -67,6 +67,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
     case win32.WM_CHAR:
         if windowData.wasInputSymbolTyped && windowData.isInputMode {
             edit.input_rune(&windowData.editableTextCtx.editorState, rune(wParam))
+            if isActiveTabContext() { getActiveTab().isSaved = false }
             
             calculateLines(windowData.editableTextCtx)
             updateCusrorData(windowData.editableTextCtx)
@@ -77,13 +78,16 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         inputState.scrollDelta = i32(yoffset)
     case win32.WM_SYSCOMMAND:
-            // Handle top-right close icon click and ALT + F4
-            switch(wParam & 0xFFF0) {
-            case win32.SC_CLOSE:
-                tryCloseEditor()
-                return 0
-            }
+        // Handle top-right close icon click and ALT + F4
+        if (wParam & 0xFFF0) == win32.SC_CLOSE {
+            tryCloseEditor()
+            return 0
+        }
+    case win32.WM_SETFOCUS:
+        // check all tabs, where any file changed
+
     case win32.WM_DESTROY:
+        saveFileTabs(windowData.fileTabs[:])
         win32.PostQuitMessage(0)
     }
 
@@ -164,7 +168,8 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
 
         if whiteSpacesCount > 0 {
             edit.input_text(&editorCtx.editorState, string(editorCtx.text.buf[lineStart:][:whiteSpacesCount]))
-        }   
+        }
+        if isActiveTabContext() { getActiveTab().isSaved = false }
     case win32.VK_TAB:
         if isCtrlPressed() {
             if isShiftPressed() {
@@ -174,6 +179,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
             }
         } else {
             edit.input_rune(&editorCtx.editorState, rune('\t'))
+            if isActiveTabContext() { getActiveTab().isSaved = false }
         }
     case win32.VK_LEFT:
         if isCtrlPressed() {
@@ -221,12 +227,14 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         } else {
             edit.perform_command(&editorCtx.editorState, edit.Command.Backspace)
         }
+        if isActiveTabContext() { getActiveTab().isSaved = false }
     case win32.VK_DELETE:        
         if isCtrlPressed() {
             edit.perform_command(&editorCtx.editorState, edit.Command.Delete_Word_Right)
         } else {
             edit.perform_command(&editorCtx.editorState, edit.Command.Delete)
         }
+        if isActiveTabContext() { getActiveTab().isSaved = false }
     case win32.VK_HOME:
         jumpToCursor(editorCtx)
 

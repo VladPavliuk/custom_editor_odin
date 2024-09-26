@@ -22,6 +22,8 @@ import main "../"
 
 @(test)
 just_run_and_close :: proc(t: ^testing.T) {
+    os.remove(main.tmpFileTabsFilePath)
+
     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
         return windowData.windowCreated
     })
@@ -38,6 +40,8 @@ just_run_and_close :: proc(t: ^testing.T) {
 
 @(test)
 type_and_save :: proc(t: ^testing.T) {
+    os.remove(main.tmpFileTabsFilePath)
+
     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
         return windowData.windowCreated
     })
@@ -53,7 +57,7 @@ type_and_save :: proc(t: ^testing.T) {
 
     clickMouse({
         { windowRect.left + 30, windowRect.top + 50 },
-        { windowRect.left + 30, windowRect.top + 90 },
+        { windowRect.left + 30, windowRect.top + 120 },
     })
 
     time.sleep(2_000_000_000)
@@ -62,14 +66,16 @@ type_and_save :: proc(t: ^testing.T) {
     clickEnter()
     time.sleep(1_000_000_000)
 
-    testing.expect(t, os.is_file(windowData.openedFilePath), "file was not created")
+    tab := main.getActiveTab()
+
+    testing.expect(t, os.is_file(tab.filePath), "file was not created")
     
-    saveFileContent, err := os.read_entire_file_from_filename_or_err(windowData.openedFilePath)
+    saveFileContent, err := os.read_entire_file_from_filename_or_err(tab.filePath)
     testing.expect(t, err == nil, "could not read saved file")
     defer delete(saveFileContent)
 
     testing.expect_value(t, string(saveFileContent), text)
 
-    os.remove(windowData.openedFilePath)
+    os.remove(tab.filePath)
 }
 

@@ -61,6 +61,7 @@ FileTab :: struct {
     name: string,
     ctx: ^EditableTextContext,
     filePath: string, // path to actual file that mapped to the tab
+    isSaved: bool,
 }
 
 WindowData :: struct {
@@ -71,8 +72,6 @@ WindowData :: struct {
     size: int2,
 
     uiContext: UiContext,
-
-    //openedFilePath: string,
 
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
@@ -161,10 +160,9 @@ createWindow :: proc(size: int2) {
 
     windowData.editorPadding = { top = 50, bottom = 15, left = 50, right = 15 }
 
-    // TODO: load file contexts from some file
-
-    // if no existing contexts found, create an empty one
-    addEmptyTab()
+    if !applyPreviousFileTabs() {
+        addEmptyTab() // if no previous file tabs found, create an empty one
+    }
 
     windowData.isInputMode = true
 
@@ -198,6 +196,7 @@ addEmptyTab :: proc() {
     tab := FileTab{
         name = "(empty)",
         ctx = initFileCtx,
+        isSaved = true,
     }
     append(&windowData.fileTabs, tab)
 
@@ -218,7 +217,25 @@ moveToPrevTab :: proc() {
 }
 
 tryCloseFileTab :: proc(index: i32) {
-    tab := windowData.fileTabs[index]
+    tab := &windowData.fileTabs[index]
+
+    // if there's any unsaved changes, show confirmation box
+    if !tab.isSaved {
+        result := win32.MessageBoxW(
+            windowData.parentHwnd,
+            win32.utf8_to_wstring("Do you want to save the changes?"),
+            win32.utf8_to_wstring("Edi the editor"),
+            win32.MB_YESNOCANCEL | win32.MB_ICONEXCLAMATION,
+        )
+
+        switch result {
+        case win32.IDYES:
+            saveToOpenedFile(tab)
+        case win32.IDNO:
+        case win32.IDCANCEL, win32.IDCLOSE:
+            return
+        }
+    }
 
     freeTextContext(tab.ctx)
     ordered_remove(&windowData.fileTabs, index)
@@ -277,10 +294,13 @@ removeWindowData :: proc() {
     edit.destroy(&windowData.uiContext.textInputCtx.editorState)
     strings.builder_destroy(&windowData.uiContext.textInputCtx.text)
 
+    // TODO: investigate, is this code block is needed
+    //>
     win32.DestroyWindow(windowData.parentHwnd)
 
     res := win32.UnregisterClassW(win32.utf8_to_wstring("class"), win32.HINSTANCE(win32.GetModuleHandleA(nil)))
     assert(bool(res), fmt.tprintfln("Error: %i", win32.GetLastError()))
+    //<
 
     windowData = {}
 }
@@ -312,6 +332,19 @@ switchInputContextToEditor :: proc() {
     windowData.editableTextCtx = getActiveTabContext() 
 }
 
+isActiveTabContext :: proc() -> bool {
+    return windowData.editableTextCtx == getActiveTab().ctx
+}
+
 tryCloseEditor :: proc() {
+    // is any tab that has unsaved changes
+    // hasUnsavedChanges := false
+    // for tab in windowData.fileTabs {
+    //     if !tab.isSaved { 
+    //         hasUnsavedChanges = true
+    //         break
+    //     }
+    // }
+
     win32.DestroyWindow(windowData.parentHwnd)
 }

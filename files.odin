@@ -4,8 +4,11 @@ import "core:strings"
 import "core:unicode/utf8"
 import "core:os"
 import "core:path/filepath"
+import "core:encoding/json"
 
 import win32 "core:sys/windows"
+
+tmpFileTabsFilePath :: "./tmp_tabs.json"
 
 showOpenFileDialog :: proc() -> (res: string, success: bool) {
     hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
@@ -76,12 +79,13 @@ loadFileFromExplorerIntoNewTab :: proc() {
         windowData.activeFileTab = tabIndex
     }
 
-    editorCtx := getActiveTabContext()
+    activeTab := getActiveTab()
 
-    strings.write_string(&editorCtx.text, testText)
+    strings.write_string(&activeTab.ctx.text, testText)
 
-    windowData.fileTabs[windowData.activeFileTab].name = filepath.base(filePath)
-    windowData.fileTabs[windowData.activeFileTab].filePath = filePath
+    activeTab.name = filepath.base(filePath)
+    activeTab.filePath = filePath
+    activeTab.isSaved = true
 }
 
 saveToOpenedFile :: proc(tab: ^FileTab) -> (success: bool) {
@@ -90,7 +94,11 @@ saveToOpenedFile :: proc(tab: ^FileTab) -> (success: bool) {
     }
 
     err := os.write_entire_file_or_err(tab.filePath, tab.ctx.text.buf[:])
-    assert(err == nil)
+    if err == os.General_Error.Not_Exist { // if user clicked cancel
+        return false
+    }
+    assert(err == nil, fmt.tprintfln("File save error: %s", err))
+    tab.isSaved = true
 
     return true
 }
@@ -163,6 +171,67 @@ showSaveAsFileDialog :: proc(tab: ^FileTab) -> (success: bool) {
 
     tab.filePath = filePath
     tab.name = filepath.base(filePath)
+
+    return true
+}
+
+SavedFileTab :: struct {
+    name: string,
+    filePath: string,
+    isSaved: bool,
+    text: string,
+    textSelection: [2]int,
+    lineIndex: i32,
+}
+
+saveFileTabs :: proc(tabs: []FileTab) {
+    tabsToSave := make([dynamic]SavedFileTab)
+    defer delete(tabsToSave)
+
+    // TODO: save only text copies of files that are relativelly small (less then 2k symbols)
+    for tab in tabs {
+        append(&tabsToSave, SavedFileTab{
+            name = tab.name,
+            filePath = tab.filePath,
+            isSaved = tab.isSaved,
+            text = strings.to_string(tab.ctx.text),
+            textSelection = tab.ctx.editorState.selection,
+            lineIndex = tab.ctx.lineIndex,
+        })
+    }
+
+    serializedTabs, err := json.marshal(tabsToSave)
+    assert(err == nil)
+
+    saveErr := os.write_entire_file_or_err(tmpFileTabsFilePath, serializedTabs)
+    assert(saveErr == nil)
+}
+
+applyPreviousFileTabs :: proc() -> bool {
+    fileContent, err := os.read_entire_file_or_err(tmpFileTabsFilePath)
+
+    if err == os.General_Error.Not_Exist {
+        return false
+    }
+    assert(err == nil)
+
+    savedTabs: []SavedFileTab
+    unmarshalErr := json.unmarshal(fileContent, &savedTabs)
+    assert(unmarshalErr == nil)
+
+    for tab in savedTabs {
+        ctx := createEmptyTextContext()
+        strings.write_string(&ctx.text, tab.text)
+        ctx.editorState.selection = tab.textSelection
+        ctx.lineIndex = tab.lineIndex
+        
+        append(&windowData.fileTabs, FileTab{
+            name = tab.name,
+            ctx = ctx,
+            filePath = tab.filePath,
+            isSaved = tab.isSaved,
+        })
+    }
 
     return true
 }
