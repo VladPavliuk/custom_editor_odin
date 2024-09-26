@@ -60,6 +60,7 @@ EditableTextContext :: struct {
 FileTab :: struct {
     name: string,
     ctx: ^EditableTextContext,
+    filePath: string, // path to actual file that mapped to the tab
 }
 
 WindowData :: struct {
@@ -71,7 +72,7 @@ WindowData :: struct {
 
     uiContext: UiContext,
 
-    openedFilePath: string,
+    //openedFilePath: string,
 
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
@@ -84,9 +85,6 @@ WindowData :: struct {
     editorPadding: Rect,
 
     editableTextCtx: ^EditableTextContext,
-
-    // TODO: replace it by some list of tabs instead of a single editable text
-    //editorCtx: ^EditableTextContext,
 
     fileTabs: [dynamic]FileTab,
     activeFileTab: i32,
@@ -187,8 +185,12 @@ createWindow :: proc(size: int2) {
     windowData.windowCreated = true
 }
 
+getActiveTab :: proc() -> ^FileTab {
+    return &windowData.fileTabs[windowData.activeFileTab]
+}
+
 getActiveTabContext :: proc() -> ^EditableTextContext {
-    return windowData.fileTabs[windowData.activeFileTab].ctx
+    return getActiveTab().ctx
 }
 
 addEmptyTab :: proc() {

@@ -74,11 +74,12 @@ renderTopMenu :: proc() {
     topItemPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - fileMenuHeight }
 
     fileItems := []UiDropdownItem{
-        { text = "Open..." },
-        { text = "Save" },
+        { text = "New File", rightText = "Ctrl+N" },
+        { text = "Open...", rightText = "Ctrl+O" },
+        { text = "Save", rightText = "Ctrl+S" },
         { text = "Save as..." },
         { isSeparator = true },
-        { text = "Exit" },
+        { text = "Exit", rightText = "Alt+F4" },
     }
 
     @(static)
@@ -90,39 +91,23 @@ renderTopMenu :: proc() {
         items = fileItems,
         bgColor = DARKER_GRAY_COLOR,
         selectedItemIndex = -1,
-        maxItemShow = 5,
+        maxItemShow = i32(len(fileItems)),
         isOpen = &isOpen,
         itemStyles = {
-            size = { 150, 0 },
-            padding = Rect{ top = 2, bottom = 3, left = 20, right = 5, },
+            size = { 250, 0 },
+            padding = Rect{ top = 2, bottom = 3, left = 20, right = 10, },
         },
     }); .SUBMIT in actions {
         switch selected {
         case 0:
-            filePath, ok := showOpenFileDialog()
-            if !ok { break }
-
-            windowData.openedFilePath = filePath
-            fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
-            originalFileText := string(fileContent[:])
-        
-            testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
-
-            if wasNewAllocation {
-                delete(fileContent)
-            }
-
             addEmptyTab()
-            editorCtx := getActiveTabContext()
-
-            strings.write_string(&editorCtx.text, testText)
-
-            windowData.fileTabs[windowData.activeFileTab].name = filepath.base(filePath)
         case 1:
-            saveToOpenedFile()            
+            loadFileFromExplorerIntoNewTab()
         case 2:
-            showSaveAsFileDialog()
-        case 4:
+            saveToOpenedFile(getActiveTab())            
+        case 3:
+            showSaveAsFileDialog(getActiveTab())
+        case 5:
             tryCloseEditor()
         }
     }

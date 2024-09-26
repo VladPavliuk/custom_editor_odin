@@ -3,6 +3,7 @@ package main
 import "core:strings"
 import "core:unicode/utf8"
 import "core:os"
+import "core:path/filepath"
 
 import win32 "core:sys/windows"
 
@@ -47,18 +48,54 @@ showOpenFileDialog :: proc() -> (res: string, success: bool) {
     return resStr, err == nil
 }
 
-saveToOpenedFile :: proc() -> (success: bool) {
-    if len(windowData.openedFilePath) > 0 {
-        err := os.write_entire_file_or_err(windowData.openedFilePath, getActiveTabContext().text.buf[:])
-        assert(err == nil)
-    } else {
-        showSaveAsFileDialog()
+loadFileFromExplorerIntoNewTab :: proc() {
+    filePath, ok := showOpenFileDialog()
+    if !ok { return }
+
+    fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
+    originalFileText := string(fileContent[:])
+
+    testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
+
+    if wasNewAllocation {
+        delete(fileContent)
     }
+
+    // find if any tab is already associated with opened file
+    tabIndex: i32 = -1
+    for tab, index in windowData.fileTabs {
+        if tab.filePath == filePath {
+            tabIndex = i32(index)
+            break
+        }
+    }
+
+    if tabIndex == -1 { // open a new tab
+        addEmptyTab()
+    } else { // load into existing tab
+        windowData.activeFileTab = tabIndex
+    }
+
+    editorCtx := getActiveTabContext()
+
+    strings.write_string(&editorCtx.text, testText)
+
+    windowData.fileTabs[windowData.activeFileTab].name = filepath.base(filePath)
+    windowData.fileTabs[windowData.activeFileTab].filePath = filePath
+}
+
+saveToOpenedFile :: proc(tab: ^FileTab) -> (success: bool) {
+    if len(tab.filePath) == 0 {
+        showSaveAsFileDialog(tab)
+    }
+
+    err := os.write_entire_file_or_err(tab.filePath, tab.ctx.text.buf[:])
+    assert(err == nil)
 
     return true
 }
 
-showSaveAsFileDialog :: proc() -> (success: bool) {
+showSaveAsFileDialog :: proc(tab: ^FileTab) -> (success: bool) {
     hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
     assert(hr == 0)
     defer win32.CoUninitialize()
@@ -83,7 +120,7 @@ showSaveAsFileDialog :: proc() -> (success: bool) {
     // set default file name
     defaultFileName := "New Text File.txt"
     
-    text := strings.to_string(getActiveTabContext().text)
+    text := strings.to_string(tab.ctx.text)
 
     defaultFileNameBuilder, ok := tryGetDefaultFileName(text)
     defer strings.builder_destroy(&defaultFileNameBuilder)
@@ -124,10 +161,8 @@ showSaveAsFileDialog :: proc() -> (success: bool) {
 
     filePath, _ := win32.wstring_to_utf8(filePathW, -1)
 
-    err := os.write_entire_file_or_err(filePath, getActiveTabContext().text.buf[:])
-    assert(err == nil)
-
-    windowData.openedFilePath = filePath
+    tab.filePath = filePath
+    tab.name = filepath.base(filePath)
 
     return true
 }

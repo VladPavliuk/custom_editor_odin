@@ -76,6 +76,13 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         yoffset := win32.GET_WHEEL_DELTA_WPARAM(wParam)
 
         inputState.scrollDelta = i32(yoffset)
+    case win32.WM_SYSCOMMAND:
+            // Handle top-right close icon click and ALT + F4
+            switch(wParam & 0xFFF0) {
+            case win32.SC_CLOSE:
+                tryCloseEditor()
+                return 0
+            }
     case win32.WM_DESTROY:
         win32.PostQuitMessage(0)
     }
@@ -253,7 +260,9 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
             edit.perform_command(&editorCtx.editorState, edit.Command.Undo)
         }
     case win32.VK_S:
-        saveToOpenedFile()
+        saveToOpenedFile(getActiveTab())
+    case win32.VK_O:
+        loadFileFromExplorerIntoNewTab()
     case win32.VK_N:
         addEmptyTab()
     case win32.VK_W:

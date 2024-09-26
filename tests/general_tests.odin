@@ -34,6 +34,8 @@ just_run_and_close :: proc(t: ^testing.T) {
     testing.expect_value(t, strings.to_string(main.getActiveTabContext().text), text)
 }
 
+// save file, open it again, should be only one tab
+
 @(test)
 type_and_save :: proc(t: ^testing.T) {
     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
