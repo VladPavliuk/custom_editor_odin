@@ -20,7 +20,8 @@ ExplorerItem :: struct {
 
 showExplorer :: proc() {
     folderPath, ok := showOpenFileDialog(true)
-    assert(ok)
+    if !ok { return }
+    // assert(ok)
 
     if windowData.explorer != nil {
         clearExplorer(windowData.explorer)
