@@ -23,7 +23,12 @@ TextureType :: enum {
 
     // file extensions icons
     TXT_FILE_ICON,
+    C_FILE_ICON,
+    C_PLUS_PLUS_FILE_ICON,
+    C_SHARP_FILE_ICON,
     JS_FILE_ICON,
+    ARROW_DOWN_ICON,
+    ARROW_RIGHT_ICON,
 }
 
 GpuTexture :: struct {
@@ -143,12 +148,26 @@ memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T 
 }
 
 loadTextures :: proc() {
+    textures := map[TextureType]string{
+        .CLOSE_ICON = #load("./resources/images/close_icon.png"),
+        .CHECK_ICON = #load("./resources/images/check_icon.png"),
+        .CIRCLE = #load("./resources/images/circle.png"),
+        .TXT_FILE_ICON = #load("./resources/images/txt_file_icon.png"),
+        .CLOSE_ICON = #load("./resources/images/close_icon.png"),
+        .C_FILE_ICON = #load("./resources/images/c_file_icon.png"),
+        .C_PLUS_PLUS_FILE_ICON = #load("./resources/images/c_plus_plus_file_icon.png"),
+        .C_SHARP_FILE_ICON = #load("./resources/images/c_sharp_file_icon.png"),
+        .JS_FILE_ICON = #load("./resources/images/js_file_icon.png"),
+        .ARROW_DOWN_ICON = #load("./resources/images/arrow_down.png"),
+        .ARROW_RIGHT_ICON = #load("./resources/images/arrow_right.png"),
+    }
+    defer delete(textures)
+
+    for texture, data in textures {
+        directXState.textures[texture] = loadTextureFromImage(transmute([]u8)data)
+    }
+
     directXState.textures[.FONT], windowData.font = loadFont("c:/windows/fonts/arial.TTF")
-    directXState.textures[.CLOSE_ICON] = loadTextureFromImage(#load("./resources/images/close_icon.png", []u8))
-    directXState.textures[.CHECK_ICON] = loadTextureFromImage(#load("./resources/images/check_icon.png", []u8))
-    directXState.textures[.CIRCLE] = loadTextureFromImage(#load("./resources/images/circle.png", []u8))
-    directXState.textures[.TXT_FILE_ICON] = loadTextureFromImage(#load("./resources/images/txt_file_icon.png", []u8))
-    directXState.textures[.JS_FILE_ICON] = loadTextureFromImage(#load("./resources/images/js_file_icon.png", []u8))
 }
 
 compileVertexShader :: proc(fileContent: string) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {

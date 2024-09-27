@@ -39,6 +39,9 @@ getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext) -> int {
     
     // if user clicks lower on the screen where text was rendered take last line
     lineIndex = min(i16(len(ctx.lines) - 1), lineIndex)
+    
+    //TODO: it's a tmp fix, find something better
+    if lineIndex <= -1 { return 0 }
 
     fromByte := ctx.lines[lineIndex].x
     toByte := ctx.lines[lineIndex].y

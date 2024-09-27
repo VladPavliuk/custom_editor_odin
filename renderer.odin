@@ -177,7 +177,7 @@ uiStaff :: proc() {
 
     renderEditorContent()
     renderEditorFileTabs()
-
+    renderFolderExplorer()
     // @(static)
     // isDropdownOpen := false
 
@@ -558,14 +558,20 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
 }
 
 renderLineNumbers :: proc() {
+    // lineNumbersRect: Rect = {
+    //     left = -f32(windowData.size.x) / 2.0,
+    // }
+
+    lineNumbersLeftOffset: f32 = windowData.explorer == nil ? 0.0 : 200.0 // TODO: make it configurable
+
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
     fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
     
     // draw background
-    renderRect(float2{ -f32(windowData.size.x) / 2.0, -f32(windowData.size.y) / 2.0 }, 
-        float2{ f32(windowData.editorPadding.left), f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
+    renderRect(float2{ -f32(windowData.size.x) / 2.0 + lineNumbersLeftOffset, -f32(windowData.size.y) / 2.0 }, 
+        float2{ f32(windowData.editorPadding.left) - lineNumbersLeftOffset, f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
 
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
     
@@ -579,7 +585,7 @@ renderLineNumbers :: proc() {
     for lineIndex in firstNumber..=lastNumber {
         lineNumberStr := strconv.itoa(lineNumberStrBuffer[:], int(lineIndex))
 
-        leftOffset := -f32(windowData.size.x) / 2.0
+        leftOffset := -f32(windowData.size.x) / 2.0 + lineNumbersLeftOffset
 
         for digit in lineNumberStr {
             fontChar := windowData.font.chars[digit]

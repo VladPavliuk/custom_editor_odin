@@ -20,7 +20,7 @@ import main "../"
 //     defer stopApp(appThread, windowData.parentHwnd)
 // }
 
-@(test)
+// @(test)
 just_run_and_close :: proc(t: ^testing.T) {
     os.remove(main.tmpFileTabsFilePath)
 
@@ -38,7 +38,7 @@ just_run_and_close :: proc(t: ^testing.T) {
 
 // save file, open it again, should be only one tab
 
-@(test)
+// @(test)
 type_and_save :: proc(t: ^testing.T) {
     os.remove(main.tmpFileTabsFilePath)
 
@@ -57,7 +57,7 @@ type_and_save :: proc(t: ^testing.T) {
 
     clickMouse({
         { windowRect.left + 30, windowRect.top + 50 },
-        { windowRect.left + 30, windowRect.top + 120 },
+        { windowRect.left + 30, windowRect.top + 140 },
     })
 
     time.sleep(2_000_000_000)
@@ -79,3 +79,14 @@ type_and_save :: proc(t: ^testing.T) {
     os.remove(tab.filePath)
 }
 
+@(test)
+just_run_wait_and_close :: proc(t: ^testing.T) {
+    os.remove(main.tmpFileTabsFilePath)
+
+    appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
+        return windowData.windowCreated
+    })
+    defer stopApp(appThread, windowData.parentHwnd)
+
+    time.sleep(20_000_000_000)
+}

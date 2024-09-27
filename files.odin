@@ -10,14 +10,19 @@ import win32 "core:sys/windows"
 
 tmpFileTabsFilePath :: "./tmp_tabs.json"
 
-showOpenFileDialog :: proc() -> (res: string, success: bool) {
+// showOpenFolderDialog :: proc() -> (res: string, success: bool) {
+//     BROWSEINFO bi = {0};
+//     OpenFolderDialog
+// }
+
+showOpenFileDialog :: proc(showOnlyFolders := false) -> (res: string, success: bool) {
     hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
     assert(hr == 0)
     defer win32.CoUninitialize()
 
     pFileOpen: ^win32.IFileOpenDialog
     hr = win32.CoCreateInstance(win32.CLSID_FileOpenDialog, nil, 
-        win32.CLSCTX_INPROC_SERVER | win32.CLSCTX_INPROC_HANDLER | win32.CLSCTX_LOCAL_SERVER | win32.CLSCTX_REMOTE_SERVER, 
+        win32.CLSCTX_INPROC_SERVER, //| win32.CLSCTX_INPROC_HANDLER | win32.CLSCTX_LOCAL_SERVER | win32.CLSCTX_REMOTE_SERVER, 
         win32.IID_IFileOpenDialog, 
         cast(^win32.LPVOID)(&pFileOpen))
     assert(hr == 0)
@@ -30,6 +35,14 @@ showOpenFileDialog :: proc() -> (res: string, success: bool) {
 
     hr = pFileOpen->SetFileTypes(u32(len(fileTypes)), raw_data(fileTypes[:]))
     assert(hr == 0)
+
+    if showOnlyFolders {    
+        dwOptions: win32.DWORD
+        hr = pFileOpen->GetOptions(&dwOptions)
+        assert(hr == 0)
+        dwOptions = dwOptions | win32.FOS_PICKFOLDERS | win32.FOS_PATHMUSTEXIST | win32.FOS_FILEMUSTEXIST | win32.FOS_FORCEFILESYSTEM 
+        pFileOpen->SetOptions(dwOptions)
+    }
 
     // show window
     hr = pFileOpen->Show(windowData.parentHwnd)
@@ -51,10 +64,7 @@ showOpenFileDialog :: proc() -> (res: string, success: bool) {
     return resStr, err == nil
 }
 
-loadFileFromExplorerIntoNewTab :: proc() {
-    filePath, ok := showOpenFileDialog()
-    if !ok { return }
-
+loadFileIntoNewTab :: proc(filePath: string) {
     fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
     originalFileText := string(fileContent[:])
 
@@ -73,11 +83,13 @@ loadFileFromExplorerIntoNewTab :: proc() {
         }
     }
 
-    if tabIndex == -1 { // open a new tab
-        addEmptyTab()
-    } else { // load into existing tab
+    if tabIndex != -1 {
         windowData.activeFileTab = tabIndex
+        switchInputContextToEditor()
+        return
     }
+
+    addEmptyTab()
 
     activeTab := getActiveTab()
 
@@ -86,6 +98,13 @@ loadFileFromExplorerIntoNewTab :: proc() {
     activeTab.name = filepath.base(filePath)
     activeTab.filePath = filePath
     activeTab.isSaved = true
+}
+
+loadFileFromExplorerIntoNewTab :: proc() {
+    filePath, ok := showOpenFileDialog()
+    if !ok { return }
+
+    loadFileIntoNewTab(filePath)
 }
 
 saveToOpenedFile :: proc(tab: ^FileTab) -> (success: bool) {

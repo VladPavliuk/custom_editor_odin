@@ -293,15 +293,8 @@ windowSizeChangedHandler :: proc "c" (width, height: i32) {
     context = runtime.default_context()
 
     windowData.size = { width, height }
-
-    for fileTab in windowData.fileTabs {
-        fileTab.ctx.rect = Rect{
-            top = windowData.size.y / 2 - windowData.editorPadding.top,
-            bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
-            left = -windowData.size.x / 2 + windowData.editorPadding.left,
-            right = windowData.size.x / 2 - windowData.editorPadding.right,
-        }
-    }
+    
+    recalculateFileTabsContextRects()
     resetClipRect()
 
     directXState.ctx->OMSetRenderTargets(0, nil, nil)

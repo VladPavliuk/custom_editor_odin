@@ -88,6 +88,8 @@ WindowData :: struct {
     fileTabs: [dynamic]FileTab,
     activeFileTab: i32,
 
+    explorer: ^Explorer,
+
     //> settings
     wordWrapping: bool,
     //<
@@ -293,6 +295,7 @@ removeWindowData :: proc() {
     delete(windowData.uiContext.textInputCtx.lines)
     edit.destroy(&windowData.uiContext.textInputCtx.editorState)
     strings.builder_destroy(&windowData.uiContext.textInputCtx.text)
+    clearExplorer(windowData.explorer)
 
     // TODO: investigate, is this code block is needed
     //>

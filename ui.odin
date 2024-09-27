@@ -76,6 +76,7 @@ renderTopMenu :: proc() {
     { // File menu
         fileItems := []UiDropdownItem{
             { text = "New File", rightText = "Ctrl+N" },
+            { text = "Open Folder" },
             { text = "Open...", rightText = "Ctrl+O" },
             { text = "Save", rightText = "Ctrl+S" },
             { text = "Save as..." },
@@ -101,10 +102,11 @@ renderTopMenu :: proc() {
         }); .SUBMIT in actions {
             switch selected {
             case 0: addEmptyTab()
-            case 1: loadFileFromExplorerIntoNewTab()
-            case 2: saveToOpenedFile(getActiveTab())            
-            case 3: showSaveAsFileDialog(getActiveTab())
-            case 5: tryCloseEditor()
+            case 1: showExplorer()
+            case 2: loadFileFromExplorerIntoNewTab()
+            case 3: saveToOpenedFile(getActiveTab())            
+            case 4: showSaveAsFileDialog(getActiveTab())
+            case 6: tryCloseEditor()
             }
         }
         topItemPosition.x += 60
@@ -243,11 +245,111 @@ renderTopMenu :: proc() {
     }
 }
 
+renderFolderExplorer :: proc() {
+    if windowData.explorer == nil { return }
+
+    topOffset: i32 = 25 // TODO: make it configurable
+    explorerWidth: i32 = 200 // TODO: make it configurable
+    bgRect: Rect = {
+        top = windowData.size.y / 2 - topOffset,
+        bottom = -windowData.size.y / 2,
+        left = -windowData.size.x / 2,
+        right = -windowData.size.x / 2 + explorerWidth,
+    }
+
+    itemVerticalPadding :: 4
+    itemHeight := i32(windowData.font.lineHeight) + itemVerticalPadding 
+
+    renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
+    advanceUiZIndex(&windowData.uiContext)
+
+    renderExplorerItem :: proc(item: ^ExplorerItem, position: ^int2, itemHeight: i32, count: ^i32, explorerWidth: i32) {
+        itemRect := Rect{ 
+            top = position.y + itemHeight, 
+            bottom = position.y,
+            left = position.x,
+            right = position.x + explorerWidth,
+        }
+
+        count^ = count^ + 1
+        itemActions := putEmptyUiElement(&windowData.uiContext, itemRect, customId = count^)
+
+        if .HOT in itemActions {
+            renderRect(itemRect, windowData.uiContext.zIndex, THEME_COLOR_1)
+            advanceUiZIndex(&windowData.uiContext)
+        }
+
+        if .GOT_ACTIVE in itemActions {
+            if item.isDir {
+                item.isOpen = !item.isOpen
+
+                if item.isOpen {
+                    populateExplorerSubItems(item.fullPath, &item.child)
+                } else {
+                    removeExplorerSubItems(item)
+                }
+            } else {
+                loadFileIntoNewTab(item.fullPath)
+            }
+        }
+
+        setClipRect(itemRect)
+        iconSize: i32 = 16
+        icon: TextureType
+
+        if item.isDir {
+            icon = item.isOpen ? .ARROW_DOWN_ICON : .ARROW_RIGHT_ICON
+        } else {
+            icon = getIconByFilePath(item.fullPath)
+        }
+        
+        renderImageRect(int2{ position.x, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
+        renderLine(item.name, &windowData.font, { position.x + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
+        resetClipRect()
+        position.y -= itemHeight
+
+        if item.isDir && item.isOpen {
+            position.x += 30
+            for &subItem in item.child {
+                renderExplorerItem(&subItem, position, itemHeight, count, explorerWidth - 30)
+            }
+            position.x -= 30
+        }
+    }
+
+    itemPosition: int2 = {
+        -windowData.size.x / 2,
+        windowData.size.y / 2 - topOffset - i32(windowData.font.lineHeight),
+    }
+    itemsCount: i32 = 0 
+    for &item in windowData.explorer.items {
+        renderExplorerItem(&item, &itemPosition, itemHeight, &itemsCount, explorerWidth)
+
+        // setClipRect(Rect{ 
+        //     top = itemPosition.y + i32(windowData.font.lineHeight), 
+        //     bottom = itemPosition.y,
+        //     left = itemPosition.x,
+        //     right = itemPosition.x + explorerWidth,
+        // })
+        // renderLine(item.name, &windowData.font, itemPosition, WHITE_COLOR, windowData.uiContext.zIndex)
+        // resetClipRect()
+        //itemPosition.y -= i32(windowData.font.lineHeight)
+    }
+
+    advanceUiZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
+
+    // fis = os.read_dir(info., -1, allocator)
+    // fis, err = read_dir(info.fullpath, context.temp_allocator)
+
+    //filepath.walk
+}
+
 renderEditorFileTabs :: proc() {
     tabsHeight: i32 = 25
     topOffset: i32 = 25 // TODO: calcualte it
+    leftOffset: i32 = windowData.explorer == nil ? 0 : 200 // TODO: make it configurable
     
-    renderRect(toRect({ -windowData.size.x / 2, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x, tabsHeight }), 
+    renderRect(toRect({ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x - leftOffset, tabsHeight }), 
         windowData.uiContext.zIndex, GRAY_COLOR)
     advanceUiZIndex(&windowData.uiContext)
 
@@ -263,7 +365,7 @@ renderEditorFileTabs :: proc() {
 
         tab := UiTabsItem{
             text = fileTab.name,
-            leftIcon = getIconByTab(&fileTab),
+            leftIcon = getIconByFilePath(fileTab.filePath),
             leftIconSize = { 16, 16 },
             rightIcon = rightIcon,
         }
@@ -272,7 +374,7 @@ renderEditorFileTabs :: proc() {
     }
 
     tabActions := renderTabs(&windowData.uiContext, UiTabs{
-        position = { -windowData.size.x / 2, windowData.size.y / 2 - topOffset - tabsHeight },
+        position = { -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight },
         activeTabIndex = &windowData.activeFileTab,
         items = tabItems[:],
         itemStyles = {
@@ -283,10 +385,10 @@ renderEditorFileTabs :: proc() {
     })
 
     switch action in tabActions {
-        case UiTabsSwitched:
-            switchInputContextToEditor()
-        case UiTabsActionClose:
-            tryCloseFileTab(action.closedTabIndex)
+    case UiTabsSwitched:
+        switchInputContextToEditor()
+    case UiTabsActionClose:
+        tryCloseFileTab(action.closedTabIndex)
     }
 
     //windowData.editorCtx = windowData.fileTabs[windowData.activeFileTab].ctx
@@ -296,13 +398,27 @@ renderEditorFileTabs :: proc() {
     // }
 }
 
-getIconByTab :: proc(tab: ^FileTab) -> TextureType {
-    if len(tab.filePath) == 0 { return .NONE }
+recalculateFileTabsContextRects :: proc() {
+    for fileTab in windowData.fileTabs {
+        fileTab.ctx.rect = Rect{
+            top = windowData.size.y / 2 - windowData.editorPadding.top,
+            bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
+            left = -windowData.size.x / 2 + windowData.editorPadding.left,
+            right = windowData.size.x / 2 - windowData.editorPadding.right,
+        }
+    }
+}
 
-    fileExtension := filepath.ext(tab.filePath)
+getIconByFilePath :: proc(filePath: string) -> TextureType {
+    if len(filePath) == 0 { return .NONE }
+
+    fileExtension := filepath.ext(filePath)
 
     switch fileExtension {
     case ".txt": return .TXT_FILE_ICON
+    case ".c": return .C_FILE_ICON
+    case ".cpp": return .C_PLUS_PLUS_FILE_ICON
+    case ".cs": return .C_SHARP_FILE_ICON
     case ".js": return .JS_FILE_ICON
     }
 
