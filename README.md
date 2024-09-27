@@ -1,3 +1,4 @@
-Editor is making itself step by step!
+Editor is making itself step by step! DON'T USE IT YET!
 
-![Example Image](https://github.com/user-attachments/assets/ec9acb5d-88a6-468e-ac9c-ab3878e37ad1)
+
+![Example](https://github.com/user-attachments/assets/69535ae7-af07-4b13-8bd8-2ce5d5d6bf19)
