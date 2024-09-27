@@ -815,6 +815,7 @@ endPanel :: proc(ctx: ^UiContext) {
 UiTabsItem :: struct {
     text: string,
     leftIcon: TextureType,
+    leftIconSize: int2,
     rightIcon: TextureType,
 }
 
@@ -882,32 +883,32 @@ renderTabs :: proc(ctx: ^UiContext, tabs: UiTabs, customId: i32 = 0, loc := #cal
         advanceUiZIndex(ctx)
 
         // icon
-        iconSize: i32 = 0
+        iconWidth: i32 = 0
         iconRightPadding: i32 = 0
         if item.leftIcon != .NONE {
-            iconSize = 10
+            iconWidth = item.leftIconSize.x
             iconRightPadding = 5
-            iconPosition: int2 = { position.x + padding.left, position.y + height / 2 - iconSize / 2 }
+            iconPosition: int2 = { position.x + padding.left, position.y + height / 2 - item.leftIconSize.y / 2 }
             
-            renderImageRect(toRect(iconPosition, { iconSize, iconSize }), ctx.zIndex, item.leftIcon)
+            renderImageRect(toRect(iconPosition, { item.leftIconSize.x, item.leftIconSize.y }), ctx.zIndex, item.leftIcon)
             advanceUiZIndex(ctx)
         }
 
-        textPosition: int2 = { position.x + padding.left + iconSize + iconRightPadding, position.y + padding.bottom }
+        textPosition: int2 = { position.x + padding.left + iconWidth + iconRightPadding, position.y + padding.bottom }
         setClipRect(Rect { top = itemRect.top, bottom = itemRect.bottom, left = textPosition.x, right = itemRect.right - padding.right })
         renderLine(item.text, &windowData.font, textPosition, WHITE_COLOR, ctx.zIndex)
         advanceUiZIndex(ctx)
         resetClipRect()
 
         if item.rightIcon != .NONE {
-            iconSize = 20
+            iconWidth = 20
             iconRightPadding = 5
-            iconPosition: int2 = { position.x + width - iconSize - iconRightPadding, position.y + height / 2 - iconSize / 2 }
+            iconPosition: int2 = { position.x + width - iconWidth - iconRightPadding, position.y + height / 2 - iconWidth / 2 }
             
             customId += 1
             if .SUBMIT in renderButton(ctx, UiImageButton{
                 position = iconPosition,
-                size = { iconSize, iconSize },
+                size = { iconWidth, iconWidth },
                 texture = item.rightIcon,
                 texturePadding = 4,
                 bgColor = bgColor,

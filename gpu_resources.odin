@@ -20,6 +20,10 @@ TextureType :: enum {
     CIRCLE,
     CLOSE_ICON,
     CHECK_ICON,
+
+    // file extensions icons
+    TXT_FILE_ICON,
+    JS_FILE_ICON,
 }
 
 GpuTexture :: struct {
@@ -143,6 +147,8 @@ loadTextures :: proc() {
     directXState.textures[.CLOSE_ICON] = loadTextureFromImage(#load("./resources/images/close_icon.png", []u8))
     directXState.textures[.CHECK_ICON] = loadTextureFromImage(#load("./resources/images/check_icon.png", []u8))
     directXState.textures[.CIRCLE] = loadTextureFromImage(#load("./resources/images/circle.png", []u8))
+    directXState.textures[.TXT_FILE_ICON] = loadTextureFromImage(#load("./resources/images/txt_file_icon.png", []u8))
+    directXState.textures[.JS_FILE_ICON] = loadTextureFromImage(#load("./resources/images/js_file_icon.png", []u8))
 }
 
 compileVertexShader :: proc(fileContent: string) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
@@ -374,6 +380,8 @@ loadTextureFromImage :: proc(imageFileContent: []u8) -> GpuTexture {
     assert(imageErr == nil, "Couldn't parse image")
     defer image.destroy(parsedImage)
 
+    image.alpha_add_if_missing(parsedImage)
+
     bitmap := bytes.buffer_to_bytes(&parsedImage.pixels)
 
     textureDesc := d3d11.TEXTURE2D_DESC{
@@ -394,8 +402,8 @@ loadTextureFromImage :: proc(imageFileContent: []u8) -> GpuTexture {
 
     data := d3d11.SUBRESOURCE_DATA{
         pSysMem = raw_data(bitmap),
-        SysMemPitch = u32(parsedImage.width * 4), // TODO: remove hardcoded 4 and actually compute it
-        SysMemSlicePitch = u32(parsedImage.width * parsedImage.height * 4),
+        SysMemPitch = u32(parsedImage.width * parsedImage.channels), // TODO: remove hardcoded 4 and actually compute it
+        SysMemSlicePitch = u32(parsedImage.width * parsedImage.height * parsedImage.channels),
     }
 
     texture: ^d3d11.ITexture2D

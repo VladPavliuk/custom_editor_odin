@@ -440,6 +440,8 @@ renderLine :: proc(text: string, font: ^FontData, position: int2, color: float4,
 }
 
 renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
+    cursorWidth :: 3.0
+
     // if cursor above top line, don't render it
     if ctx.cursorLineIndex < ctx.lineIndex { return }
     
@@ -456,7 +458,8 @@ renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
 
     if leftOffset < f32(ctx.rect.left) || leftOffset > f32(ctx.rect.right) { return }
 
-    renderRect(float2{ leftOffset, topOffset }, float2{ 3.0, windowData.font.lineHeight }, 
+    leftOffset = min(f32(ctx.rect.right) - cursorWidth, leftOffset)
+    renderRect(float2{ leftOffset, topOffset }, float2{ cursorWidth, windowData.font.lineHeight }, 
         zIndex, CURSOR_COLOR)
 }
 

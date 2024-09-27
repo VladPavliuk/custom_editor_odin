@@ -5,6 +5,7 @@ import "base:runtime"
 import "core:os"
 import "core:strings"
 import "core:text/edit"
+import "core:path/filepath"
 
 uiId :: i64
 
@@ -254,7 +255,7 @@ renderEditorFileTabs :: proc() {
     defer delete(tabItems)
 
     atLeastTwoTabsOpened := len(windowData.fileTabs) > 1
-    for fileTab in windowData.fileTabs {
+    for &fileTab in windowData.fileTabs {
         rightIcon: TextureType = .NONE
         
         if atLeastTwoTabsOpened { rightIcon = .CLOSE_ICON } // we always want to show at least one file tab, so remove close icon if only tab
@@ -262,7 +263,8 @@ renderEditorFileTabs :: proc() {
 
         tab := UiTabsItem{
             text = fileTab.name,
-            // leftIcon = fileTab.isSaved ? .NONE : .CHECK_ICON,
+            leftIcon = getIconByTab(&fileTab),
+            leftIconSize = { 16, 16 },
             rightIcon = rightIcon,
         }
 
@@ -292,6 +294,19 @@ renderEditorFileTabs :: proc() {
     // if activeTab == 1 {
     //     testingButtons()
     // }
+}
+
+getIconByTab :: proc(tab: ^FileTab) -> TextureType {
+    if len(tab.filePath) == 0 { return .NONE }
+
+    fileExtension := filepath.ext(tab.filePath)
+
+    switch fileExtension {
+    case ".txt": return .TXT_FILE_ICON
+    case ".js": return .JS_FILE_ICON
+    }
+
+    return .TXT_FILE_ICON // dy default treat unknown types as txt files
 }
 
 // TODO: move it from here
