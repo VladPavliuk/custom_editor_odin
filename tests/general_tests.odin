@@ -20,7 +20,7 @@ import main "../"
 //     defer stopApp(appThread, windowData.parentHwnd)
 // }
 
-// @(test)
+@(test)
 just_run_and_close :: proc(t: ^testing.T) {
     os.remove(main.editorStateFilePath)
 
@@ -38,7 +38,7 @@ just_run_and_close :: proc(t: ^testing.T) {
 
 // save file, open it again, should be only one tab
 
-// @(test)
+@(test)
 type_and_save :: proc(t: ^testing.T) {
     os.remove(main.editorStateFilePath)
 
@@ -79,7 +79,7 @@ type_and_save :: proc(t: ^testing.T) {
     os.remove(tab.filePath)
 }
 
-@(test)
+// @(test)
 just_run_wait_and_close :: proc(t: ^testing.T) {
     //os.remove(main.editorStateFilePath)
 

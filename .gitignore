@@ -1,5 +1,5 @@
 bin/*.pdb
-bin/tmp_tabs.json
+bin/edi_state.json
 bin/shaders/*.fxc
 tests/*.exe
 tests/*.pdb

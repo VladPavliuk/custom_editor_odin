@@ -258,6 +258,7 @@ renderFolderExplorer :: proc() {
         left = -windowData.size.x / 2,
         right = -windowData.size.x / 2 + explorerWidth,
     }
+    bgRectSize := getRectSize(bgRect)
 
     itemVerticalPadding :: 4
     itemHeight := i32(windowData.font.lineHeight) + itemVerticalPadding 
@@ -265,7 +266,28 @@ renderFolderExplorer :: proc() {
     renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
     advanceUiZIndex(&windowData.uiContext)
 
-    renderExplorerItem :: proc(item: ^ExplorerItem, position: ^int2, itemHeight: i32, count: ^i32, explorerWidth: i32) {
+    position: int2 = {
+        -windowData.size.x / 2,
+        windowData.size.y / 2 - topOffset - i32(windowData.font.lineHeight),
+    }
+
+    beginScroll(&windowData.uiContext)
+
+    openedItems := make([dynamic]^ExplorerItem)
+    getOpenedItemsFlaten(&windowData.explorer.items, &openedItems)
+    defer delete(openedItems)
+    openedItemsCount := i32(len(openedItems))
+
+    maxItemOnScreen := bgRectSize.y / itemHeight
+
+    @(static)
+    topItemIndex: i32 = 0
+
+    lastItemIndex := min(openedItemsCount, maxItemOnScreen + topItemIndex)
+
+    for itemIndex in topItemIndex..<lastItemIndex {
+        item := openedItems[itemIndex]
+
         itemRect := Rect{ 
             top = position.y + itemHeight, 
             bottom = position.y,
@@ -273,8 +295,7 @@ renderFolderExplorer :: proc() {
             right = position.x + explorerWidth,
         }
 
-        count^ = count^ + 1
-        itemActions := putEmptyUiElement(&windowData.uiContext, itemRect, customId = count^)
+        itemActions := putEmptyUiElement(&windowData.uiContext, itemRect, customId = itemIndex)
 
         if .HOT in itemActions {
             renderRect(itemRect, windowData.uiContext.zIndex, THEME_COLOR_1)
@@ -286,7 +307,7 @@ renderFolderExplorer :: proc() {
                 item.isOpen = !item.isOpen
 
                 if item.isOpen {
-                    populateExplorerSubItems(item.fullPath, &item.child)
+                    populateExplorerSubItems(item.fullPath, &item.child, item.level + 1)
                 } else {
                     removeExplorerSubItems(item)
                 }
@@ -305,45 +326,33 @@ renderFolderExplorer :: proc() {
             icon = getIconByFilePath(item.fullPath)
         }
         
-        renderImageRect(int2{ position.x, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
-        renderLine(item.name, &windowData.font, { position.x + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
+        leftOffset: i32 = item.level * 20
+        renderImageRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
+        renderLine(item.name, &windowData.font, { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
         resetClipRect()
         position.y -= itemHeight
-
-        if item.isDir && item.isOpen {
-            position.x += 30
-            for &subItem in item.child {
-                renderExplorerItem(&subItem, position, itemHeight, count, explorerWidth - 30)
-            }
-            position.x -= 30
-        }
     }
-
-    itemPosition: int2 = {
-        -windowData.size.x / 2,
-        windowData.size.y / 2 - topOffset - i32(windowData.font.lineHeight),
-    }
-    itemsCount: i32 = 0 
-    for &item in windowData.explorer.items {
-        renderExplorerItem(&item, &itemPosition, itemHeight, &itemsCount, explorerWidth)
-
-        // setClipRect(Rect{ 
-        //     top = itemPosition.y + i32(windowData.font.lineHeight), 
-        //     bottom = itemPosition.y,
-        //     left = itemPosition.x,
-        //     right = itemPosition.x + explorerWidth,
-        // })
-        // renderLine(item.name, &windowData.font, itemPosition, WHITE_COLOR, windowData.uiContext.zIndex)
-        // resetClipRect()
-        //itemPosition.y -= i32(windowData.font.lineHeight)
-    }
-
     advanceUiZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
-    // fis = os.read_dir(info., -1, allocator)
-    // fis, err = read_dir(info.fullpath, context.temp_allocator)
+    scrollSize: i32 = min(i32(f32(bgRectSize.y) * f32(maxItemOnScreen) / f32(openedItemsCount)), bgRectSize.y)
+    @(static)
+    scrollOffset: i32 = 0
+    endScroll(&windowData.uiContext, UiScroll{
+        bgRect = Rect{
+            top = bgRect.top,
+            bottom = bgRect.bottom,
+            right = bgRect.right,
+            left = bgRect.right - 15,
+        },
+        offset = &scrollOffset,
+        size = scrollSize,
+        color = DARKER_GRAY_COLOR,
+        hoverColor = DARK_GRAY_COLOR,
+    })
 
-    //filepath.walk
+    if openedItemsCount > maxItemOnScreen {
+        topItemIndex = i32(f32(openedItemsCount - maxItemOnScreen) * f32(scrollOffset) / f32(bgRectSize.y - scrollSize))
+    }
 }
 
 renderEditorFileTabs :: proc() {
@@ -392,12 +401,6 @@ renderEditorFileTabs :: proc() {
     case UiTabsActionClose:
         tryCloseFileTab(action.closedTabIndex)
     }
-
-    //windowData.editorCtx = windowData.fileTabs[windowData.activeFileTab].ctx
-
-    // if activeTab == 1 {
-    //     testingButtons()
-    // }
 }
 
 recalculateFileTabsContextRects :: proc() {

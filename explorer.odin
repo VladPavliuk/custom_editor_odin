@@ -12,6 +12,7 @@ ExplorerItem :: struct {
     fullPath: string,
     isDir: bool,
     isOpen: bool,
+    level: i32, // how deep relative to root folder the item is
     child: [dynamic]ExplorerItem,
 }
 
@@ -38,7 +39,7 @@ initExplorer :: proc(root: string) -> ^Explorer {
     return explorer
 }
 
-populateExplorerSubItems :: proc(root: string, explorerItems: ^[dynamic]ExplorerItem) {
+populateExplorerSubItems :: proc(root: string, explorerItems: ^[dynamic]ExplorerItem, level: i32 = 0) {
     info, err := os.lstat(root, context.temp_allocator)
     assert(err == nil)
 	defer os.file_info_delete(info, context.temp_allocator)
@@ -56,6 +57,7 @@ populateExplorerSubItems :: proc(root: string, explorerItems: ^[dynamic]Explorer
             name = item.name,
             fullPath = item.fullpath,
             isDir = true,
+            level = level,
         }
         
         // keep it if you want preload all nested folders
@@ -71,9 +73,20 @@ populateExplorerSubItems :: proc(root: string, explorerItems: ^[dynamic]Explorer
             name = item.name,
             fullPath = item.fullpath,
             isDir = false,
+            level = level,
         }
         
         append(explorerItems, subItem)
+    }
+}
+
+getOpenedItemsFlaten :: proc(itemsToIterate: ^[dynamic]ExplorerItem, flatenItems: ^[dynamic]^ExplorerItem) {
+    for &item in itemsToIterate {
+        append(flatenItems, &item)
+
+        if item.isDir && item.isOpen {
+            getOpenedItemsFlaten(&item.child, flatenItems)
+        }
     }
 }
 

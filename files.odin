@@ -285,7 +285,7 @@ applyEditorState :: proc() -> bool {
             filePath = tab.filePath,
             isSaved = tab.isSaved,
         })
-        delete(tab.text)
+        // delete(tab.text)
     }
     defer delete(state.fileTabs)
 
