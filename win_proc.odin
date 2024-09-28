@@ -87,7 +87,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         // check all tabs, where any file changed
 
     case win32.WM_DESTROY:
-        saveFileTabs(windowData.fileTabs[:])
+        saveEditorState()
         win32.PostQuitMessage(0)
     }
 
@@ -293,7 +293,7 @@ windowSizeChangedHandler :: proc "c" (width, height: i32) {
     context = runtime.default_context()
 
     windowData.size = { width, height }
-    
+
     recalculateFileTabsContextRects()
     resetClipRect()
 

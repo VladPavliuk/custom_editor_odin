@@ -8,7 +8,7 @@ import "core:encoding/json"
 
 import win32 "core:sys/windows"
 
-tmpFileTabsFilePath :: "./tmp_tabs.json"
+editorStateFilePath :: "./edi_state.json"
 
 // showOpenFolderDialog :: proc() -> (res: string, success: bool) {
 //     BROWSEINFO bi = {0};
@@ -68,8 +68,9 @@ loadFileIntoNewTab :: proc(filePath: string) {
     fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
     originalFileText := string(fileContent[:])
 
-    testText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
-
+    fileText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
+    defer delete(fileText)
+    
     if wasNewAllocation {
         delete(fileContent)
     }
@@ -93,7 +94,7 @@ loadFileIntoNewTab :: proc(filePath: string) {
 
     activeTab := getActiveTab()
 
-    strings.write_string(&activeTab.ctx.text, testText)
+    strings.write_string(&activeTab.ctx.text, fileText)
 
     activeTab.name = filepath.base(filePath)
     activeTab.filePath = filePath
@@ -203,13 +204,21 @@ SavedFileTab :: struct {
     lineIndex: i32,
 }
 
-saveFileTabs :: proc(tabs: []FileTab) {
-    tabsToSave := make([dynamic]SavedFileTab)
-    defer delete(tabsToSave)
+EditorState :: struct {
+    fileTabs: [dynamic]SavedFileTab,
+    openedFolder: string,
+}
+
+saveEditorState :: proc() {
+    state := EditorState{}
+
+    if windowData.explorer != nil {
+        state.openedFolder = windowData.explorer.rootPath
+    }
 
     // TODO: save only text copies of files that are relativelly small (less then 2k symbols)
-    for tab in tabs {
-        append(&tabsToSave, SavedFileTab{
+    for tab in windowData.fileTabs {
+        append(&state.fileTabs, SavedFileTab{
             name = tab.name,
             filePath = tab.filePath,
             isSaved = tab.isSaved,
@@ -219,26 +228,52 @@ saveFileTabs :: proc(tabs: []FileTab) {
         })
     }
 
-    serializedTabs, err := json.marshal(tabsToSave)
+    serializedState, err := json.marshal(state)
     assert(err == nil)
+    defer delete(serializedState)
 
-    saveErr := os.write_entire_file_or_err(tmpFileTabsFilePath, serializedTabs)
+    saveErr := os.write_entire_file_or_err(editorStateFilePath, serializedState)
     assert(saveErr == nil)
 }
 
-applyPreviousFileTabs :: proc() -> bool {
-    fileContent, err := os.read_entire_file_or_err(tmpFileTabsFilePath)
+// saveFileTabs :: proc(tabs: []FileTab) {
+//     tabsToSave := make([dynamic]SavedFileTab)
+//     defer delete(tabsToSave)
+
+//     // TODO: save only text copies of files that are relativelly small (less then 2k symbols)
+//     for tab in tabs {
+//         append(&tabsToSave, SavedFileTab{
+//             name = tab.name,
+//             filePath = tab.filePath,
+//             isSaved = tab.isSaved,
+//             text = strings.to_string(tab.ctx.text),
+//             textSelection = tab.ctx.editorState.selection,
+//             lineIndex = tab.ctx.lineIndex,
+//         })
+//     }
+
+//     serializedTabs, err := json.marshal(tabsToSave)
+//     assert(err == nil)
+
+//     saveErr := os.write_entire_file_or_err(tmpFileTabsFilePath, serializedTabs)
+//     assert(saveErr == nil)
+// }
+
+applyEditorState :: proc() -> bool {
+    fileContent, err := os.read_entire_file_or_err(editorStateFilePath)
+    defer delete(fileContent)
 
     if err == os.General_Error.Not_Exist {
         return false
     }
     assert(err == nil)
 
-    savedTabs: []SavedFileTab
-    unmarshalErr := json.unmarshal(fileContent, &savedTabs)
+    state: EditorState
+    unmarshalErr := json.unmarshal(fileContent, &state, allocator = context.temp_allocator)
+
     assert(unmarshalErr == nil)
 
-    for tab in savedTabs {
+    for tab in state.fileTabs {
         ctx := createEmptyTextContext()
         strings.write_string(&ctx.text, tab.text)
         ctx.editorState.selection = tab.textSelection
@@ -250,10 +285,45 @@ applyPreviousFileTabs :: proc() -> bool {
             filePath = tab.filePath,
             isSaved = tab.isSaved,
         })
+        delete(tab.text)
+    }
+    defer delete(state.fileTabs)
+
+    if len(state.openedFolder) > 0 {
+        showExplorer(state.openedFolder)
     }
 
     return true
 }
+
+// applyPreviousFileTabs :: proc() -> bool {
+//     fileContent, err := os.read_entire_file_or_err(tmpFileTabsFilePath)
+
+//     if err == os.General_Error.Not_Exist {
+//         return false
+//     }
+//     assert(err == nil)
+
+//     savedTabs: []SavedFileTab
+//     unmarshalErr := json.unmarshal(fileContent, &savedTabs)
+//     assert(unmarshalErr == nil)
+
+//     for tab in savedTabs {
+//         ctx := createEmptyTextContext()
+//         strings.write_string(&ctx.text, tab.text)
+//         ctx.editorState.selection = tab.textSelection
+//         ctx.lineIndex = tab.lineIndex
+        
+//         append(&windowData.fileTabs, FileTab{
+//             name = tab.name,
+//             ctx = ctx,
+//             filePath = tab.filePath,
+//             isSaved = tab.isSaved,
+//         })
+//     }
+
+//     return true
+// }
 
 @(private="file")
 tryGetDefaultFileName :: proc(text: string) -> (strings.Builder, bool)  {

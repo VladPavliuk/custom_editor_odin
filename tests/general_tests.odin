@@ -22,7 +22,7 @@ import main "../"
 
 // @(test)
 just_run_and_close :: proc(t: ^testing.T) {
-    os.remove(main.tmpFileTabsFilePath)
+    os.remove(main.editorStateFilePath)
 
     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
         return windowData.windowCreated
@@ -40,7 +40,7 @@ just_run_and_close :: proc(t: ^testing.T) {
 
 // @(test)
 type_and_save :: proc(t: ^testing.T) {
-    os.remove(main.tmpFileTabsFilePath)
+    os.remove(main.editorStateFilePath)
 
     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
         return windowData.windowCreated
@@ -81,7 +81,7 @@ type_and_save :: proc(t: ^testing.T) {
 
 @(test)
 just_run_wait_and_close :: proc(t: ^testing.T) {
-    os.remove(main.tmpFileTabsFilePath)
+    //os.remove(main.editorStateFilePath)
 
     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
         return windowData.windowCreated

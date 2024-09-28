@@ -162,8 +162,8 @@ createWindow :: proc(size: int2) {
 
     windowData.editorPadding = { top = 50, bottom = 15, left = 50, right = 15 }
 
-    if !applyPreviousFileTabs() {
-        addEmptyTab() // if no previous file tabs found, create an empty one
+    if !applyEditorState() {
+        addEmptyTab() // if no previous editor state found, create an empty tab
     }
 
     windowData.isInputMode = true
@@ -286,6 +286,8 @@ removeWindowData :: proc() {
     delete(windowData.font.chars)
 
     for tab in windowData.fileTabs {
+        //delete(tab.filePath)
+        // delete(tab.name)
         freeTextContext(tab.ctx)
     }
     delete(windowData.fileTabs)

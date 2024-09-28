@@ -1,10 +1,9 @@
 package main
 
 import "core:os"
-// import "core:slice"
-// import "core:path/filepath"
 
 Explorer :: struct {
+    rootPath: string,
     items: [dynamic]ExplorerItem,
 }
 
@@ -18,17 +17,13 @@ ExplorerItem :: struct {
 
 //TODO: since some changes might happen in files structure, we should always load files and compare them with current loaded files!
 
-showExplorer :: proc() {
-    folderPath, ok := showOpenFileDialog(true)
-    if !ok { return }
-    // assert(ok)
-
+showExplorer :: proc(root: string) {
     if windowData.explorer != nil {
         clearExplorer(windowData.explorer)
         windowData.explorer = nil
     }
 
-    windowData.explorer = initExplorer(folderPath)
+    windowData.explorer = initExplorer(root)
 
     windowData.editorPadding.left = 250 // TODO: looks awful!!!
     recalculateFileTabsContextRects()
@@ -37,6 +32,7 @@ showExplorer :: proc() {
 initExplorer :: proc(root: string) -> ^Explorer {
     explorer := new(Explorer)
 
+    explorer.rootPath = root
     populateExplorerSubItems(root, &explorer.items)
 
     return explorer
