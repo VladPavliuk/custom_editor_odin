@@ -178,8 +178,8 @@ renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 =
         resetClipRect()
     } else {
         setClipRect(uiRect)
-        renderLine(textField.text, &windowData.font, { uiRect.left + 5, uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2) }, 
-            BLACK_COLOR, ctx.zIndex)
+        renderLine(textField.text, &windowData.font, { uiRect.left + 5, uiRect.bottom }, 
+            BLACK_COLOR, ctx.zIndex, textField.size.y)
         advanceUiZIndex(ctx)
         resetClipRect()
     }
@@ -651,6 +651,8 @@ renderVerticalScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 = 
         validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.size)
     }
 
+    validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.size)
+    
     if ctx.hotId in scrollableElements && abs(inputState.scrollDelta) > 0 {
         scrollAction += {.MOUSE_WHEEL_SCROLL}
     }
@@ -722,7 +724,7 @@ renderHorizontalScroll :: proc(ctx: ^UiContext, scroll: UiScroll, customId: i32 
 UiPanel :: struct {
     title: string,
     position, size: ^int2,
-    bgColor, hoverBgColor: float4,
+    bgColor, hoverBgColor, borderColor: float4,
 }
 
 beginPanel :: proc(ctx: ^UiContext, panel: UiPanel, open: ^bool, customId: i32 = 0, loc := #caller_location) -> UiActions {
@@ -788,7 +790,8 @@ beginPanel :: proc(ctx: ^UiContext, panel: UiPanel, open: ^bool, customId: i32 =
         open^ = false
     }
 
-    renderRectBorder(panel.position^, panel.size^, 1.0, ctx.zIndex, GRAY_COLOR)
+    borderColor := getOrDefaultColor(panel.borderColor, GRAY_COLOR)
+    renderRectBorder(panel.position^, panel.size^, 1.0, ctx.zIndex, borderColor)
     advanceUiZIndex(ctx)
 
     if .ACTIVE in headerAction {

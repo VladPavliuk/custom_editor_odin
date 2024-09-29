@@ -29,6 +29,10 @@ TextureType :: enum {
     JS_FILE_ICON,
     ARROW_DOWN_ICON,
     ARROW_RIGHT_ICON,
+
+    // explorer actions buttons icons
+    COLLAPSE_FILES_ICON,
+    JUMP_TO_CURRENT_FILE_ICON,
 }
 
 GpuTexture :: struct {
@@ -160,6 +164,8 @@ loadTextures :: proc() {
         .JS_FILE_ICON = #load("./resources/images/js_file_icon.png"),
         .ARROW_DOWN_ICON = #load("./resources/images/arrow_down.png"),
         .ARROW_RIGHT_ICON = #load("./resources/images/arrow_right.png"),
+        .COLLAPSE_FILES_ICON = #load("./resources/images/collapse_files_icon.png"),
+        .JUMP_TO_CURRENT_FILE_ICON = #load("./resources/images/jump_current_file_icon.png"),
     }
     defer delete(textures)
 

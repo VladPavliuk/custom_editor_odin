@@ -21,6 +21,10 @@ Rect :: struct {
     right: i32,
 }
 
+setColorAlpha :: proc(color: float4, alpha: f32) -> float4 {
+    return { color.r, color.g, color.b, alpha}
+}
+
 getOrDefaultColor :: proc(color, defaultColor: float4) -> float4 {
     return isValidColor(color) ? color : defaultColor
 }

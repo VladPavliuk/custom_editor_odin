@@ -397,12 +397,18 @@ renderRectBorderVec_Float :: proc(position, size: float2, thickness, zValue: f32
     renderRect(float2{ position.x + size.x - thickness, position.y }, float2{ thickness, size.y }, zValue, color) // right border
 }
 
-renderLine :: proc(text: string, font: ^FontData, position: int2, color: float4, zIndex: f32) {
+renderLine :: proc(text: string, font: ^FontData, position: int2, color: float4, zIndex: f32, containerHeight: i32 = 0) {
     fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
     
     leftOffset := f32(position.x)
     topOffset := f32(position.y) - font.descent
+
+    if containerHeight > 0 {
+        textHeight := getTextHeight(&windowData.font)
+
+        topOffset += f32(containerHeight) / 2.0 - textHeight / 2.0
+    }
 
     for char, index in text {
         fontChar := font.chars[char]

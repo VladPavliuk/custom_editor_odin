@@ -110,7 +110,7 @@ initDirectX :: proc() {
     assert(res == 0)
 
     samplerDesc := d3d11.SAMPLER_DESC{
-        Filter = .MIN_MAG_MIP_LINEAR,
+        Filter = .MIN_POINT_MAG_LINEAR_MIP_POINT, // originally it was MIN_MAG_MIP_LINEAR, but for some reasons, it crops image???
         AddressU = .WRAP,
         AddressV = .WRAP,
         AddressW = .WRAP,

@@ -186,6 +186,7 @@ renderTopMenu :: proc() {
                 position = &panelPosition,
                 size = &panelSize,
                 bgColor = GRAY_COLOR,
+                borderColor = BLACK_COLOR,
                 // hoverBgColor = THEME_COLOR_5,
             }, &showSettings)
 
@@ -252,7 +253,32 @@ renderFolderExplorer :: proc() {
 
     topOffset: i32 = 25 // TODO: make it configurable
     explorerWidth: i32 = 200 // TODO: make it configurable
-    bgRect: Rect = {
+
+
+    // explorer header
+    explorerButtonsWidth: i32 = 50 
+    explorerHeaderHeight: i32 = 25
+    
+    headerPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - topOffset - explorerHeaderHeight }
+    headerBgRect := toRect(headerPosition, { explorerWidth, explorerHeaderHeight })
+
+    // header background
+    putEmptyUiElement(&windowData.uiContext, headerBgRect)
+    renderRect(headerBgRect, windowData.uiContext.zIndex, GRAY_COLOR)
+    advanceUiZIndex(&windowData.uiContext)
+
+    // explorer root folder name
+    setClipRect(toRect(headerPosition, { explorerWidth - explorerButtonsWidth, explorerHeaderHeight }))
+    renderLine(filepath.base(windowData.explorer.rootPath), &windowData.font, headerPosition, WHITE_COLOR, windowData.uiContext.zIndex, explorerHeaderHeight)
+    advanceUiZIndex(&windowData.uiContext)
+    resetClipRect()
+
+    topOffset += explorerHeaderHeight
+
+    @(static)
+    topItemIndex: i32 = 0
+    
+    bgRect := Rect{
         top = windowData.size.y / 2 - topOffset,
         bottom = -windowData.size.y / 2,
         left = -windowData.size.x / 2,
@@ -262,6 +288,40 @@ renderFolderExplorer :: proc() {
 
     itemVerticalPadding :: 4
     itemHeight := i32(windowData.font.lineHeight) + itemVerticalPadding 
+
+    maxItemsOnScreen := bgRectSize.y / itemHeight
+
+    // explorer action buttons
+    // collapse button
+    activeTab := getActiveTab()
+    if .SUBMIT in renderButton(&windowData.uiContext, UiImageButton{
+        position = { headerPosition.x + explorerWidth - explorerButtonsWidth, headerPosition.y },
+        size = { explorerHeaderHeight, explorerHeaderHeight },
+        texture = .COLLAPSE_FILES_ICON,
+        texturePadding = 4,
+        hoverBgColor = getDarkerColor(GRAY_COLOR),
+    }) {
+        collapseExplorer(windowData.explorer)
+    }
+
+    // jump to current file button
+    if .SUBMIT in renderButton(&windowData.uiContext, UiImageButton{
+        position = { headerPosition.x + explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
+        size = { explorerHeaderHeight, explorerHeaderHeight },
+        texture = .JUMP_TO_CURRENT_FILE_ICON,
+        texturePadding = 4,
+        hoverBgColor = getDarkerColor(GRAY_COLOR),
+    }) {
+        expandExplorerToFile(windowData.explorer, activeTab.filePath)
+        itemIndex := getIndexInFlatenItemsByFilePath(activeTab.filePath, &windowData.explorer.items)
+
+        if itemIndex < topItemIndex {
+            topItemIndex = itemIndex
+        } else if itemIndex >= topItemIndex + maxItemsOnScreen {
+            topItemIndex = itemIndex - maxItemsOnScreen + 1
+        }
+
+    }
 
     renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
     advanceUiZIndex(&windowData.uiContext)
@@ -278,12 +338,13 @@ renderFolderExplorer :: proc() {
     defer delete(openedItems)
     openedItemsCount := i32(len(openedItems))
 
-    maxItemOnScreen := bgRectSize.y / itemHeight
-
     @(static)
-    topItemIndex: i32 = 0
+    itemsLeftOffset: i32 = 0
 
-    lastItemIndex := min(openedItemsCount, maxItemOnScreen + topItemIndex)
+    topItemIndex = min(topItemIndex, openedItemsCount - maxItemsOnScreen)
+    topItemIndex = max(topItemIndex, 0)
+    lastItemIndex := min(openedItemsCount, maxItemsOnScreen + topItemIndex)
+    maxWidthItem: i32 = 0
 
     for itemIndex in topItemIndex..<lastItemIndex {
         item := openedItems[itemIndex]
@@ -296,6 +357,11 @@ renderFolderExplorer :: proc() {
         }
 
         itemActions := putEmptyUiElement(&windowData.uiContext, itemRect, customId = itemIndex)
+
+        if item.fullPath == activeTab.filePath {
+            renderRect(itemRect, windowData.uiContext.zIndex, getDarkerColor(GRAY_COLOR))
+            advanceUiZIndex(&windowData.uiContext)
+        }
 
         if .HOT in itemActions {
             renderRect(itemRect, windowData.uiContext.zIndex, THEME_COLOR_1)
@@ -325,8 +391,11 @@ renderFolderExplorer :: proc() {
         } else {
             icon = getIconByFilePath(item.fullPath)
         }
+
+        leftOffset: i32 = itemsLeftOffset + item.level * 20
+        itemWidth := iconSize + 5 + i32(getTextWidth(item.name, &windowData.font))
+        if itemWidth > maxWidthItem { maxWidthItem = itemWidth } 
         
-        leftOffset: i32 = item.level * 20
         renderImageRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
         renderLine(item.name, &windowData.font, { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
         resetClipRect()
@@ -334,24 +403,48 @@ renderFolderExplorer :: proc() {
     }
     advanceUiZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
-    scrollSize: i32 = min(i32(f32(bgRectSize.y) * f32(maxItemOnScreen) / f32(openedItemsCount)), bgRectSize.y)
+    verticalScrollSize: i32 = min(i32(f32(bgRectSize.y) * f32(maxItemsOnScreen) / f32(openedItemsCount)), bgRectSize.y)
+    horizontalScrollSize: i32 = min(i32(f32(bgRectSize.x) * f32(bgRectSize.x) / f32(maxWidthItem)), bgRectSize.x)
+    
     @(static)
-    scrollOffset: i32 = 0
-    endScroll(&windowData.uiContext, UiScroll{
+    scrollVerticalOffset: i32 = 0
+
+    @(static)
+    scrollHorizontalOffset: i32 = 0
+    verticalScrollActions, _ := endScroll(&windowData.uiContext, UiScroll{
         bgRect = Rect{
             top = bgRect.top,
             bottom = bgRect.bottom,
             right = bgRect.right,
             left = bgRect.right - 15,
         },
-        offset = &scrollOffset,
-        size = scrollSize,
-        color = DARKER_GRAY_COLOR,
-        hoverColor = DARK_GRAY_COLOR,
+        offset = &scrollVerticalOffset,
+        size = verticalScrollSize,
+        color = setColorAlpha(DARKER_GRAY_COLOR, 0.6),
+        hoverColor = setColorAlpha(DARK_GRAY_COLOR, 0.9),
+    }, UiScroll{
+        bgRect = Rect{
+            top = bgRect.bottom + 15,
+            bottom = bgRect.bottom,
+            right = bgRect.right,
+            left = bgRect.left,
+        },
+        offset = &scrollHorizontalOffset,
+        size = horizontalScrollSize,
+        color = setColorAlpha(DARKER_GRAY_COLOR, 0.6),
+        hoverColor = setColorAlpha(DARK_GRAY_COLOR, 0.9),
     })
 
-    if openedItemsCount > maxItemOnScreen {
-        topItemIndex = i32(f32(openedItemsCount - maxItemOnScreen) * f32(scrollOffset) / f32(bgRectSize.y - scrollSize))
+    if openedItemsCount > maxItemsOnScreen { // has vertical scrollbar
+        if .MOUSE_WHEEL_SCROLL in verticalScrollActions || .ACTIVE in verticalScrollActions {
+            topItemIndex = i32(f32(openedItemsCount - maxItemsOnScreen) * f32(scrollVerticalOffset) / f32(bgRectSize.y - verticalScrollSize))
+        } else {
+            scrollVerticalOffset = i32(f32(topItemIndex) * f32(bgRectSize.y - verticalScrollSize) / f32(openedItemsCount - maxItemsOnScreen))
+        }
+    }
+
+    if maxWidthItem > bgRectSize.x { // has horizontal scrollbar
+        itemsLeftOffset = -i32(f32(maxWidthItem - bgRectSize.x) * f32(scrollHorizontalOffset) / f32(bgRectSize.x - horizontalScrollSize))
     }
 }
 

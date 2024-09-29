@@ -1,6 +1,8 @@
 package main
 
 import "core:os"
+import "core:strings"
+import "core:path/filepath"
 
 Explorer :: struct {
     rootPath: string,
@@ -88,6 +90,72 @@ getOpenedItemsFlaten :: proc(itemsToIterate: ^[dynamic]ExplorerItem, flatenItems
             getOpenedItemsFlaten(&item.child, flatenItems)
         }
     }
+}
+
+collapseExplorer :: proc(explorer: ^Explorer) {
+    for &item in explorer.items {
+        if item.isDir {
+            removeExplorerSubItems(&item)
+            item.isOpen = false
+        }
+    }
+}
+
+expandExplorerToFile :: proc(explorer: ^Explorer, filePath: string) -> bool {
+    fullElements := strings.split(filePath, "\\")
+    defer delete(fullElements)
+
+    isFileInExplorer := false
+    rootFolderName := filepath.base(explorer.rootPath)
+    elements: []string
+    for item, index in fullElements {
+        if rootFolderName == item {
+            isFileInExplorer = true
+            elements = fullElements[index + 1:len(fullElements) - 1]
+            break
+        }
+    }
+
+    if !isFileInExplorer { return false }
+
+    if len(elements) == 0 { return false } // when the file is in root folder
+
+    itemsToExpand := &explorer.items
+    for item in elements {
+        found := false
+        for &explorerItem in itemsToExpand { // TODO: it's better to optimize it
+            if item == explorerItem.name {
+                found = true
+                if !explorerItem.isOpen {
+                    populateExplorerSubItems(explorerItem.fullPath, &explorerItem.child, explorerItem.level + 1)
+                    explorerItem.isOpen = true
+                }
+                
+                itemsToExpand = &explorerItem.child
+
+                break
+            }
+        }
+
+        if !found { return false }
+    }
+
+    return true
+}
+
+getIndexInFlatenItemsByFilePath :: proc(filePath: string, items: ^[dynamic]ExplorerItem) -> i32 {
+    openedItems := make([dynamic]^ExplorerItem)
+    defer delete(openedItems)
+
+    getOpenedItemsFlaten(items, &openedItems)
+
+    for item, index in openedItems {
+        if item.fullPath == filePath {
+            return i32(index)
+        }
+    }
+
+    return -1
 }
 
 closeExplorer :: proc() {
