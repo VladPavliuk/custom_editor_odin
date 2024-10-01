@@ -32,7 +32,10 @@ main :: proc() {
         edit.update_time(&windowData.editableTextCtx.editorState)
         render()
 
+        // checkTabFilesExistance(windowData.fileTabs[:])
         // startTimer()
+        checkTabFileExistance(getActiveTab())
+        
         if windowData.sinceExplorerSync > windowData.explorerSyncInterval {
             validateExplorerItems(&windowData.explorer)
             windowData.sinceExplorerSync = 0.0

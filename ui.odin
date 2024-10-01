@@ -217,7 +217,7 @@ renderTopMenu :: proc() {
                     directXState.textures[.FONT], windowData.font = loadFont(fontPath)
                 } else {
                     pushAlert(&windowData.uiContext, UiAlert{
-                        text = "Specified file does not exist!",
+                        text = strings.clone("Specified file does not exist!"),
                         bgColor = RED_COLOR,
                     })
                 }
@@ -253,7 +253,6 @@ renderFolderExplorer :: proc() {
 
     topOffset: i32 = 25 // TODO: make it configurable
     explorerWidth: i32 = 200 // TODO: make it configurable
-
 
     // explorer header
     explorerButtonsWidth: i32 = 50 
@@ -312,15 +311,15 @@ renderFolderExplorer :: proc() {
         texturePadding = 4,
         hoverBgColor = getDarkerColor(GRAY_COLOR),
     }) {
-        expandExplorerToFile(windowData.explorer, activeTab.filePath)
-        itemIndex := getIndexInFlatenItemsByFilePath(activeTab.filePath, &windowData.explorer.items)
+        if expandExplorerToFile(windowData.explorer, activeTab.filePath) {
+            itemIndex := getIndexInFlatenItemsByFilePath(activeTab.filePath, &windowData.explorer.items)
 
-        if itemIndex < topItemIndex {
-            topItemIndex = itemIndex
-        } else if itemIndex >= topItemIndex + maxItemsOnScreen {
-            topItemIndex = itemIndex - maxItemsOnScreen + 1
+            if itemIndex < topItemIndex {
+                topItemIndex = itemIndex
+            } else if itemIndex >= topItemIndex + maxItemsOnScreen {
+                topItemIndex = itemIndex - maxItemsOnScreen + 1
+            }
         }
-
     }
 
     renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)

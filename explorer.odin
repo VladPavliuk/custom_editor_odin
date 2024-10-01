@@ -133,6 +133,8 @@ collapseExplorer :: proc(explorer: ^Explorer) {
 }
 
 expandExplorerToFile :: proc(explorer: ^Explorer, filePath: string) -> bool {
+    if len(filePath) == 0 { return false }
+
     fullElements := strings.split(filePath, "\\")
     defer delete(fullElements)
 

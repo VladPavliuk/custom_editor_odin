@@ -43,3 +43,28 @@ WIN32_CF_TEXT :: 1
 WIN32_CF_UNICODETEXT :: 13
 
 IDI_ICON :: 101 // copied from resources/resource.rc file
+
+WinConfirmMessageAction :: enum {
+    CLOSE_WINDOW,
+    CANCEL,
+    YES,
+    NO,
+}
+
+showWinConfirmMessage :: proc(title, message: string) -> WinConfirmMessageAction {
+    result := win32.MessageBoxW(
+        windowData.parentHwnd,
+        win32.utf8_to_wstring(message),
+        win32.utf8_to_wstring(title),
+        win32.MB_YESNOCANCEL | win32.MB_ICONWARNING,
+    )
+
+    switch result {
+    case win32.IDYES: return .YES
+    case win32.IDNO: return .NO
+    case win32.IDCANCEL: return .CANCEL
+    case win32.IDCLOSE: return .CLOSE_WINDOW
+    }
+
+    return .CLOSE_WINDOW
+}

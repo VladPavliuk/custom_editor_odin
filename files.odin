@@ -64,16 +64,17 @@ showOpenFileDialog :: proc(showOnlyFolders := false) -> (res: string, success: b
     return resStr, err == nil
 }
 
-loadFileIntoNewTab :: proc(filePath: string) {
-    fileContent := os.read_entire_file_from_filename(filePath) or_else panic("Failed to read file")
+loadTextFile :: proc(filePath: string) -> string {
+    fileContent := os.read_entire_file_from_filename(filePath, context.temp_allocator) or_else panic("Failed to read file")
     originalFileText := string(fileContent[:])
 
-    fileText, wasNewAllocation := strings.remove_all(originalFileText, "\r")
-    defer delete(fileText)
+    fileText, _ := strings.remove_all(originalFileText, "\r", context.temp_allocator)
     
-    if wasNewAllocation {
-        delete(fileContent)
-    }
+    return fileText
+}
+
+loadFileIntoNewTab :: proc(filePath: string) {
+    fileText := loadTextFile(filePath)
 
     // find if any tab is already associated with opened file
     tabIndex: i32 = -1
@@ -107,6 +108,40 @@ loadFileFromExplorerIntoNewTab :: proc() {
     if !ok { return }
 
     loadFileIntoNewTab(filePath)
+}
+
+wasFileModifiedOutside :: proc(tab: ^FileTab) {
+    // add validation
+    switch showWinConfirmMessage("Edi the editor", "File was modified outside the editor, override the existing?") {
+    case .YES:
+        newText := loadTextFile(tab.filePath)
+
+        freeTextContext(tab.ctx)
+        tab.ctx = createEmptyTextContext()
+
+        strings.write_string(&tab.ctx.text, newText)
+        switchInputContextToEditor()
+    case .NO, .CANCEL, .CLOSE_WINDOW:
+        tab.isSaved = false
+        delete(tab.filePath)
+        tab.filePath = ""        
+    }
+}
+
+checkTabFileExistance :: proc(tab: ^FileTab) {
+    if len(tab.filePath) > 0 && !os.exists(tab.filePath) {
+        // if file does not exist anymore, just mark tab as unsafed and remove old file association
+
+        pushAlert(&windowData.uiContext, UiAlert{
+            text = strings.clone(fmt.tprintfln("%q was removed!", tab.name)),
+            timeout = 5.0,
+            bgColor = RED_COLOR,
+        })
+
+        tab.isSaved = false
+        delete(tab.filePath)
+        tab.filePath = ""
+    }
 }
 
 saveToOpenedFile :: proc(tab: ^FileTab) -> (success: bool) {
@@ -190,8 +225,10 @@ showSaveAsFileDialog :: proc(tab: ^FileTab) -> (success: bool) {
 
     filePath, _ := win32.wstring_to_utf8(filePathW, -1)
 
-    tab.filePath = filePath
-    tab.name = filepath.base(filePath)
+    delete(tab.name)
+    delete(tab.filePath)
+    tab.filePath = strings.clone(filePath)
+    tab.name = strings.clone(filepath.base(tab.filePath))
 
     return true
 }
@@ -207,6 +244,7 @@ SavedFileTab :: struct {
 
 EditorState :: struct {
     fileTabs: [dynamic]SavedFileTab,
+    activeTabIndex: i32,
     openedFolder: string,
 }
 
@@ -217,6 +255,8 @@ saveEditorState :: proc() {
     if windowData.explorer != nil {
         state.openedFolder = windowData.explorer.rootPath
     }
+
+    state.activeTabIndex = windowData.activeFileTab
 
     // TODO: save only text copies of files that are relativelly small (less then 2k symbols)
     for tab in windowData.fileTabs {
@@ -271,6 +311,8 @@ applyEditorState :: proc() -> bool {
     if len(state.openedFolder) > 0 {
         showExplorer(strings.clone(state.openedFolder))
     }
+
+    windowData.activeFileTab = state.activeTabIndex
 
     return true
 }

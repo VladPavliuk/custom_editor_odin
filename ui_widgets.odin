@@ -438,7 +438,7 @@ UiAlert :: struct {
     text: string,
     timeout: f64,
     color, bgColor, hoverColor: float4,
-    originalTimeout: f64, // don't specify it!
+    originalTimeout: f64, // internal, don't specify it!
 }
 
 pushAlert :: proc(ctx: ^UiContext, alert: UiAlert, customId: i32 = 0, loc := #caller_location) {
@@ -453,6 +453,7 @@ pushAlert :: proc(ctx: ^UiContext, alert: UiAlert, customId: i32 = 0, loc := #ca
 
 clearAlert :: proc(ctx: ^UiContext) {
     if ctx.activeAlert != nil {
+        delete(ctx.activeAlert.text)
         free(ctx.activeAlert)
         ctx.activeAlert = nil
     }

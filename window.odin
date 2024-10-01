@@ -231,19 +231,11 @@ tryCloseFileTab :: proc(index: i32) {
 
     // if there's any unsaved changes, show confirmation box
     if !tab.isSaved {
-        result := win32.MessageBoxW(
-            windowData.parentHwnd,
-            win32.utf8_to_wstring("Do you want to save the changes?"),
-            win32.utf8_to_wstring("Edi the editor"),
-            win32.MB_YESNOCANCEL | win32.MB_ICONWARNING,
-        )
-
-        switch result {
-        case win32.IDYES:
-            saveToOpenedFile(tab)
-        case win32.IDNO:
-        case win32.IDCANCEL, win32.IDCLOSE:
-            return
+        switch showWinConfirmMessage("Edi the editor", "Do you want to save the changes?") {
+            case .YES: saveToOpenedFile(tab)
+            case .NO:
+            case .CANCEL, .CLOSE_WINDOW:
+                return    
         }
     }
 
