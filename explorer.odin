@@ -32,11 +32,12 @@ showExplorer :: proc(root: string) {
     recalculateFileTabsContextRects()
 }
 
+@(private="file")
 initExplorer :: proc(root: string) -> ^Explorer {
     explorer := new(Explorer)
 
     explorer.rootPath = root
-    populateExplorerSubItems(root, &explorer.items)
+    populateExplorerSubItems(explorer.rootPath, &explorer.items)
 
     return explorer
 }
@@ -56,8 +57,8 @@ populateExplorerSubItems :: proc(root: string, explorerItems: ^[dynamic]Explorer
         if !item.is_dir { continue }
 
         subItem := ExplorerItem{
-            name = item.name,
-            fullPath = item.fullpath,
+            name = strings.clone(item.name),
+            fullPath = strings.clone(item.fullpath),
             isDir = true,
             level = level,
         }
@@ -72,14 +73,18 @@ populateExplorerSubItems :: proc(root: string, explorerItems: ^[dynamic]Explorer
         if item.is_dir { continue }
 
         subItem := ExplorerItem{
-            name = item.name,
-            fullPath = item.fullpath,
+            name = strings.clone(item.name),
+            fullPath = strings.clone(item.fullpath),
             isDir = false,
             level = level,
         }
         
         append(explorerItems, subItem)
     }
+}
+
+validateExplorerItems :: proc(explorer: ^Explorer) {
+
 }
 
 getOpenedItemsFlaten :: proc(itemsToIterate: ^[dynamic]ExplorerItem, flatenItems: ^[dynamic]^ExplorerItem) {
@@ -172,18 +177,21 @@ clearExplorer :: proc(explorer: ^Explorer) {
     for &item in explorer.items {
         removeExplorerSubItems(&item, false)
     }
+    delete(explorer.rootPath)
     delete(explorer.items)
     free(explorer)
 }
 
 removeExplorerSubItems :: proc(item: ^ExplorerItem, keepRootChildArray := true) {
     for &subItem in item.child {
-        if subItem.isDir{
+        // if subItem.isDir{
             removeExplorerSubItems(&subItem, false)
-        }
+        // }
     }
 
     if !keepRootChildArray {
+        delete(item.name)
+        delete(item.fullPath)
         delete(item.child)
     } else {
         clear(&item.child)

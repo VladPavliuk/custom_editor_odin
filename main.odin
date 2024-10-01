@@ -3,8 +3,17 @@ package main
 import win32 "core:sys/windows"
 import "core:text/edit"
 import "core:time"
+import "core:mem"
+import "base:runtime"
 
 main :: proc() {
+    // for Debug only!
+    tracker: mem.Tracking_Allocator
+    mem.tracking_allocator_init(&tracker, context.allocator)
+    defer mem.tracking_allocator_destroy(&tracker)
+    context.allocator = mem.tracking_allocator(&tracker)
+    default_context = context
+
     createWindow({ 800, 800 })
 
     initDirectX()
@@ -29,8 +38,18 @@ main :: proc() {
         inputState.scrollDelta = 0
 
         windowData.delta = time.duration_seconds(time.tick_diff(beforeFrame, time.tick_now()))
+
+        free_all(context.temp_allocator)
     }
 
+    free_all(context.temp_allocator)
     removeWindowData()
     clearDirectX()
+
+    for _, leak in tracker.allocation_map {
+		fmt.printf("%v leaked %m\n", leak.location, leak.size)
+	}
+	for bad_free in tracker.bad_free_array {
+		fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
+	}
 }

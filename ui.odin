@@ -104,7 +104,7 @@ renderTopMenu :: proc() {
             case 0: addEmptyTab()
             case 1:
                 folderPath, ok := showOpenFileDialog(true)
-                if ok { showExplorer(folderPath) }
+                if ok { showExplorer(strings.clone(folderPath)) }
             case 2: loadFileFromExplorerIntoNewTab()
             case 3: saveToOpenedFile(getActiveTab())            
             case 4: showSaveAsFileDialog(getActiveTab())

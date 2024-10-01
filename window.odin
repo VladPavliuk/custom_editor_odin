@@ -2,6 +2,7 @@ package main
 
 import "core:strings"
 import "core:text/edit"
+import "core:mem"
 
 import win32 "core:sys/windows"
 
@@ -196,7 +197,7 @@ getActiveTabContext :: proc() -> ^EditableTextContext {
 addEmptyTab :: proc() {
     initFileCtx := createEmptyTextContext()
     tab := FileTab{
-        name = "(empty)",
+        name = strings.clone("(empty)"),
         ctx = initFileCtx,
         isSaved = true,
     }
@@ -240,6 +241,9 @@ tryCloseFileTab :: proc(index: i32) {
     }
 
     freeTextContext(tab.ctx)
+    delete(tab.name)
+    delete(tab.filePath)
+    
     ordered_remove(&windowData.fileTabs, index)
     windowData.activeFileTab = index == 0 ? index : index - 1
 
@@ -286,8 +290,8 @@ removeWindowData :: proc() {
     delete(windowData.font.chars)
 
     for tab in windowData.fileTabs {
-        //delete(tab.filePath)
-        // delete(tab.name)
+        delete(tab.filePath)
+        delete(tab.name)
         freeTextContext(tab.ctx)
     }
     delete(windowData.fileTabs)
