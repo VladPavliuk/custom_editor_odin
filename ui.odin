@@ -337,6 +337,7 @@ renderFolderExplorer :: proc() {
     getOpenedItemsFlaten(&windowData.explorer.items, &openedItems)
     defer delete(openedItems)
     openedItemsCount := i32(len(openedItems))
+    // fmt.println(openedItemsCount)
 
     @(static)
     itemsLeftOffset: i32 = 0

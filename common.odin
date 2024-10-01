@@ -1,5 +1,7 @@
 package main
 
+import "core:time"
+
 // just to simplify debuging
 import fmt "core:fmt"
 fmt :: fmt
@@ -65,4 +67,22 @@ shrinkRect :: proc(using rect: Rect, amount: i32) -> Rect {
 isInRect :: proc(rect: Rect, point: int2) -> bool {
 	return point.x >= rect.left && point.x < rect.right && 
         point.y >= rect.bottom && point.y < rect.top
+}
+
+debugTimer: time.Stopwatch
+timeElapsedTotal: f64 = 0.0
+timeElapsedCount: i32 = 0
+
+startTimer :: proc() {
+    time.stopwatch_start(&debugTimer)
+}
+
+stopTimer :: proc() {
+    time.stopwatch_stop(&debugTimer)
+    
+    elapsed := time.duration_microseconds(debugTimer._accumulation)
+    timeElapsedTotal += elapsed
+    timeElapsedCount += 1
+    fmt.printfln("duration, avg: %f ms, %f ms", elapsed, timeElapsedTotal / f64(timeElapsedCount))
+    time.stopwatch_reset(&debugTimer)
 }

@@ -83,8 +83,34 @@ populateExplorerSubItems :: proc(root: string, explorerItems: ^[dynamic]Explorer
     }
 }
 
-validateExplorerItems :: proc(explorer: ^Explorer) {
+validateExplorerItems :: proc(explorer: ^^Explorer) {
+    originalExplorer := explorer^
 
+    if originalExplorer == nil { return }
+
+    updatedExplorer := initExplorer(strings.clone(originalExplorer.rootPath))
+
+    originalExplorerItems := make([dynamic]^ExplorerItem)
+    defer delete(originalExplorerItems)
+    getOpenedItemsFlaten(&originalExplorer.items, &originalExplorerItems)
+
+    expandOpenedFolders :: proc(itemsToExpand: [dynamic]ExplorerItem, originalItems: [dynamic]^ExplorerItem) {
+        for &item in itemsToExpand {
+            for originalItem in originalItems {
+                if item.isDir && item.fullPath == originalItem.fullPath && originalItem.isOpen {
+                    item.isOpen = true
+                    populateExplorerSubItems(item.fullPath, &item.child, originalItem.level + 1)
+                    expandOpenedFolders(item.child, originalItems)
+                    break
+                }
+            }
+        }
+    }
+
+    expandOpenedFolders(updatedExplorer.items, originalExplorerItems)
+
+    clearExplorer((explorer^))
+    explorer^ = updatedExplorer
 }
 
 getOpenedItemsFlaten :: proc(itemsToIterate: ^[dynamic]ExplorerItem, flatenItems: ^[dynamic]^ExplorerItem) {

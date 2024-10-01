@@ -32,6 +32,14 @@ main :: proc() {
         edit.update_time(&windowData.editableTextCtx.editorState)
         render()
 
+        // startTimer()
+        if windowData.sinceExplorerSync > windowData.explorerSyncInterval {
+            validateExplorerItems(&windowData.explorer)
+            windowData.sinceExplorerSync = 0.0
+        }
+        windowData.sinceExplorerSync += windowData.delta
+        // stopTimer()
+
         inputState.wasLeftMouseButtonDown = false
         inputState.wasLeftMouseButtonUp = false
         inputState.deltaMousePosition = { 0, 0 }

@@ -91,8 +91,13 @@ WindowData :: struct {
 
     explorer: ^Explorer,
 
-    //> settings
+    //> customizable settings
     wordWrapping: bool,
+    //<
+
+    //> static settings
+    explorerSyncInterval: f64, // time interval to validte files in explorer
+    sinceExplorerSync: f64,
     //<
 }
 
@@ -173,6 +178,8 @@ createWindow :: proc(size: int2) {
 
     //> default settings
     windowData.wordWrapping = false
+
+    windowData.explorerSyncInterval = 0.3
     //<
 
     // set default editable context
