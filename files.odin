@@ -73,77 +73,6 @@ loadTextFile :: proc(filePath: string) -> string {
     return fileText
 }
 
-loadFileIntoNewTab :: proc(filePath: string) {
-    fileText := loadTextFile(filePath)
-
-    // find if any tab is already associated with opened file
-    tabIndex: i32 = -1
-    for tab, index in windowData.fileTabs {
-        if tab.filePath == filePath {
-            tabIndex = i32(index)
-            break
-        }
-    }
-
-    if tabIndex != -1 {
-        windowData.activeFileTab = tabIndex
-        switchInputContextToEditor()
-        return
-    }
-
-    addEmptyTab()
-
-    activeTab := getActiveTab()
-
-    strings.write_string(&activeTab.ctx.text, fileText)
-
-    delete(activeTab.name) // remove default tab name
-    activeTab.name = strings.clone(filepath.base(filePath))
-    activeTab.filePath = strings.clone(filePath)
-    activeTab.isSaved = true
-}
-
-loadFileFromExplorerIntoNewTab :: proc() {
-    filePath, ok := showOpenFileDialog()
-    if !ok { return }
-
-    loadFileIntoNewTab(filePath)
-}
-
-wasFileModifiedOutside :: proc(tab: ^FileTab) {
-    // add validation
-    switch showWinConfirmMessage("Edi the editor", "File was modified outside the editor, override the existing?") {
-    case .YES:
-        newText := loadTextFile(tab.filePath)
-
-        freeTextContext(tab.ctx)
-        tab.ctx = createEmptyTextContext()
-
-        strings.write_string(&tab.ctx.text, newText)
-        switchInputContextToEditor()
-    case .NO, .CANCEL, .CLOSE_WINDOW:
-        tab.isSaved = false
-        delete(tab.filePath)
-        tab.filePath = ""        
-    }
-}
-
-checkTabFileExistance :: proc(tab: ^FileTab) {
-    if len(tab.filePath) > 0 && !os.exists(tab.filePath) {
-        // if file does not exist anymore, just mark tab as unsafed and remove old file association
-
-        pushAlert(&windowData.uiContext, UiAlert{
-            text = strings.clone(fmt.tprintfln("%q was removed!", tab.name)),
-            timeout = 5.0,
-            bgColor = RED_COLOR,
-        })
-
-        tab.isSaved = false
-        delete(tab.filePath)
-        tab.filePath = ""
-    }
-}
-
 saveToOpenedFile :: proc(tab: ^FileTab) -> (success: bool) {
     if len(tab.filePath) == 0 {
         showSaveAsFileDialog(tab)
@@ -293,8 +222,7 @@ applyEditorState :: proc() -> bool {
     assert(unmarshalErr == nil)
 
     for tab in state.fileTabs {
-        ctx := createEmptyTextContext()
-        strings.write_string(&ctx.text, tab.text)
+        ctx := createEmptyTextContext(tab.text)
         ctx.editorState.selection = tab.textSelection
         ctx.lineIndex = tab.lineIndex
         

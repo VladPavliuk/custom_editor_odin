@@ -2,33 +2,8 @@ package main
 
 import "core:strings"
 import "core:text/edit"
-import "core:mem"
 
 import win32 "core:sys/windows"
-
-UiContext :: struct {
-    zIndex: f32,
-
-    hotId: uiId,
-    prevHotId: uiId,
-    hotIdChanged: bool,
-    tmpHotId: uiId,
-
-    activeId: uiId,
-    
-    prevFocusedId: uiId,
-    focusedId: uiId,
-    focusedIdChanged: bool,
-    tmpFocusedId: uiId,
-
-    textInputCtx: EditableTextContext,
-
-    scrollableElements: [dynamic]map[uiId]struct{},
-    
-    parentPositionsStack: [dynamic]int2,
-
-    activeAlert: ^UiAlert,
-}
 
 InputState :: struct {
     deltaMousePosition: int2,
@@ -90,6 +65,7 @@ WindowData :: struct {
     activeFileTab: i32,
 
     explorer: ^Explorer,
+    explorerWidth: i32,
 
     //> customizable settings
     wordWrapping: bool,
@@ -103,6 +79,10 @@ WindowData :: struct {
 
 windowData: WindowData
 
+defaultCursor: win32.HCURSOR
+horizontalSizeCursor: win32.HCURSOR
+verticalSizeCursor: win32.HCURSOR
+
 createWindow :: proc(size: int2) {
     hInstance := win32.HINSTANCE(win32.GetModuleHandleA(nil))
     
@@ -111,16 +91,19 @@ createWindow :: proc(size: int2) {
     resourceIcon := win32.LoadImageW(hInstance, win32.MAKEINTRESOURCEW(IDI_ICON), 
         win32.IMAGE_ICON, 256, 256, win32.LR_DEFAULTCOLOR)
 
+    defaultCursor = win32.LoadCursorA(nil, win32.IDC_ARROW)
+    horizontalSizeCursor = win32.LoadCursorA(nil, win32.IDC_SIZEWE)
+    verticalSizeCursor = win32.LoadCursorA(nil, win32.IDC_SIZENS)
+    
     wndClass: win32.WNDCLASSEXW = {
         cbSize = size_of(win32.WNDCLASSEXW),
         hInstance = hInstance,
         lpszClassName = wndClassName,
         lpfnWndProc = winProc,
         style = win32.CS_DBLCLKS,
-        hCursor = win32.LoadCursorA(nil, win32.IDC_ARROW),
+        hCursor = defaultCursor,
         hIcon = (win32.HICON)(resourceIcon),
     }
-
     res := win32.RegisterClassExW(&wndClass)
    
     assert(res != 0, fmt.tprintfln("Error: %i", win32.GetLastError()))
@@ -177,6 +160,7 @@ createWindow :: proc(size: int2) {
     windowData.maxZIndex = 100.0
 
     //> default settings
+    windowData.explorerWidth = 200
     windowData.wordWrapping = false
 
     windowData.explorerSyncInterval = 0.3
@@ -185,100 +169,20 @@ createWindow :: proc(size: int2) {
     // set default editable context
     switchInputContextToEditor()
 
+    windowData.uiContext.setCursor = proc(cursor: CursorType) {
+        switch cursor {
+        case .DEFAULT: win32.SetCursor(defaultCursor)
+        case .HORIZONTAL_SIZE: win32.SetCursor(horizontalSizeCursor)
+        case .VERTICAL_SIZE: win32.SetCursor(verticalSizeCursor)
+        }
+    }
+
     // TODO: testing
     windowData.uiContext.textInputCtx.text = strings.builder_make()
     strings.write_string(&windowData.uiContext.textInputCtx.text, "HYI")
     //<
 
     windowData.windowCreated = true
-}
-
-getActiveTab :: proc() -> ^FileTab {
-    return &windowData.fileTabs[windowData.activeFileTab]
-}
-
-getActiveTabContext :: proc() -> ^EditableTextContext {
-    return getActiveTab().ctx
-}
-
-addEmptyTab :: proc() {
-    initFileCtx := createEmptyTextContext()
-    tab := FileTab{
-        name = strings.clone("(empty)"),
-        ctx = initFileCtx,
-        isSaved = true,
-    }
-    append(&windowData.fileTabs, tab)
-
-    windowData.activeFileTab = i32(len(windowData.fileTabs) - 1) // switch to new tab
-
-    switchInputContextToEditor()
-}
-
-moveToNextTab :: proc() {
-    windowData.activeFileTab = (windowData.activeFileTab + 1) % i32(len(windowData.fileTabs))
-    switchInputContextToEditor()
-}
-
-moveToPrevTab :: proc() {
-    windowData.activeFileTab = windowData.activeFileTab == 0 ? i32(len(windowData.fileTabs) - 1) : windowData.activeFileTab - 1
-
-    switchInputContextToEditor()
-}
-
-tryCloseFileTab :: proc(index: i32) {
-    tab := &windowData.fileTabs[index]
-
-    // if there's any unsaved changes, show confirmation box
-    if !tab.isSaved {
-        switch showWinConfirmMessage("Edi the editor", "Do you want to save the changes?") {
-            case .YES: saveToOpenedFile(tab)
-            case .NO:
-            case .CANCEL, .CLOSE_WINDOW:
-                return    
-        }
-    }
-
-    freeTextContext(tab.ctx)
-    delete(tab.name)
-    delete(tab.filePath)
-    
-    ordered_remove(&windowData.fileTabs, index)
-    windowData.activeFileTab = index == 0 ? index : index - 1
-
-    if len(windowData.fileTabs) == 0 {
-        addEmptyTab()
-    }
-
-    switchInputContextToEditor()
-}
-
-createEmptyTextContext :: proc() -> ^EditableTextContext {
-    ctx := new(EditableTextContext)
-    ctx.text = strings.builder_make(0)
-    ctx.rect = Rect{
-        top = windowData.size.y / 2 - windowData.editorPadding.top,
-        bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
-        left = -windowData.size.x / 2 + windowData.editorPadding.left,
-        right = windowData.size.x / 2 - windowData.editorPadding.right,
-    }
-
-    edit.init(&ctx.editorState, context.allocator, context.allocator)
-    edit.setup_once(&ctx.editorState, &ctx.text)
-    ctx.editorState.selection = { 0, 0 }
-
-    ctx.editorState.set_clipboard = putTextIntoClipboard
-    ctx.editorState.get_clipboard = getTextFromClipboard
-    ctx.editorState.clipboard_user_data = &windowData.parentHwnd
-
-    return ctx
-}
-
-freeTextContext :: proc(ctx: ^EditableTextContext) {
-    delete(ctx.lines)
-    edit.destroy(&ctx.editorState)
-    strings.builder_destroy(&ctx.text)
-    free(ctx)
 }
 
 removeWindowData :: proc() {
@@ -338,10 +242,6 @@ switchInputContextToUiElement :: proc(rect: Rect, disableNewLines: bool) {
 
 switchInputContextToEditor :: proc() {
     windowData.editableTextCtx = getActiveTabContext() 
-}
-
-isActiveTabContext :: proc() -> bool {
-    return windowData.editableTextCtx == getActiveTab().ctx
 }
 
 tryCloseEditor :: proc() {

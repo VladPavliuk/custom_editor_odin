@@ -6,6 +6,7 @@ import "core:os"
 import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
+import win32 "core:sys/windows"
 
 uiId :: i64
 
@@ -22,6 +23,38 @@ UiAction :: enum u32 {
     MOUSE_ENTER,
     MOUSE_LEAVE,
     MOUSE_WHEEL_SCROLL,
+}
+
+CursorType :: enum {
+    DEFAULT,
+    VERTICAL_SIZE,
+    HORIZONTAL_SIZE,
+}
+
+UiContext :: struct {
+    zIndex: f32,
+
+    hotId: uiId,
+    prevHotId: uiId,
+    hotIdChanged: bool,
+    tmpHotId: uiId,
+
+    activeId: uiId,
+    
+    prevFocusedId: uiId,
+    focusedId: uiId,
+    focusedIdChanged: bool,
+    tmpFocusedId: uiId,
+
+    textInputCtx: EditableTextContext,
+
+    scrollableElements: [dynamic]map[uiId]struct{},
+    
+    parentPositionsStack: [dynamic]int2,
+
+    activeAlert: ^UiAlert,
+
+    setCursor: proc(CursorType),
 }
 
 getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Location) -> i64 {
@@ -252,14 +285,27 @@ renderFolderExplorer :: proc() {
     if windowData.explorer == nil { return }
 
     topOffset: i32 = 25 // TODO: make it configurable
-    explorerWidth: i32 = 200 // TODO: make it configurable
+    
+    // @(static)
+    // explorerWidth: i32 = 200 // TODO: make it configurable
+
+    bgRect := Rect{
+        top = windowData.size.y / 2 - topOffset,
+        bottom = -windowData.size.y / 2,
+        left = -windowData.size.x / 2,
+        right = -windowData.size.x / 2 + windowData.explorerWidth,
+    }
+    bgRectSize := getRectSize(bgRect)
+
+    renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
+    advanceUiZIndex(&windowData.uiContext)
 
     // explorer header
     explorerButtonsWidth: i32 = 50 
     explorerHeaderHeight: i32 = 25
     
     headerPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - topOffset - explorerHeaderHeight }
-    headerBgRect := toRect(headerPosition, { explorerWidth, explorerHeaderHeight })
+    headerBgRect := toRect(headerPosition, { windowData.explorerWidth, explorerHeaderHeight })
 
     // header background
     putEmptyUiElement(&windowData.uiContext, headerBgRect)
@@ -267,7 +313,7 @@ renderFolderExplorer :: proc() {
     advanceUiZIndex(&windowData.uiContext)
 
     // explorer root folder name
-    setClipRect(toRect(headerPosition, { explorerWidth - explorerButtonsWidth, explorerHeaderHeight }))
+    setClipRect(toRect(headerPosition, { windowData.explorerWidth - explorerButtonsWidth, explorerHeaderHeight }))
     renderLine(filepath.base(windowData.explorer.rootPath), &windowData.font, headerPosition, WHITE_COLOR, windowData.uiContext.zIndex, explorerHeaderHeight)
     advanceUiZIndex(&windowData.uiContext)
     resetClipRect()
@@ -277,24 +323,24 @@ renderFolderExplorer :: proc() {
     @(static)
     topItemIndex: i32 = 0
     
-    bgRect := Rect{
+    contentRect := Rect{
         top = windowData.size.y / 2 - topOffset,
         bottom = -windowData.size.y / 2,
         left = -windowData.size.x / 2,
-        right = -windowData.size.x / 2 + explorerWidth,
+        right = -windowData.size.x / 2 + windowData.explorerWidth,
     }
-    bgRectSize := getRectSize(bgRect)
+    contentRectSize := getRectSize(contentRect)
 
     itemVerticalPadding :: 4
     itemHeight := i32(windowData.font.lineHeight) + itemVerticalPadding 
 
-    maxItemsOnScreen := bgRectSize.y / itemHeight
+    maxItemsOnScreen := contentRectSize.y / itemHeight
 
     // explorer action buttons
     // collapse button
     activeTab := getActiveTab()
     if .SUBMIT in renderButton(&windowData.uiContext, UiImageButton{
-        position = { headerPosition.x + explorerWidth - explorerButtonsWidth, headerPosition.y },
+        position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
         texture = .COLLAPSE_FILES_ICON,
         texturePadding = 4,
@@ -305,7 +351,7 @@ renderFolderExplorer :: proc() {
 
     // jump to current file button
     if .SUBMIT in renderButton(&windowData.uiContext, UiImageButton{
-        position = { headerPosition.x + explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
+        position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
         texture = .JUMP_TO_CURRENT_FILE_ICON,
         texturePadding = 4,
@@ -321,9 +367,6 @@ renderFolderExplorer :: proc() {
             }
         }
     }
-
-    renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
-    advanceUiZIndex(&windowData.uiContext)
 
     position: int2 = {
         -windowData.size.x / 2,
@@ -353,7 +396,7 @@ renderFolderExplorer :: proc() {
             top = position.y + itemHeight, 
             bottom = position.y,
             left = position.x,
-            right = position.x + explorerWidth,
+            right = position.x + windowData.explorerWidth,
         }
 
         itemActions := putEmptyUiElement(&windowData.uiContext, itemRect, customId = itemIndex)
@@ -403,8 +446,8 @@ renderFolderExplorer :: proc() {
     }
     advanceUiZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
-    verticalScrollSize: i32 = min(i32(f32(bgRectSize.y) * f32(maxItemsOnScreen) / f32(openedItemsCount)), bgRectSize.y)
-    horizontalScrollSize: i32 = min(i32(f32(bgRectSize.x) * f32(bgRectSize.x) / f32(maxWidthItem)), bgRectSize.x)
+    verticalScrollSize: i32 = min(i32(f32(contentRectSize.y) * f32(maxItemsOnScreen) / f32(openedItemsCount)), contentRectSize.y)
+    horizontalScrollSize: i32 = min(i32(f32(contentRectSize.x) * f32(contentRectSize.x) / f32(maxWidthItem)), contentRectSize.x)
     
     @(static)
     scrollVerticalOffset: i32 = 0
@@ -413,10 +456,10 @@ renderFolderExplorer :: proc() {
     scrollHorizontalOffset: i32 = 0
     verticalScrollActions, _ := endScroll(&windowData.uiContext, UiScroll{
         bgRect = Rect{
-            top = bgRect.top,
-            bottom = bgRect.bottom,
-            right = bgRect.right,
-            left = bgRect.right - 15,
+            top = contentRect.top,
+            bottom = contentRect.bottom,
+            right = contentRect.right,
+            left = contentRect.right - 15,
         },
         offset = &scrollVerticalOffset,
         size = verticalScrollSize,
@@ -424,10 +467,10 @@ renderFolderExplorer :: proc() {
         hoverColor = setColorAlpha(DARK_GRAY_COLOR, 0.9),
     }, UiScroll{
         bgRect = Rect{
-            top = bgRect.bottom + 15,
-            bottom = bgRect.bottom,
-            right = bgRect.right,
-            left = bgRect.left,
+            top = contentRect.bottom + 15,
+            bottom = contentRect.bottom,
+            right = contentRect.right,
+            left = contentRect.left,
         },
         offset = &scrollHorizontalOffset,
         size = horizontalScrollSize,
@@ -437,21 +480,31 @@ renderFolderExplorer :: proc() {
 
     if openedItemsCount > maxItemsOnScreen { // has vertical scrollbar
         if .MOUSE_WHEEL_SCROLL in verticalScrollActions || .ACTIVE in verticalScrollActions {
-            topItemIndex = i32(f32(openedItemsCount - maxItemsOnScreen) * f32(scrollVerticalOffset) / f32(bgRectSize.y - verticalScrollSize))
+            topItemIndex = i32(f32(openedItemsCount - maxItemsOnScreen) * f32(scrollVerticalOffset) / f32(contentRectSize.y - verticalScrollSize))
         } else {
-            scrollVerticalOffset = i32(f32(topItemIndex) * f32(bgRectSize.y - verticalScrollSize) / f32(openedItemsCount - maxItemsOnScreen))
+            scrollVerticalOffset = i32(f32(topItemIndex) * f32(contentRectSize.y - verticalScrollSize) / f32(openedItemsCount - maxItemsOnScreen))
         }
     }
 
-    if maxWidthItem > bgRectSize.x { // has horizontal scrollbar
-        itemsLeftOffset = -i32(f32(maxWidthItem - bgRectSize.x) * f32(scrollHorizontalOffset) / f32(bgRectSize.x - horizontalScrollSize))
+    if maxWidthItem > contentRectSize.x { // has horizontal scrollbar
+        itemsLeftOffset = -i32(f32(maxWidthItem - contentRectSize.x) * f32(scrollHorizontalOffset) / f32(contentRectSize.x - horizontalScrollSize))
+    }
+
+    // NOTE: it won't work if some code above will show for example a popup
+    resizeDirection := putResizableRect(&windowData.uiContext, bgRect)
+
+    #partial switch resizeDirection {
+    case .RIGHT:
+        windowData.explorerWidth = inputState.mousePosition.x
+        windowData.editorPadding.left = windowData.explorerWidth + 50 // TODO: looks awful!!!
+        recalculateFileTabsContextRects()
     }
 }
 
 renderEditorFileTabs :: proc() {
     tabsHeight: i32 = 25
     topOffset: i32 = 25 // TODO: calcualte it
-    leftOffset: i32 = windowData.explorer == nil ? 0 : 200 // TODO: make it configurable
+    leftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
     
     renderRect(toRect({ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x - leftOffset, tabsHeight }), 
         windowData.uiContext.zIndex, GRAY_COLOR)
@@ -520,7 +573,7 @@ getIconByFilePath :: proc(filePath: string) -> TextureType {
     case ".js": return .JS_FILE_ICON
     }
 
-    return .TXT_FILE_ICON // dy default treat unknown types as txt files
+    return .TXT_FILE_ICON // by default treat unknown types as txt files
 }
 
 // TODO: move it from here

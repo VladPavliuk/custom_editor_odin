@@ -2,6 +2,7 @@ package main
 
 import "core:strings"
 import "core:unicode/utf8"
+import "core:text/edit"
 
 /*
     It seeems that for wrapping and non wrapping there should be 2 different algorithms
@@ -24,6 +25,39 @@ import "core:unicode/utf8"
     1. Pick any char by index
 
 */
+
+createEmptyTextContext :: proc(initText := "") -> ^EditableTextContext {
+    ctx := new(EditableTextContext)
+    ctx.text = strings.builder_make(0)
+    ctx.rect = Rect{
+        top = windowData.size.y / 2 - windowData.editorPadding.top,
+        bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
+        left = -windowData.size.x / 2 + windowData.editorPadding.left,
+        right = windowData.size.x / 2 - windowData.editorPadding.right,
+    }
+
+    edit.init(&ctx.editorState, context.allocator, context.allocator)
+    edit.setup_once(&ctx.editorState, &ctx.text)
+    ctx.editorState.selection = { 0, 0 }
+
+    ctx.editorState.set_clipboard = putTextIntoClipboard
+    ctx.editorState.get_clipboard = getTextFromClipboard
+    ctx.editorState.clipboard_user_data = &windowData.parentHwnd
+
+    if len(initText) > 0 {
+        strings.write_string(&ctx.text, initText)
+    }
+
+    return ctx
+}
+
+freeTextContext :: proc(ctx: ^EditableTextContext) {
+    delete(ctx.lines)
+    edit.destroy(&ctx.editorState)
+    strings.builder_destroy(&ctx.text)
+    free(ctx)
+}
+
 
 getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext) -> int {
     stringToRender := strings.to_string(ctx.text)
@@ -218,3 +252,4 @@ calculateLines :: proc(ctx: ^EditableTextContext) {
     lineBoundaryIndexes.y = i32(stringLength)
     append(&ctx.lines, lineBoundaryIndexes)
 }
+

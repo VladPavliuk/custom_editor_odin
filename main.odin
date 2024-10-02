@@ -4,21 +4,20 @@ import win32 "core:sys/windows"
 import "core:text/edit"
 import "core:time"
 import "core:mem"
-import "base:runtime"
 
 main :: proc() {
+    createWindow({ 800, 800 })
+
+    initDirectX()
+    
+    initGpuResources()
+
     // for Debug only!
     tracker: mem.Tracking_Allocator
     mem.tracking_allocator_init(&tracker, context.allocator)
     defer mem.tracking_allocator_destroy(&tracker)
     context.allocator = mem.tracking_allocator(&tracker)
     default_context = context
-
-    createWindow({ 800, 800 })
-
-    initDirectX()
-    
-    initGpuResources()
 
     msg: win32.MSG
     for msg.message != win32.WM_QUIT {
@@ -30,18 +29,16 @@ main :: proc() {
         }
 
         edit.update_time(&windowData.editableTextCtx.editorState)
+
         render()
 
-        // checkTabFilesExistance(windowData.fileTabs[:])
-        // startTimer()
         checkTabFileExistance(getActiveTab())
-        
+
         if windowData.sinceExplorerSync > windowData.explorerSyncInterval {
             validateExplorerItems(&windowData.explorer)
             windowData.sinceExplorerSync = 0.0
         }
         windowData.sinceExplorerSync += windowData.delta
-        // stopTimer()
 
         inputState.wasLeftMouseButtonDown = false
         inputState.wasLeftMouseButtonUp = false
@@ -52,15 +49,19 @@ main :: proc() {
 
         free_all(context.temp_allocator)
     }
-
     free_all(context.temp_allocator)
-    removeWindowData()
-    clearDirectX()
-
+    
     for _, leak in tracker.allocation_map {
 		fmt.printf("%v leaked %m\n", leak.location, leak.size)
 	}
 	for bad_free in tracker.bad_free_array {
 		fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
 	}
+
+    fmt.println("Total allocated", tracker.total_memory_allocated)
+    fmt.println("Total freed", tracker.total_memory_freed)
+    fmt.println("Total leaked", tracker.total_memory_allocated - tracker.total_memory_freed)
+
+    removeWindowData()
+    clearDirectX()
 }

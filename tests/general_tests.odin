@@ -42,6 +42,8 @@ just_run_and_close :: proc(t: ^testing.T) {
 type_and_save :: proc(t: ^testing.T) {
     os.remove(main.editorStateFilePath)
 
+    fileToSave :: "test1.txt"
+
     appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
         return windowData.windowCreated
     })
@@ -62,7 +64,7 @@ type_and_save :: proc(t: ^testing.T) {
 
     time.sleep(2_000_000_000)
 
-    typeStringOnKeyboard(windowData.parentHwnd, "test1.txt")
+    typeStringOnKeyboard(windowData.parentHwnd, fileToSave)
     clickEnter()
     time.sleep(1_000_000_000)
 

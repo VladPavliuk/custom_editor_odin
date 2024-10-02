@@ -109,7 +109,7 @@ validateExplorerItems :: proc(explorer: ^^Explorer) {
 
     expandOpenedFolders(updatedExplorer.items, originalExplorerItems)
 
-    clearExplorer((explorer^))
+    clearExplorer(explorer^)
     explorer^ = updatedExplorer
 }
 

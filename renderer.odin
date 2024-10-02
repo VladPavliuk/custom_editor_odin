@@ -12,6 +12,7 @@ import "core:math"
 import "core:strconv"
 
 // TODO: make all them configurable
+EMPTY_COLOR := float4{ 0.0, 0.0, 0.0, 0.0 }
 RED_COLOR := float4{ 1.0, 0.0, 0.0, 1.0 }
 GREEN_COLOR := float4{ 0.0, 1.0, 0.0, 1.0 }
 BLUE_COLOR := float4{ 0.0, 0.0, 1.0, 1.0 }
@@ -175,7 +176,12 @@ testingButtons :: proc() {
 uiStaff :: proc() {
     beginUi(&windowData.uiContext, windowData.maxZIndex / 2.0)
 
+    // startTimer()
+
     renderEditorContent()
+
+    // stopTimer()
+
     renderEditorFileTabs()
     renderFolderExplorer()
     // @(static)
@@ -568,7 +574,7 @@ renderLineNumbers :: proc() {
     //     left = -f32(windowData.size.x) / 2.0,
     // }
 
-    lineNumbersLeftOffset: f32 = windowData.explorer == nil ? 0.0 : 200.0 // TODO: make it configurable
+    lineNumbersLeftOffset: f32 = windowData.explorer == nil ? 0.0 : f32(windowData.explorerWidth) // TODO: make it configurable
 
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
