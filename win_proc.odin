@@ -18,7 +18,18 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         // windowData := (^WindowData)(((^win32.CREATESTRUCTW)(uintptr(lParam))).lpCreateParams)
 
         // win32.SetWindowLongPtrW(hwnd, win32.GWLP_USERDATA, win32.LONG_PTR(uintptr(&windowData)))
+    case win32.WM_MOUSELEAVE:
+        //TODO: Doesn't look like the best solution...
+        inputState.mousePosition = {-1,-1}
     case win32.WM_MOUSEMOVE:
+        // TODO: Is it efficient to call TrackMouseEvent all the time?
+        track := win32.TRACKMOUSEEVENT{
+            cbSize = size_of(win32.TRACKMOUSEEVENT),
+            dwFlags = win32.TME_LEAVE,
+            hwndTrack = hwnd,
+        }
+        win32.TrackMouseEvent(&track)
+
 	    xMouse := win32.GET_X_LPARAM(lParam)
 		yMouse := win32.GET_Y_LPARAM(lParam)
 
@@ -27,15 +38,13 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         inputState.deltaMousePosition = inputState.mousePosition - prevMousePosition
 
-        inputState.mousePosition.x = max(0, inputState.mousePosition.x)
-        inputState.mousePosition.y = max(0, inputState.mousePosition.y)
+        // inputState.mousePosition.x = max(0, inputState.mousePosition.x)
+        // inputState.mousePosition.y = max(0, inputState.mousePosition.y)
 
-        inputState.mousePosition.x = min(windowData.size.x, inputState.mousePosition.x)
-        inputState.mousePosition.y = min(windowData.size.y, inputState.mousePosition.y)
+        // inputState.mousePosition.x = min(windowData.size.x, inputState.mousePosition.x)
+        // inputState.mousePosition.y = min(windowData.size.y, inputState.mousePosition.y)
     case win32.WM_LBUTTONDOWN:
         inputState.mouse += { .LEFT_IS_DOWN, .LEFT_WAS_DOWN }
-		// inputState.isLeftMouseButtonDown = true
-		// inputState.wasLeftMouseButtonDown = true
 
 		win32.SetCapture(hwnd)
     case win32.WM_LBUTTONUP:

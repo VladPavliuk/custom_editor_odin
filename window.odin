@@ -227,7 +227,7 @@ removeWindowData :: proc() {
     delete(windowData.uiContext.parentElementsStack)
     delete(windowData.uiContext.elements)
     delete(windowData.uiContext.textInputCtx.lines)
-    
+
     edit.destroy(&windowData.uiContext.textInputCtx.editorState)
     strings.builder_destroy(&windowData.uiContext.textInputCtx.text)
     clearExplorer(windowData.explorer)

@@ -144,11 +144,11 @@ checkTabFileExistance :: proc(tab: ^FileTab) {
     }
 }
 
-tryCloseFileTab :: proc(index: i32) {
+tryCloseFileTab :: proc(index: i32, force := false) {
     tab := &windowData.fileTabs[index]
 
     // if there's any unsaved changes, show confirmation box
-    if !tab.isSaved {
+    if !tab.isSaved && !force {
         switch showOsConfirmMessage("Edi the editor", "Do you want to save the changes?") {
         case .YES: saveToOpenedFile(tab)
         case .NO:

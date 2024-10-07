@@ -6,13 +6,13 @@ import "core:time"
 import "core:mem"
 
 main :: proc() {
-    // for Debug only!
-    tracker: mem.Tracking_Allocator
-    mem.tracking_allocator_init(&tracker, context.allocator)
-    defer mem.tracking_allocator_destroy(&tracker)
-    context.allocator = mem.tracking_allocator(&tracker)
-    default_context = context
-
+    when ODIN_DEBUG {
+        tracker: mem.Tracking_Allocator
+        mem.tracking_allocator_init(&tracker, context.allocator)
+        defer mem.tracking_allocator_destroy(&tracker)
+        context.allocator = mem.tracking_allocator(&tracker)
+        default_context = context
+    }
     createWindow({ 800, 800 })
 
     initDirectX()
@@ -40,7 +40,6 @@ main :: proc() {
         }
         windowData.sinceExplorerSync += windowData.delta
 
-        // inputState.mouse -= { .LEFT_WAS_DOWN, .LEFT_WAS_UP, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP }
         inputState.mouse = {}
         inputState.wasPressedKeys = {}
 
@@ -56,14 +55,16 @@ main :: proc() {
     removeWindowData()
     clearDirectX()
    
-    for _, leak in tracker.allocation_map {
-		fmt.printf("%v leaked %m\n", leak.location, leak.size)
-	}
-	for bad_free in tracker.bad_free_array {
-		fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
-	}
+    when ODIN_DEBUG {
+        for _, leak in tracker.allocation_map {
+            fmt.printf("%v leaked %m\n", leak.location, leak.size)
+        }
+        for bad_free in tracker.bad_free_array {
+            fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
+        }
 
-    fmt.println("Total allocated", tracker.total_memory_allocated)
-    fmt.println("Total freed", tracker.total_memory_freed)
-    fmt.println("Total leaked", tracker.total_memory_allocated - tracker.total_memory_freed)
+        fmt.println("Total allocated", tracker.total_memory_allocated)
+        fmt.println("Total freed", tracker.total_memory_freed)
+        fmt.println("Total leaked", tracker.total_memory_allocated - tracker.total_memory_freed)
+    }
 }

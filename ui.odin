@@ -437,7 +437,6 @@ renderFolderExplorer :: proc() {
     getOpenedItemsFlaten(&windowData.explorer.items, &openedItems)
     defer delete(openedItems)
     openedItemsCount := i32(len(openedItems))
-    // fmt.println(openedItemsCount)
 
     @(static)
     itemsLeftOffset: i32 = 0
@@ -711,9 +710,22 @@ renderFolderExplorer :: proc() {
             hoverBgColor = THEME_COLOR_1,
         }) {
             item := openedItems[itemContextMenuIndex]
-            
+
+            // TODO: add switching to tab, if file is about to be deleted (now the ui thread is blocked by win message)
+            // tabIndex := getFileTabIndex(windowData.fileTabs[:], item.fullPath)
+
+            // if tabIndex != -1 {
+            //     windowData.activeFileTab = tabIndex
+            // }
+
             #partial switch showOsConfirmMessage("Edi the editor", fmt.tprintf("Do you really want to delete: \"%s\"?", item.name)) {
             case .YES:
+                tabIndex := getFileTabIndex(windowData.fileTabs[:], item.fullPath)
+
+                if tabIndex != -1 {
+                    tryCloseFileTab(tabIndex, true)
+                }
+
                 err := os.remove(item.fullPath)
 
                 if err != nil {
@@ -722,13 +734,17 @@ renderFolderExplorer :: proc() {
                         timeout = 5.0,
                         bgColor = RED_COLOR,
                     })
-                } else {
-                    pushAlert(&windowData.uiContext, UiAlert{
-                        text = strings.clone(fmt.tprintf("File: \"%s\" deleted!", item.name)),
-                        timeout = 5.0,
-                        bgColor = GREEN_COLOR,
-                    })
+                    break
                 }
+
+                pushAlert(&windowData.uiContext, UiAlert{
+                    text = strings.clone(fmt.tprintf("File: \"%s\" deleted!", item.name)),
+                    timeout = 5.0,
+                    bgColor = GREEN_COLOR,
+                })
+
+                // update explorer
+                validateExplorerItems(&windowData.explorer)
             }
             showFileContextMenu = false
         }
