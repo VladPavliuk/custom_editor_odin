@@ -688,7 +688,46 @@ renderFolderExplorer :: proc() {
         }) {
             item := openedItems[itemContextMenuIndex]
             showFileContextMenu = false
+
+            newFilePath := strings.builder_make(context.temp_allocator)
+
+            // NOTE: try to create "New File (n).txt" 
+            newFileNumber := 0
+            for {
+                newFileName := "New File"
+
+                strings.write_string(&newFilePath, item.isDir ? item.fullPath : filepath.dir(item.fullPath))
+                strings.write_rune(&newFilePath, filepath.SEPARATOR)
+                strings.write_string(&newFilePath, newFileName)
+                if newFileNumber > 0 {
+                    strings.write_string(&newFilePath, fmt.tprintf(" (%i)", newFileNumber))
+                }
+                strings.write_string(&newFilePath, ".txt")
+    
+                if !os.exists(strings.to_string(newFilePath)) {
+                    break
+                }
+                newFileNumber += 1
+                strings.builder_reset(&newFilePath)
+            }                
+            
+            err := os.write_entire_file_or_err(strings.to_string(newFilePath), []byte{})
+            assert(err == nil)
+
+            loadFileIntoNewTab(strings.to_string(newFilePath))
+            expandExplorerToFile(windowData.explorer, strings.to_string(newFilePath))
         }
+        
+        // if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+        //     text = "New folder",
+        //     position = { 0, 50 },
+        //     size = { 100, 25 },
+        //     noBorder = true,
+        //     hoverBgColor = THEME_COLOR_1,
+        // }) {
+        //     item := openedItems[itemContextMenuIndex]
+        //     showFileContextMenu = false
+        // }
 
         if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
             text = "Rename",
