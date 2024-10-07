@@ -1,6 +1,7 @@
 package main
 
 import "core:mem"
+import "core:slice"
 
 @(private="file")
 UiButton :: struct {
@@ -17,6 +18,7 @@ renderButton :: proc{renderTextButton, renderImageButton}
 renderButton_Base :: proc(ctx: ^UiContext, button: UiButton, customId: i32 = 0, loc := #caller_location) -> UiActions {
     uiId := getUiId(customId, loc)
     position := button.position + getAbsolutePosition(ctx)
+    pushElement(ctx, uiId)
 
     uiRect := toRect(position, button.size)
 
@@ -121,13 +123,15 @@ renderLabel :: proc(ctx: ^UiContext, label: UiLabel, customId: i32 = 0, loc := #
 
 UiTextField :: struct {
     text: string,
+    initSelection: int2,
     position, size: int2,
     bgColor: float4,
 }
 
-renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 = 0, loc := #caller_location) -> UiActions {    
+renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 = 0, loc := #caller_location) -> (UiActions, uiId) {    
     uiId := getUiId(customId, loc)
     position := textField.position + getAbsolutePosition(ctx)
+    pushElement(ctx, uiId)
 
     uiRect := toRect(position, textField.size)
 
@@ -153,12 +157,15 @@ renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 =
     actions := checkUiState(ctx, uiId, uiRect)
 
     if .GOT_FOCUS in actions {
-        switchInputContextToUiElement(Rect {
+        switchInputContextToUiElement(textField.text, Rect {
             top = uiRect.top - textField.size.y / 2 + i32(textHeight / 2),
             bottom = uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2),
             left = uiRect.left + 5,
             right = uiRect.right - 5,
         }, true)
+
+        // pre-select text
+        ctx.textInputCtx.editorState.selection = { int(textField.initSelection[0]), int(textField.initSelection[1]) }
     } 
 
     if .LOST_FOCUS in actions {
@@ -184,7 +191,7 @@ renderTextField :: proc(ctx: ^UiContext, textField: UiTextField, customId: i32 =
         resetClipRect()
     }
 
-    return actions
+    return actions, uiId
 }
 
 handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: UiActions) {
@@ -208,6 +215,7 @@ UiCheckbox :: struct {
 renderCheckbox :: proc(ctx: ^UiContext, checkbox: UiCheckbox, customId: i32 = 0, loc := #caller_location) -> UiActions {
     uiId := getUiId(customId, loc)
     position := checkbox.position + getAbsolutePosition(ctx)
+    pushElement(ctx, uiId)
 
     textWidth := getTextWidth(checkbox.text, &windowData.font)
     textHeight := getTextHeight(&windowData.font)
@@ -288,6 +296,7 @@ renderDropdown :: proc(ctx: ^UiContext, dropdown: UiDropdown, customId: i32 = 0,
     scrollWidth: i32 = 10
     selectedItemIndex := dropdown.selectedItemIndex
     actions: UiActions = {}
+    //pushElement(ctx, uiId)
 
     text: string
     if len(dropdown.text) > 0 { text = dropdown.text }
@@ -559,6 +568,48 @@ renderActiveAlert :: proc(ctx: ^UiContext, customId: i32 = 0, loc := #caller_loc
     return alertActions
 }
 
+UiPopup :: struct {
+    position, size: int2,
+    bgColor: float4,
+    isOpen: ^bool,
+    clipRect: Rect,
+}
+
+beginPopup :: proc(ctx: ^UiContext, popup: UiPopup, customId: i32 = 0, loc := #caller_location) -> bool {
+    assert(popup.isOpen != nil)
+    if !popup.isOpen^ { return false }
+
+    position := popup.position
+    bgRect := toRect(position, popup.size) 
+
+    //> make sure that popup is on the screen
+    bgRect = clipRect(popup.clipRect, bgRect)
+    position, _ = fromRect(bgRect)  
+    //<
+
+    ctx.isAnyPopupOpened = popup.isOpen
+
+    uiId := getUiId(customId, loc)
+    pushElement(ctx, uiId, true)
+    append(&ctx.parentPositionsStack, position)
+
+    bgActions := putEmptyUiElement(ctx, bgRect, true, customId, loc)
+    renderRect(bgRect, ctx.zIndex, popup.bgColor)
+    advanceUiZIndex(ctx)
+
+    return true
+}
+
+endPopup :: proc(ctx: ^UiContext) {
+    popupElement := slice.last(ctx.parentElementsStack[:])
+
+    if ctx.focusedIdChanged && !isSubElement(ctx, popupElement.id, ctx.focusedId) {
+        ctx.isAnyPopupOpened^ = false
+    }
+    
+    pop(&ctx.parentPositionsStack)
+    pop(&ctx.parentElementsStack)
+}
 
 ResizeDirection :: enum {
     NONE,
@@ -763,6 +814,8 @@ UiPanel :: struct {
 beginPanel :: proc(ctx: ^UiContext, panel: UiPanel, open: ^bool, customId: i32 = 0, loc := #caller_location) -> UiActions {
     customId := customId
     uiId := getUiId(customId, loc)
+    pushElement(ctx, uiId, true)
+
     headerUiId := getUiId((customId + 1) * 999999, loc)
     
     panelRect := toRect(panel.position^, panel.size^)
@@ -846,6 +899,7 @@ beginPanel :: proc(ctx: ^UiContext, panel: UiPanel, open: ^bool, customId: i32 =
 
 endPanel :: proc(ctx: ^UiContext) {
     pop(&ctx.parentPositionsStack)
+    pop(&ctx.parentElementsStack)
 }
 
 UiTabsItem :: struct {

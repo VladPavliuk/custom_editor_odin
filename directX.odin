@@ -31,13 +31,16 @@ DirectXState :: struct {
 directXState: DirectXState
 
 initDirectX :: proc() {
-    // directXState := new(DirectXState)
-
     baseDevice: ^d3d11.IDevice
 	baseDeviceContext: ^d3d11.IDeviceContext
 
     featureLevels := [?]d3d11.FEATURE_LEVEL{._11_0}
-	res := d3d11.CreateDevice(nil, .HARDWARE, nil, {.DEBUG}, &featureLevels[0], len(featureLevels), d3d11.SDK_VERSION, &baseDevice, nil, &baseDeviceContext)
+    deviceFlags: d3d11.CREATE_DEVICE_FLAGS
+
+    when ODIN_DEBUG {
+        deviceFlags += {.DEBUG}
+    }
+	res := d3d11.CreateDevice(nil, .HARDWARE, nil, deviceFlags, &featureLevels[0], len(featureLevels), d3d11.SDK_VERSION, &baseDevice, nil, &baseDeviceContext)
     assert(res == 0)
     defer baseDevice->Release()
     defer baseDeviceContext->Release()

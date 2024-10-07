@@ -75,6 +75,16 @@ loadFileIntoNewTab :: proc(filePath: string) {
     addTab(strings.clone(filepath.base(filePath)), strings.clone(filePath), fileText)
 }
 
+getFileTabIndex :: proc(tabs: []FileTab, filePath: string) -> i32 {
+    for tab, index in tabs {
+        if tab.filePath == filePath {
+            return i32(index)
+        }
+    }
+
+    return -1
+}
+
 replaceTabInfoByIndex :: proc(tab: FileTab, index: i32) {
     oldTab := &windowData.fileTabs[index]
     
@@ -103,7 +113,7 @@ moveToPrevTab :: proc() {
 
 wasFileModifiedOutside :: proc(tab: ^FileTab) {
     // add validation
-    switch showWinConfirmMessage("Edi the editor", "File was modified outside the editor, override the existing?") {
+    switch showOsConfirmMessage("Edi the editor", "File was modified outside the editor, override the existing?") {
     case .YES:
         newText := loadTextFile(tab.filePath)
 
@@ -139,7 +149,7 @@ tryCloseFileTab :: proc(index: i32) {
 
     // if there's any unsaved changes, show confirmation box
     if !tab.isSaved {
-        switch showWinConfirmMessage("Edi the editor", "Do you want to save the changes?") {
+        switch showOsConfirmMessage("Edi the editor", "Do you want to save the changes?") {
         case .YES: saveToOpenedFile(tab)
         case .NO:
         case .CANCEL, .CLOSE_WINDOW: return    

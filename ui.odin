@@ -3,6 +3,7 @@ package main
 import "base:runtime"
 
 import "core:os"
+import "core:slice"
 import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
@@ -14,10 +15,12 @@ UiActions :: bit_set[UiAction; u32]
 
 UiAction :: enum u32 {
     SUBMIT,
+    RIGHT_CLICK,
     HOT,
     ACTIVE,
     GOT_ACTIVE,
     LOST_ACTIVE,
+    FOCUSED,
     GOT_FOCUS,
     LOST_FOCUS,
     MOUSE_ENTER,
@@ -31,8 +34,18 @@ CursorType :: enum {
     HORIZONTAL_SIZE,
 }
 
+UiElement :: struct {
+    id: uiId,
+    parent: ^UiElement,
+}
+
 UiContext :: struct {
     zIndex: f32,
+
+    elements: [dynamic]UiElement,
+    parentElementsStack: [dynamic]^UiElement,
+
+    isAnyPopupOpened: ^bool,
 
     hotId: uiId,
     prevHotId: uiId,
@@ -57,6 +70,46 @@ UiContext :: struct {
     setCursor: proc(CursorType),
 }
 
+// @(private="file")
+pushElement :: proc(ctx: ^UiContext, id: uiId, isParent := false) {
+    parent := len(ctx.parentElementsStack) == 0 ? nil : slice.last(ctx.parentElementsStack[:])
+
+    element := UiElement{
+        id = id,
+        parent = parent,
+    }
+    append(&ctx.elements, element)
+
+    if isParent {
+        append(&ctx.parentElementsStack, &ctx.elements[len(ctx.elements) - 1])
+    }
+}
+
+isSubElement :: proc(ctx: ^UiContext, parentId: uiId, childId: uiId) -> bool {
+    if childId == 0 { return false }
+    assert(parentId != 0)
+    assert(childId != 0)
+    childElement: ^UiElement
+
+    for &element in ctx.elements {
+        if element.id == childId {
+            childElement = &element
+            break
+        }
+    }
+
+    // TODO: maybe, it's better to show some dev error
+    if childElement == nil { return false }
+    // assert(childElement != nil)
+
+    for childElement.parent != nil {
+        if childElement.parent.id == parentId { return true }
+        childElement = childElement.parent
+    }
+
+    return false
+}
+
 getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Location) -> i64 {
     return i64(customIdentifier + 1) * i64(callerLocation.line + 1) * i64(callerLocation.column) * i64(uintptr(raw_data(callerLocation.file_path)))
 }
@@ -67,9 +120,11 @@ beginUi :: proc(using ctx: ^UiContext, initZIndex: f32) {
     focusedId = tmpFocusedId
 
     // if clicked on empty element - lost any focus
-    if inputState.wasLeftMouseButtonDown && hotId == 0 {
+    if .LEFT_WAS_DOWN in inputState.mouse && hotId == 0 {
         tmpFocusedId = 0
     }
+
+    // ctx.elements = make([dynamic]UiElement)
 }
 
 endUi :: proc(using ctx: ^UiContext, frameDelta: f64) {
@@ -91,6 +146,9 @@ endUi :: proc(using ctx: ^UiContext, frameDelta: f64) {
         prevFocusedId = focusedId
         focusedIdChanged = true
     }
+
+    clear(&ctx.elements)
+    assert(len(ctx.parentElementsStack) == 0)
 }
 
 renderTopMenu :: proc() {
@@ -230,7 +288,7 @@ renderTopMenu :: proc() {
             })
 
             renderTextField(&windowData.uiContext, UiTextField{
-                text = strings.to_string(windowData.uiContext.textInputCtx.text),
+                text = "YEAH",
                 position = { 0, 220 },
                 size = { 200, 30 },
                 bgColor = LIGHT_GRAY_COLOR,
@@ -389,8 +447,25 @@ renderFolderExplorer :: proc() {
     lastItemIndex := min(openedItemsCount, maxItemsOnScreen + topItemIndex)
     maxWidthItem: i32 = 0
 
+    @(static)
+    showFileContextMenu := false
+
+    // TODO: it's possible to have a bug if selected got deleted externally
+    @(static)
+    itemContextMenuIndex: i32 = -1
+
+    @(static)
+    renameItemIndex: i32 = -1
+
+    @(static)
+    fileContextMenuPosition: int2 = {-1,-1}
+
+    // TODO: used only for setting focus to just selected item's action (like rename). that looks awful!
+    @(static)
+    fileContextMenuJustOpened := false
     for itemIndex in topItemIndex..<lastItemIndex {
         item := openedItems[itemIndex]
+        defer position.y -= itemHeight
 
         itemRect := Rect{ 
             top = position.y + itemHeight, 
@@ -399,11 +474,98 @@ renderFolderExplorer :: proc() {
             right = position.x + windowData.explorerWidth,
         }
 
+        if renameItemIndex == itemIndex {
+            if .ESC in inputState.wasPressedKeys {
+                renameItemIndex = -1
+                continue
+            }
+            
+            textInputActions, textInputId := renderTextField(&windowData.uiContext, UiTextField{
+                text = item.name,
+                initSelection = { i32(len(filepath.short_stem(item.name))), 0 },
+                position = position,
+                size = { windowData.explorerWidth, itemHeight }
+            })
+
+            if fileContextMenuJustOpened {
+                windowData.uiContext.tmpFocusedId = textInputId
+                fileContextMenuJustOpened = false
+            }
+
+            if .ENTER in inputState.wasPressedKeys {
+                windowData.uiContext.tmpFocusedId = 0
+            }
+
+            if .LOST_FOCUS in textInputActions {
+                // if after rename the name is the same, do nothing
+                newFileName := strings.to_string(windowData.uiContext.textInputCtx.text)
+
+                if newFileName == item.name {
+                    renameItemIndex = -1
+                    continue
+                }
+
+                newFilePath := strings.builder_make(context.temp_allocator)
+
+                strings.write_string(&newFilePath, filepath.dir(item.fullPath))
+                strings.write_rune(&newFilePath, filepath.SEPARATOR)
+                strings.write_string(&newFilePath, newFileName)
+
+                if len(newFileName) == 0 {
+                    fileContextMenuJustOpened = true
+
+                    pushAlert(&windowData.uiContext, UiAlert{
+                        text = strings.clone("Can't save empty file name!"),
+                        timeout = 5.0,
+                        bgColor = RED_COLOR,
+                    })
+                    continue
+                }
+
+                err := os.rename(item.fullPath, strings.to_string(newFilePath))
+
+                if err != nil {
+                    fileContextMenuJustOpened = true
+
+                    pushAlert(&windowData.uiContext, UiAlert{
+                        text = strings.clone(fmt.tprintf("Error: %s!", err)),
+                        timeout = 5.0,
+                        bgColor = RED_COLOR,
+                    })
+                    continue
+                }
+                
+                // update into in tab
+                tabIndex := getFileTabIndex(windowData.fileTabs[:], item.fullPath)
+                fmt.println(tabIndex)
+                if tabIndex != -1 {
+                    tab := &windowData.fileTabs[tabIndex]
+
+                    delete(tab.filePath)
+                    delete(tab.name)
+
+                    tab.filePath = strings.clone(strings.to_string(newFilePath))
+                    tab.name = strings.clone(newFileName)
+                }
+
+                // update explorer
+                validateExplorerItems(&windowData.explorer)
+
+                renameItemIndex = -1
+            }
+            continue
+        }
+
         itemActions := putEmptyUiElement(&windowData.uiContext, itemRect, customId = itemIndex)
 
-        if item.fullPath == activeTab.filePath {
+        if item.fullPath == activeTab.filePath { // highlight selected file
             renderRect(itemRect, windowData.uiContext.zIndex, getDarkerColor(GRAY_COLOR))
             advanceUiZIndex(&windowData.uiContext)
+        }
+
+        if .FOCUSED in itemActions && .F2 in inputState.wasPressedKeys {
+            renameItemIndex = itemIndex
+            fileContextMenuJustOpened = true
         }
 
         if .HOT in itemActions {
@@ -411,7 +573,7 @@ renderFolderExplorer :: proc() {
             advanceUiZIndex(&windowData.uiContext)
         }
 
-        if .GOT_ACTIVE in itemActions {
+        if .SUBMIT in itemActions {
             if item.isDir {
                 item.isOpen = !item.isOpen
 
@@ -423,6 +585,12 @@ renderFolderExplorer :: proc() {
             } else {
                 loadFileIntoNewTab(item.fullPath)
             }
+        }
+
+        if .RIGHT_CLICK in itemActions {
+            showFileContextMenu = true
+            fileContextMenuPosition = screenToDirectXCoords(inputState.mousePosition)
+            itemContextMenuIndex = itemIndex
         }
 
         setClipRect(itemRect)
@@ -442,7 +610,6 @@ renderFolderExplorer :: proc() {
         renderImageRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
         renderLine(item.name, &windowData.font, { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
         resetClipRect()
-        position.y -= itemHeight
     }
     advanceUiZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
@@ -498,6 +665,73 @@ renderFolderExplorer :: proc() {
         windowData.explorerWidth = inputState.mousePosition.x
         windowData.editorPadding.left = windowData.explorerWidth + 50 // TODO: looks awful!!!
         recalculateFileTabsContextRects()
+    }
+
+    if beginPopup(&windowData.uiContext, UiPopup{
+        position = fileContextMenuPosition, size = {100,75},
+        bgColor = DARKER_GRAY_COLOR,
+        isOpen = &showFileContextMenu,
+        clipRect = Rect{
+            top = windowData.size.y / 2 - 25, // TODO: remove hardcoded value
+            bottom = -windowData.size.y / 2,
+            right = windowData.size.x / 2,
+            left = -windowData.size.x / 2,
+        },
+    }) {
+        defer endPopup(&windowData.uiContext)
+
+        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+            text = "New file",
+            position = { 0, 50 },
+            size = { 100, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            item := openedItems[itemContextMenuIndex]
+            showFileContextMenu = false
+        }
+
+        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+            text = "Rename",
+            position = { 0, 25 },
+            size = { 100, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            renameItemIndex = itemContextMenuIndex
+            showFileContextMenu = false
+            fileContextMenuJustOpened = true
+        }
+
+        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+            text = "Delete",
+            position = { 0, 0 },
+            size = { 100, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            item := openedItems[itemContextMenuIndex]
+            
+            #partial switch showOsConfirmMessage("Edi the editor", fmt.tprintf("Do you really want to delete: \"%s\"?", item.name)) {
+            case .YES:
+                err := os.remove(item.fullPath)
+
+                if err != nil {
+                    pushAlert(&windowData.uiContext, UiAlert{
+                        text = strings.clone(fmt.tprintf("Couldn't delete: \"%s\"!", item.name)),
+                        timeout = 5.0,
+                        bgColor = RED_COLOR,
+                    })
+                } else {
+                    pushAlert(&windowData.uiContext, UiAlert{
+                        text = strings.clone(fmt.tprintf("File: \"%s\" deleted!", item.name)),
+                        timeout = 5.0,
+                        bgColor = GREEN_COLOR,
+                    })
+                }
+            }
+            showFileContextMenu = false
+        }
     }
 }
 
@@ -689,9 +923,13 @@ checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect, ignoreFocusUpdate 
     action: UiActions = nil
     
     if ctx.activeId == uiId {
-        if inputState.wasLeftMouseButtonUp {
+        if .LEFT_WAS_UP in inputState.mouse || .RIGHT_WAS_UP in inputState.mouse {
             if ctx.hotId == uiId {
-                action += {.SUBMIT}
+                if .RIGHT_WAS_UP in inputState.mouse {
+                    action += {.RIGHT_CLICK}
+                } else {
+                    action += {.SUBMIT}
+                }
             }
 
             action += {.LOST_ACTIVE}
@@ -700,7 +938,7 @@ checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect, ignoreFocusUpdate 
             action += {.ACTIVE}
         }
     } else if ctx.hotId == uiId {
-        if inputState.wasLeftMouseButtonDown {
+        if .LEFT_WAS_DOWN in inputState.mouse || .RIGHT_WAS_DOWN in inputState.mouse {
             ctx.activeId = uiId
 
             action += {.GOT_ACTIVE}
@@ -731,6 +969,10 @@ checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect, ignoreFocusUpdate 
 
     if isInRect(rect, mousePosition) {
         ctx.tmpHotId = uiId
+    }
+
+    if ctx.focusedId == uiId {
+        action += {.FOCUSED}
     }
 
     return action

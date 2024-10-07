@@ -5,12 +5,35 @@ import "core:text/edit"
 
 import win32 "core:sys/windows"
 
+MouseStates :: bit_set[MouseState]
+
+MouseState :: enum {
+    LEFT_IS_DOWN,
+    LEFT_WAS_DOWN,
+    LEFT_WAS_UP,
+
+    RIGHT_IS_DOWN,
+    RIGHT_WAS_DOWN,
+    RIGHT_WAS_UP,
+}
+
+Key :: enum {
+    NONE,
+    ESC,
+    ENTER,
+    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10,
+}
+
+Keys :: bit_set[Key]
+
 InputState :: struct {
     deltaMousePosition: int2,
     mousePosition: int2,
-    isLeftMouseButtonDown: bool,
-    wasLeftMouseButtonDown: bool,
-    wasLeftMouseButtonUp: bool,
+
+    mouse: MouseStates,
+
+    wasPressedKeys: Keys,
+
     scrollDelta: i32,
 }
 
@@ -179,7 +202,7 @@ createWindow :: proc(size: int2) {
 
     // TODO: testing
     windowData.uiContext.textInputCtx.text = strings.builder_make()
-    strings.write_string(&windowData.uiContext.textInputCtx.text, "HYI")
+    // strings.write_string(&windowData.uiContext.textInputCtx.text, "HYI")
     //<
 
     windowData.windowCreated = true
@@ -201,7 +224,10 @@ removeWindowData :: proc() {
 
     delete(windowData.uiContext.scrollableElements)
     delete(windowData.uiContext.parentPositionsStack)
+    delete(windowData.uiContext.parentElementsStack)
+    delete(windowData.uiContext.elements)
     delete(windowData.uiContext.textInputCtx.lines)
+    
     edit.destroy(&windowData.uiContext.textInputCtx.editorState)
     strings.builder_destroy(&windowData.uiContext.textInputCtx.text)
     clearExplorer(windowData.explorer)
@@ -224,7 +250,10 @@ getEditorSize :: proc() -> int2 {
     }
 }
 
-switchInputContextToUiElement :: proc(rect: Rect, disableNewLines: bool) {
+switchInputContextToUiElement :: proc(text: string, rect: Rect, disableNewLines: bool) {
+    strings.builder_reset(&windowData.uiContext.textInputCtx.text)
+    strings.write_string(&windowData.uiContext.textInputCtx.text, text)
+
     windowData.editableTextCtx = &windowData.uiContext.textInputCtx
 
     windowData.editableTextCtx.disableNewLines = disableNewLines

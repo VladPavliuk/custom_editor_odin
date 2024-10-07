@@ -33,22 +33,33 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         inputState.mousePosition.x = min(windowData.size.x, inputState.mousePosition.x)
         inputState.mousePosition.y = min(windowData.size.y, inputState.mousePosition.y)
     case win32.WM_LBUTTONDOWN:
-		inputState.isLeftMouseButtonDown = true
-		inputState.wasLeftMouseButtonDown = true
+        inputState.mouse += { .LEFT_IS_DOWN, .LEFT_WAS_DOWN }
+		// inputState.isLeftMouseButtonDown = true
+		// inputState.wasLeftMouseButtonDown = true
 
 		win32.SetCapture(hwnd)
     case win32.WM_LBUTTONUP:
-        inputState.isLeftMouseButtonDown = false
-        inputState.wasLeftMouseButtonUp = true
+        inputState.mouse += { .LEFT_WAS_UP }
+        inputState.mouse -= { .LEFT_IS_DOWN }
 
         // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
         win32.ReleaseCapture()
     case win32.WM_LBUTTONDBLCLK:
         // NOTE: for simplicity just pretend that WM_LBUTTONDBLCLK message is just WM_LBUTTONDOWN
-		inputState.isLeftMouseButtonDown = true
-		inputState.wasLeftMouseButtonDown = true
+        
+        inputState.mouse += { .LEFT_IS_DOWN, .LEFT_WAS_DOWN }
         
 		win32.SetCapture(hwnd)
+    case win32.WM_RBUTTONDOWN:
+        inputState.mouse += { .RIGHT_IS_DOWN, .RIGHT_WAS_DOWN }
+
+		win32.SetCapture(hwnd)
+    case win32.WM_RBUTTONUP:
+        inputState.mouse += { .RIGHT_WAS_UP }
+        inputState.mouse -= { .RIGHT_IS_DOWN }
+
+        // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
+        win32.ReleaseCapture()
     case win32.WM_SIZE:
         if !windowData.windowCreated { break }
 
@@ -109,6 +120,21 @@ isCtrlPressed :: proc() -> bool {
 }
 
 handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
+    switch wParam {
+        case win32.VK_ESCAPE: inputState.wasPressedKeys += {.ESC}
+        case win32.VK_RETURN: inputState.wasPressedKeys += {.ENTER}
+        case win32.VK_F1: inputState.wasPressedKeys += {.F1}
+        case win32.VK_F2: inputState.wasPressedKeys += {.F2}
+        case win32.VK_F3: inputState.wasPressedKeys += {.F3}
+        case win32.VK_F4: inputState.wasPressedKeys += {.F4}
+        case win32.VK_F5: inputState.wasPressedKeys += {.F5}
+        case win32.VK_F6: inputState.wasPressedKeys += {.F6}
+        case win32.VK_F7: inputState.wasPressedKeys += {.F7}
+        case win32.VK_F8: inputState.wasPressedKeys += {.F8}
+        case win32.VK_F9: inputState.wasPressedKeys += {.F9}
+        case win32.VK_F10: inputState.wasPressedKeys += {.F10}
+    }
+
     windowData.wasInputSymbolTyped = false
 
     if !windowData.isInputMode { return }

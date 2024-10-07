@@ -184,6 +184,19 @@ uiStaff :: proc() {
 
     renderEditorFileTabs()
     renderFolderExplorer()
+
+    // @(static)
+    // isPopupOpen := true
+    // if beginPopup(&windowData.uiContext, UiPopup{
+    //     position = {0,0}, size = {100,200},
+    //     bgColor = RED_COLOR,
+    //     isOpen = &isPopupOpen,
+    // }) {
+    //     defer endPopup(&windowData.uiContext)
+
+
+    // }
+
     // @(static)
     // isDropdownOpen := false
 

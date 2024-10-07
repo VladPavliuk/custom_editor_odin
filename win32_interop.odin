@@ -51,7 +51,7 @@ WinConfirmMessageAction :: enum {
     NO,
 }
 
-showWinConfirmMessage :: proc(title, message: string) -> WinConfirmMessageAction {
+showOsConfirmMessage :: proc(title, message: string) -> WinConfirmMessageAction {
     result := win32.MessageBoxW(
         windowData.parentHwnd,
         win32.utf8_to_wstring(message),
