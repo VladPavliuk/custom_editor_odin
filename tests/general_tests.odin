@@ -59,7 +59,7 @@ type_and_save :: proc(t: ^testing.T) {
 
     clickMouse({
         { windowRect.left + 30, windowRect.top + 50 },
-        { windowRect.left + 30, windowRect.top + 140 },
+        { windowRect.left + 30, windowRect.top + 150 },
     })
 
     time.sleep(2_000_000_000)

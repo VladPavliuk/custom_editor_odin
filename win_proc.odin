@@ -298,8 +298,22 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         }
     case win32.VK_V:
         edit.perform_command(&editorCtx.editorState, edit.Command.Paste)
+        
+        if isActiveTabContext() { getActiveTab().isSaved = false }
     case win32.VK_X:
+        // NOTE: if no text selection, copy current line
+        if !edit.has_selection(&editorCtx.editorState) {
+            line := editorCtx.lines[editorCtx.cursorLineIndex]
+
+            if editorCtx.cursorLineIndex == i32(len(editorCtx.lines) - 1) {
+                editorCtx.editorState.selection = { int(line[0] - 1), int(line[1]) }
+            } else {
+                editorCtx.editorState.selection = { int(line[0]), int(line[1] + 1) }
+            }
+        }
         edit.perform_command(&editorCtx.editorState, edit.Command.Cut)
+
+        if isActiveTabContext() { getActiveTab().isSaved = false }
     case win32.VK_Z:
         if isShiftPressed() {
             edit.perform_command(&editorCtx.editorState, edit.Command.Redo)

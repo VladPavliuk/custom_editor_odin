@@ -5,6 +5,7 @@ import "base:runtime"
 import "core:sync"
 import "core:thread"
 import "core:time"
+import "core:log"
 
 import win32 "core:sys/windows"
 
@@ -91,7 +92,8 @@ typeStringOnKeyboard :: proc(hwnd: win32.HWND, stringToType: string) {
         typeSymbol(hwnd, char)        
     }
     
-    time.sleep(1_000_000) // it seems that win32 is kind of parallel, so it's better to wait a bit to make sure that previous win32 calls are done 
+    // it seems that win32 is kind of parallel, so it's better to wait a bit to make sure that previous win32 calls are done
+    time.sleep(1_000_000)
 }
 
 clickMouse :: proc{clickMouse_Single, clickMouse_Multiple}
@@ -166,6 +168,10 @@ typeSymbol :: proc(hwnd: win32.HWND, symbol: rune) {
         char -= 32
     }
 
+    if char == 46 { // .
+        char = win32.VK_OEM_PERIOD
+    }
+
     input := []win32.INPUT {
         {
             type = win32.INPUT_TYPE.KEYBOARD,
@@ -173,7 +179,8 @@ typeSymbol :: proc(hwnd: win32.HWND, symbol: rune) {
                 wVk = char,
                 dwFlags = 0,
             },
-        }, {
+        }, 
+        {
             type = win32.INPUT_TYPE.KEYBOARD,
             ki = win32.KEYBDINPUT{
                 wVk = char,

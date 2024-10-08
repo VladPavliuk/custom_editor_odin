@@ -554,7 +554,7 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
 
             if hasSelection && byteIndex >= selectionRange.x && byteIndex < selectionRange.y  {
                 rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
-                    { screenPosition.x, screenPosition.y, zIndex - 1.0 }, 
+                    { screenPosition.x, screenPosition.y + windowData.font.descent, zIndex - 1.0 }, 
                     { 0.0, 0.0, 0.0 }, 
                     { fontChar.xAdvance, windowData.font.lineHeight, 1.0 },
                 ))
