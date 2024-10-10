@@ -1,13 +1,10 @@
 package main
 
-import "base:runtime"
-
 import "core:os"
-import "core:slice"
 import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
-import win32 "core:sys/windows"
+
 import "ui"
 
 renderTopMenu :: proc() {
@@ -212,7 +209,6 @@ renderFolderExplorer :: proc() {
         left = -windowData.size.x / 2,
         right = -windowData.size.x / 2 + windowData.explorerWidth,
     }
-    bgRectSize := ui.getRectSize(bgRect)
 
     renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
     ui.advanceZIndex(&windowData.uiContext)
@@ -342,7 +338,7 @@ renderFolderExplorer :: proc() {
                 text = item.name,
                 initSelection = { i32(len(filepath.short_stem(item.name))), 0 },
                 position = position,
-                size = { windowData.explorerWidth, itemHeight }
+                size = { windowData.explorerWidth, itemHeight },
             })
 
             if fileContextMenuJustOpened {
@@ -752,7 +748,7 @@ renderEditorContent :: proc() {
 
     ui.beginScroll(&windowData.uiContext)
 
-    editorContentActions := ui.putEmptyElement(&windowData.uiContext, editorCtx.rect)
+    //editorContentActions := ui.putEmptyElement(&windowData.uiContext, editorCtx.rect)
 
     // ui.handleTextInputActions(editorCtx, editorContentActions)
 

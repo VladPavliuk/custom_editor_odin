@@ -1,11 +1,5 @@
 package ui
 
-import "core:time"
-
-// just to simplify debuging
-import fmt "core:fmt"
-fmt :: fmt
-
 int2 :: [2]i32
 int3 :: [3]i32
 int4 :: [4]i32

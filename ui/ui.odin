@@ -2,12 +2,7 @@ package ui
 
 import "base:runtime"
 
-import "core:os"
 import "core:slice"
-import "core:strings"
-import "core:text/edit"
-import "core:path/filepath"
-import win32 "core:sys/windows"
 
 // TODO: make all them configurable
 EMPTY_COLOR := [4]f32{ 0.0, 0.0, 0.0, 0.0 }
@@ -157,7 +152,16 @@ Context :: struct {
     activeAlert: ^Alert,
 }
 
-// @(private="file")
+clearContext :: proc(ctx: ^Context) {
+    delete(ctx.commands)
+    delete(ctx.scrollableElements)
+    delete(ctx.parentPositionsStack)
+    delete(ctx.parentElementsStack)
+    delete(ctx.elements)
+    clearAlert(ctx)
+}
+
+@(private)
 pushElement :: proc(ctx: ^Context, id: Id, isParent := false) {
     parent := len(ctx.parentElementsStack) == 0 ? nil : slice.last(ctx.parentElementsStack[:])
 

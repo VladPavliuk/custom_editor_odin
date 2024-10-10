@@ -27,7 +27,7 @@ beginPopup :: proc(ctx: ^Context, popup: Popup, customId: i32 = 0, loc := #calle
     pushElement(ctx, Id, true)
     append(&ctx.parentPositionsStack, position)
 
-    bgActions := putEmptyElement(ctx, bgRect, true, customId, loc)
+    //bgActions := putEmptyElement(ctx, bgRect, true, customId, loc)
     
     append(&ctx.commands, RectCommand{
         rect = bgRect,

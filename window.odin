@@ -210,11 +210,8 @@ removeWindowData :: proc() {
         freeTextContext(tab.ctx)
     }
     delete(windowData.fileTabs)
-
-    delete(windowData.uiContext.scrollableElements)
-    delete(windowData.uiContext.parentPositionsStack)
-    delete(windowData.uiContext.parentElementsStack)
-    delete(windowData.uiContext.elements)
+    
+    ui.clearContext(&windowData.uiContext)
     delete(windowData.uiTextInputCtx.lines)
 
     edit.destroy(&windowData.uiTextInputCtx.editorState)
