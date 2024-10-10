@@ -210,8 +210,13 @@ renderFolderExplorer :: proc() {
         right = -windowData.size.x / 2 + windowData.explorerWidth,
     }
 
-    renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
-    ui.advanceZIndex(&windowData.uiContext)
+    append(&windowData.uiContext.commands, ui.RectCommand{
+        rect = bgRect,
+        bgColor = GRAY_COLOR,
+    })
+
+    // renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
+    // ui.advanceZIndex(&windowData.uiContext)
 
     // explorer header
     explorerButtonsWidth: i32 = 50 
@@ -222,14 +227,22 @@ renderFolderExplorer :: proc() {
 
     // header background
     ui.putEmptyElement(&windowData.uiContext, headerBgRect)
-    renderRect(headerBgRect, windowData.uiContext.zIndex, GRAY_COLOR)
-    ui.advanceZIndex(&windowData.uiContext)
+    
+    append(&windowData.uiContext.commands, ui.RectCommand{
+        rect = headerBgRect,
+        bgColor = GRAY_COLOR,
+    })
 
     // explorer root folder name
-    setClipRect(ui.toRect(headerPosition, { windowData.explorerWidth - explorerButtonsWidth, explorerHeaderHeight }))
-    renderLine(filepath.base(windowData.explorer.rootPath), &windowData.font, headerPosition, WHITE_COLOR, windowData.uiContext.zIndex, explorerHeaderHeight)
-    ui.advanceZIndex(&windowData.uiContext)
-    resetClipRect()
+    append(&windowData.uiContext.commands, ui.ClipCommand{
+        rect = ui.toRect(headerPosition, { windowData.explorerWidth - explorerButtonsWidth, explorerHeaderHeight }), 
+    })
+    append(&windowData.uiContext.commands, ui.TextCommand{
+        text = filepath.base(windowData.explorer.rootPath), 
+        position = headerPosition,
+        color = WHITE_COLOR,
+    })
+    append(&windowData.uiContext.commands, ui.ResetClipCommand{})
 
     topOffset += explorerHeaderHeight
 
@@ -413,8 +426,10 @@ renderFolderExplorer :: proc() {
         itemActions := ui.putEmptyElement(&windowData.uiContext, itemRect, customId = itemIndex)
 
         if item.fullPath == activeTab.filePath { // highlight selected file
-            renderRect(itemRect, windowData.uiContext.zIndex, ui.getDarkerColor(GRAY_COLOR))
-            ui.advanceZIndex(&windowData.uiContext)
+            append(&windowData.uiContext.commands, ui.RectCommand{
+                rect = itemRect,
+                bgColor = ui.getDarkerColor(GRAY_COLOR),
+            })
         }
 
         if .FOCUSED in itemActions && .F2 in inputState.wasPressedKeys {
@@ -422,9 +437,11 @@ renderFolderExplorer :: proc() {
             fileContextMenuJustOpened = true
         }
 
-        if .HOT in itemActions {
-            renderRect(itemRect, windowData.uiContext.zIndex, THEME_COLOR_1)
-            ui.advanceZIndex(&windowData.uiContext)
+        if .HOT in itemActions {    
+            append(&windowData.uiContext.commands, ui.RectCommand{
+                rect = itemRect,
+                bgColor = THEME_COLOR_1,
+            })
         }
 
         if .SUBMIT in itemActions {
@@ -446,8 +463,11 @@ renderFolderExplorer :: proc() {
             fileContextMenuPosition = ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
             itemContextMenuIndex = itemIndex
         }
+        
+        append(&windowData.uiContext.commands, ui.ClipCommand{
+            rect = itemRect,
+        })
 
-        setClipRect(itemRect)
         iconSize: i32 = 16
         icon: TextureType
 
@@ -461,9 +481,20 @@ renderFolderExplorer :: proc() {
         itemWidth := iconSize + 5 + i32(getTextWidth(item.name, &windowData.font))
         if itemWidth > maxWidthItem { maxWidthItem = itemWidth } 
         
-        renderImageRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
-        renderLine(item.name, &windowData.font, { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
-        resetClipRect()
+        append(&windowData.uiContext.commands, ui.ImageCommand{
+            rect = ui.toRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }),
+            textureId = i32(icon)
+        })
+        append(&windowData.uiContext.commands, ui.TextCommand{
+            text = item.name, 
+            position = { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 },
+            color = WHITE_COLOR,
+        })
+        append(&windowData.uiContext.commands, ui.ResetClipCommand{})
+    
+        // renderImageRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
+        // renderLine(item.name, &windowData.font, { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
+        // resetClipRect()
     }
     ui.advanceZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 

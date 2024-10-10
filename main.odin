@@ -1,9 +1,9 @@
 package main
 
-import win32 "core:sys/windows"
 import "core:text/edit"
 import "core:time"
 import "core:mem"
+import win32 "core:sys/windows"
 
 main :: proc() {
     when ODIN_DEBUG {
@@ -55,6 +55,12 @@ main :: proc() {
         inputState.scrollDelta = 0
 
         windowData.delta = time.duration_seconds(time.tick_diff(beforeFrame, time.tick_now()))
+        
+        // when ODIN_DEBUG {    
+        //     // fmt.println("Total allocated", tracker.current_memory_allocated)
+        //     // fmt.println("Total freed", tracker.total_memory_freed)
+        //     // fmt.println("Total leaked", tracker.total_memory_allocated - tracker.total_memory_freed)
+        // }
     }
 
     removeWindowData()

@@ -102,6 +102,10 @@ ClipCommand :: struct {
 
 ResetClipCommand :: struct {}
 
+pushCommand :: proc(ctx: ^Context, command: Command) {
+    append(&ctx.commands, command)
+}
+
 Command :: union{RectCommand, ImageCommand, BorderRectCommand, TextCommand, EditableTextCommand, ClipCommand, ResetClipCommand}
 
 Context :: struct {

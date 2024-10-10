@@ -40,8 +40,7 @@ THEME_COLOR_5 := float4{ 142 / 255.0, 202 / 255.0, 230 / 255.0, 1.0 }
 render :: proc() {
     ctx := directXState.ctx
 
-    bgColor: [4]f32 = EDITOR_BG_COLOR.xyzw
-    ctx->ClearRenderTargetView(directXState.backBufferView, &bgColor)
+    ctx->ClearRenderTargetView(directXState.backBufferView, &EDITOR_BG_COLOR)
     ctx->ClearDepthStencilView(directXState.depthBufferView, { .DEPTH, .STENCIL }, 1.0, 0)
     
     ctx->OMSetRenderTargets(1, &directXState.backBufferView, directXState.depthBufferView)
@@ -59,41 +58,10 @@ render :: proc() {
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
-    //renderRectBorder(directXState, { -200, -200 }, {50,100}, 1.0, 1.0, GRAY_COLOR)
-    // @(static)
-    // timeElapsedTotal: f64 = 0.0
-    
-    // @(static)
-    // timeElapsedCount: i32 = 0
- 
-    // timer: time.Stopwatch
-    // time.stopwatch_start(&timer)    
-
-    //> ui testing
-    // setClipRect(Rect{
-    //     top = 10,
-    //     bottom = 200,
-    //     left = 0,
-    //     right = 200,
-    // })
+    // startTimer()
     uiStaff()
-    // resetClipRect()
-    //<
+    // stopTimer() // 4524.782 ms
 
-    // glyphsCount, selectionsCount := fillTextBuffer(&windowData.editorCtx, windowData.maxZIndex)
-
-    // // if windowData.isInputMode {
-    //     calculateLines(windowData.editableTextCtx)
-    //     findCursorPosition(windowData.editableTextCtx)
-    //     updateCusrorData(windowData.editableTextCtx)
-    // // }
-    // time.stopwatch_stop(&timer)
-    
-    // elapsed := time.duration_microseconds(timer._accumulation)
-    // timeElapsedTotal += elapsed
-    // timeElapsedCount += 1
-    // // fmt.printfln("Duration avg: %f", timeElapsedTotal / f64(timeElapsedCount))
-    
     renderLineNumbers()
 
     hr := directXState.swapchain->Present(1, {})
