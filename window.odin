@@ -1,38 +1,19 @@
 package main
 
+import "ui"
+
 import "core:strings"
 import "core:text/edit"
 
 import win32 "core:sys/windows"
 
-MouseStates :: bit_set[MouseState]
-
-MouseState :: enum {
-    LEFT_IS_DOWN,
-    LEFT_WAS_DOWN,
-    LEFT_WAS_UP,
-
-    RIGHT_IS_DOWN,
-    RIGHT_WAS_DOWN,
-    RIGHT_WAS_UP,
-}
-
-Key :: enum {
-    NONE,
-    ESC,
-    ENTER,
-    F1, F2, F3, F4, F5, F6, F7, F8, F9, F10,
-}
-
-Keys :: bit_set[Key]
-
 InputState :: struct {
     deltaMousePosition: int2,
     mousePosition: int2,
 
-    mouse: MouseStates,
+    mouse: ui.MouseStates,
 
-    wasPressedKeys: Keys,
+    wasPressedKeys: ui.Keys,
 
     scrollDelta: i32,
 }
@@ -41,7 +22,7 @@ inputState: InputState
 
 EditableTextContext :: struct {
     text: strings.Builder,
-    rect: Rect,
+    rect: ui.Rect,
     leftOffset: i32,
 
     editorState: edit.State,
@@ -70,7 +51,8 @@ WindowData :: struct {
     delta: f64,
     size: int2,
 
-    uiContext: UiContext,
+    uiContext: ui.Context,
+    uiTextInputCtx: EditableTextContext,
 
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
@@ -80,7 +62,7 @@ WindowData :: struct {
 
     isInputMode: bool,
 
-    editorPadding: Rect,
+    editorPadding: ui.Rect,
 
     editableTextCtx: ^EditableTextContext,
 
@@ -192,7 +174,14 @@ createWindow :: proc(size: int2) {
     // set default editable context
     switchInputContextToEditor()
 
-    windowData.uiContext.setCursor = proc(cursor: CursorType) {
+    windowData.uiContext.getTextWidth = getTextWidth
+    windowData.uiContext.getTextHeight = getTextHeight
+    windowData.uiContext.font = &windowData.font
+    windowData.uiContext.clientSize = windowData.size
+    windowData.uiContext.closeIconId = i32(TextureType.CLOSE_ICON)
+    windowData.uiContext.checkIconId = i32(TextureType.CHECK_ICON)
+
+    windowData.uiContext.setCursor = proc(cursor: ui.CursorType) {
         switch cursor {
         case .DEFAULT: win32.SetCursor(defaultCursor)
         case .HORIZONTAL_SIZE: win32.SetCursor(horizontalSizeCursor)
@@ -201,7 +190,7 @@ createWindow :: proc(size: int2) {
     }
 
     // TODO: testing
-    windowData.uiContext.textInputCtx.text = strings.builder_make()
+    windowData.uiTextInputCtx.text = strings.builder_make()
     // strings.write_string(&windowData.uiContext.textInputCtx.text, "HYI")
     //<
 
@@ -226,10 +215,10 @@ removeWindowData :: proc() {
     delete(windowData.uiContext.parentPositionsStack)
     delete(windowData.uiContext.parentElementsStack)
     delete(windowData.uiContext.elements)
-    delete(windowData.uiContext.textInputCtx.lines)
+    delete(windowData.uiTextInputCtx.lines)
 
-    edit.destroy(&windowData.uiContext.textInputCtx.editorState)
-    strings.builder_destroy(&windowData.uiContext.textInputCtx.text)
+    edit.destroy(&windowData.uiTextInputCtx.editorState)
+    strings.builder_destroy(&windowData.uiTextInputCtx.text)
     clearExplorer(windowData.explorer)
 
     // TODO: investigate, is this code block is needed
@@ -250,11 +239,11 @@ getEditorSize :: proc() -> int2 {
     }
 }
 
-switchInputContextToUiElement :: proc(text: string, rect: Rect, disableNewLines: bool) {
-    strings.builder_reset(&windowData.uiContext.textInputCtx.text)
-    strings.write_string(&windowData.uiContext.textInputCtx.text, text)
+switchInputContextToUiElement :: proc(text: string, rect: ui.Rect, disableNewLines: bool) {
+    strings.builder_reset(&windowData.uiTextInputCtx.text)
+    strings.write_string(&windowData.uiTextInputCtx.text, text)
 
-    windowData.editableTextCtx = &windowData.uiContext.textInputCtx
+    windowData.editableTextCtx = &windowData.uiTextInputCtx
 
     windowData.editableTextCtx.disableNewLines = disableNewLines
     windowData.editableTextCtx.rect = rect

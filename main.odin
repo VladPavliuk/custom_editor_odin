@@ -21,6 +21,8 @@ main :: proc() {
 
     msg: win32.MSG
     for msg.message != win32.WM_QUIT {
+        defer free_all(context.temp_allocator)
+
         beforeFrame := time.tick_now()
         if win32.PeekMessageW(&msg, nil, 0, 0, win32.PM_REMOVE) {
             win32.TranslateMessage(&msg)
@@ -29,6 +31,12 @@ main :: proc() {
         }
 
         edit.update_time(&windowData.editableTextCtx.editorState)
+
+        windowData.uiContext.deltaMousePosition = inputState.deltaMousePosition
+        windowData.uiContext.mousePosition = inputState.mousePosition
+        windowData.uiContext.scrollDelta = inputState.scrollDelta
+        windowData.uiContext.mouse = inputState.mouse
+        windowData.uiContext.wasPressedKeys = inputState.wasPressedKeys
 
         render()
 
@@ -47,10 +55,7 @@ main :: proc() {
         inputState.scrollDelta = 0
 
         windowData.delta = time.duration_seconds(time.tick_diff(beforeFrame, time.tick_now()))
-
-        free_all(context.temp_allocator)
     }
-    free_all(context.temp_allocator)
 
     removeWindowData()
     clearDirectX()

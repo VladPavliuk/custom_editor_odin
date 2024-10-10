@@ -346,7 +346,7 @@ windowSizeChangedHandler :: proc "c" (width, height: i32) {
     context = runtime.default_context()
 
     windowData.size = { width, height }
-
+    windowData.uiContext.clientSize = windowData.size 
     recalculateFileTabsContextRects()
     resetClipRect()
 

@@ -1,5 +1,6 @@
 package main
 
+import "ui"
 import "core:strings"
 import "core:unicode/utf8"
 import "core:text/edit"
@@ -29,7 +30,7 @@ import "core:text/edit"
 createEmptyTextContext :: proc(initText := "") -> ^EditableTextContext {
     ctx := new(EditableTextContext)
     ctx.text = strings.builder_make(0)
-    ctx.rect = Rect{
+    ctx.rect = ui.Rect{
         top = windowData.size.y / 2 - windowData.editorPadding.top,
         bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
         left = -windowData.size.x / 2 + windowData.editorPadding.left,
@@ -62,7 +63,7 @@ freeTextContext :: proc(ctx: ^EditableTextContext) {
 getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext) -> int {
     stringToRender := strings.to_string(ctx.text)
 
-    mousePosition := screenToDirectXCoords(inputState.mousePosition)
+    mousePosition := ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
 
     mousePosition = {
         mousePosition.x - ctx.rect.left + ctx.leftOffset,
@@ -197,8 +198,8 @@ jumpToCursor :: proc(ctx: ^EditableTextContext) {
 
     if ctx.leftOffset > i32(ctx.cursorLeftOffset) {
         ctx.leftOffset = i32(ctx.cursorLeftOffset)
-    } else if ctx.leftOffset < i32(ctx.cursorLeftOffset) - getRectSize(ctx.rect).x {
-        ctx.leftOffset = i32(ctx.cursorLeftOffset) - getRectSize(ctx.rect).x
+    } else if ctx.leftOffset < i32(ctx.cursorLeftOffset) - ui.getRectSize(ctx.rect).x {
+        ctx.leftOffset = i32(ctx.cursorLeftOffset) - ui.getRectSize(ctx.rect).x
     }
 }
 
@@ -209,7 +210,7 @@ calculateLines :: proc(ctx: ^EditableTextContext) {
  
     cursor: f32 = 0.0
 
-    lineWidth := f32(getRectSize(getActiveTabContext().rect).x)
+    lineWidth := f32(ui.getRectSize(getActiveTabContext().rect).x)
     lineBoundaryIndexes: int2 = { 0, 0 }
     ctx.maxLineWidth = -1.0
     

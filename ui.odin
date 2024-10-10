@@ -8,164 +8,23 @@ import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
 import win32 "core:sys/windows"
-
-uiId :: i64
-
-UiActions :: bit_set[UiAction; u32]
-
-UiAction :: enum u32 {
-    SUBMIT,
-    RIGHT_CLICK,
-    HOT,
-    ACTIVE,
-    GOT_ACTIVE,
-    LOST_ACTIVE,
-    FOCUSED,
-    GOT_FOCUS,
-    LOST_FOCUS,
-    MOUSE_ENTER,
-    MOUSE_LEAVE,
-    MOUSE_WHEEL_SCROLL,
-}
-
-CursorType :: enum {
-    DEFAULT,
-    VERTICAL_SIZE,
-    HORIZONTAL_SIZE,
-}
-
-UiElement :: struct {
-    id: uiId,
-    parent: ^UiElement,
-}
-
-UiContext :: struct {
-    zIndex: f32,
-
-    elements: [dynamic]UiElement,
-    parentElementsStack: [dynamic]^UiElement,
-
-    isAnyPopupOpened: ^bool,
-
-    hotId: uiId,
-    prevHotId: uiId,
-    hotIdChanged: bool,
-    tmpHotId: uiId,
-
-    activeId: uiId,
-    
-    prevFocusedId: uiId,
-    focusedId: uiId,
-    focusedIdChanged: bool,
-    tmpFocusedId: uiId,
-
-    textInputCtx: EditableTextContext,
-
-    scrollableElements: [dynamic]map[uiId]struct{},
-    
-    parentPositionsStack: [dynamic]int2,
-
-    activeAlert: ^UiAlert,
-
-    setCursor: proc(CursorType),
-}
-
-// @(private="file")
-pushElement :: proc(ctx: ^UiContext, id: uiId, isParent := false) {
-    parent := len(ctx.parentElementsStack) == 0 ? nil : slice.last(ctx.parentElementsStack[:])
-
-    element := UiElement{
-        id = id,
-        parent = parent,
-    }
-    append(&ctx.elements, element)
-
-    if isParent {
-        append(&ctx.parentElementsStack, &ctx.elements[len(ctx.elements) - 1])
-    }
-}
-
-isSubElement :: proc(ctx: ^UiContext, parentId: uiId, childId: uiId) -> bool {
-    if childId == 0 { return false }
-    assert(parentId != 0)
-    assert(childId != 0)
-    childElement: ^UiElement
-
-    for &element in ctx.elements {
-        if element.id == childId {
-            childElement = &element
-            break
-        }
-    }
-
-    // TODO: maybe, it's better to show some dev error
-    if childElement == nil { return false }
-    // assert(childElement != nil)
-
-    for childElement.parent != nil {
-        if childElement.parent.id == parentId { return true }
-        childElement = childElement.parent
-    }
-
-    return false
-}
-
-getUiId :: proc(customIdentifier: i32, callerLocation: runtime.Source_Code_Location) -> i64 {
-    return i64(customIdentifier + 1) * i64(callerLocation.line + 1) * i64(callerLocation.column) * i64(uintptr(raw_data(callerLocation.file_path)))
-}
-
-beginUi :: proc(using ctx: ^UiContext, initZIndex: f32) {
-    zIndex = initZIndex
-    tmpHotId = 0
-    focusedId = tmpFocusedId
-
-    // if clicked on empty element - lost any focus
-    if .LEFT_WAS_DOWN in inputState.mouse && hotId == 0 {
-        tmpFocusedId = 0
-    }
-
-    // ctx.elements = make([dynamic]UiElement)
-}
-
-endUi :: proc(using ctx: ^UiContext, frameDelta: f64) {
-    updateAlertTimeout(ctx, frameDelta)
-    if ctx.activeAlert != nil {
-        renderActiveAlert(ctx)
-    }
-
-    hotIdChanged = false
-    if tmpHotId != hotId {
-        prevHotId = hotId
-        hotIdChanged = true
-    }
-
-    hotId = tmpHotId
-
-    focusedIdChanged = false
-    if tmpFocusedId != focusedId {
-        prevFocusedId = focusedId
-        focusedIdChanged = true
-    }
-
-    clear(&ctx.elements)
-    assert(len(ctx.parentElementsStack) == 0)
-}
+import "ui"
 
 renderTopMenu :: proc() {
     // top menu background
     fileMenuHeight: i32 = 25
-    renderRect(Rect{ 
+    renderRect(ui.Rect{
         top = windowData.size.y / 2,
         bottom = windowData.size.y / 2 - fileMenuHeight,
         left = -windowData.size.x / 2,
         right = windowData.size.x / 2,
     }, windowData.uiContext.zIndex, DARKER_GRAY_COLOR)
-    advanceUiZIndex(&windowData.uiContext)
+    ui.advanceZIndex(&windowData.uiContext)
 
     topItemPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - fileMenuHeight }
 
     { // File menu
-        fileItems := []UiDropdownItem{
+        fileItems := []ui.DropdownItem{
             { text = "New File", rightText = "Ctrl+N" },
             { text = "Open Folder" },
             { text = "Open...", rightText = "Ctrl+O" },
@@ -178,7 +37,7 @@ renderTopMenu :: proc() {
         @(static)
         isOpen: bool = false
 
-        if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+        if actions, selected := ui.renderDropdown(&windowData.uiContext, ui.Dropdown{
             text = "File",
             position = topItemPosition, size = { 60, fileMenuHeight },
             items = fileItems,
@@ -188,7 +47,7 @@ renderTopMenu :: proc() {
             isOpen = &isOpen,
             itemStyles = {
                 size = { 250, 0 },
-                padding = Rect{ top = 2, bottom = 3, left = 20, right = 10, },
+                padding = ui.Rect{ top = 2, bottom = 3, left = 20, right = 10, },
             },
         }); .SUBMIT in actions {
             switch selected {
@@ -207,7 +66,7 @@ renderTopMenu :: proc() {
 
     { // Edit
         // TODO: add disabling of items that do nothing at the moment
-        editItems := []UiDropdownItem{
+        editItems := []ui.DropdownItem{
             { text = "Undo", rightText = "Ctrl+Z" },
             { text = "Redo", rightText = "Ctrl+Shift+Z" },
             { isSeparator = true },
@@ -225,7 +84,7 @@ renderTopMenu :: proc() {
         @(static)
         isOpen: bool = false
 
-        if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
+        if actions, selected := ui.renderDropdown(&windowData.uiContext, ui.Dropdown{
             text = "Edit",
             position = topItemPosition, size = { 60, fileMenuHeight },
             items = editItems,
@@ -235,7 +94,7 @@ renderTopMenu :: proc() {
             isOpen = &isOpen,
             itemStyles = {
                 size = { 300, 0 },
-                padding = Rect{ top = 2, bottom = 3, left = 20, right = 10, },
+                padding = ui.Rect{ top = 2, bottom = 3, left = 20, right = 10, },
             },
         }); .SUBMIT in actions {
             editorState := &getActiveTabContext().editorState
@@ -256,7 +115,7 @@ renderTopMenu :: proc() {
     { // Settings menu
         @(static)
         showSettings := false
-        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Settings",
             position = topItemPosition, size = { 100, fileMenuHeight },
             bgColor = DARKER_GRAY_COLOR,
@@ -272,7 +131,7 @@ renderTopMenu :: proc() {
             @(static)
             panelSize: int2 = { 250, 300 }
 
-            beginPanel(&windowData.uiContext, UiPanel{
+            ui.beginPanel(&windowData.uiContext, ui.Panel{
                 title = "Settings",
                 position = &panelPosition,
                 size = &panelSize,
@@ -281,33 +140,33 @@ renderTopMenu :: proc() {
                 // hoverBgColor = THEME_COLOR_5,
             }, &showSettings)
 
-            renderLabel(&windowData.uiContext, UiLabel{
+            ui.renderLabel(&windowData.uiContext, ui.Label{
                 text = "Custom Font",
                 position = { 0, 250 },
                 color = WHITE_COLOR,
             })
 
-            renderTextField(&windowData.uiContext, UiTextField{
+            renderTextField(&windowData.uiContext, ui.TextField{
                 text = "YEAH",
                 position = { 0, 220 },
                 size = { 200, 30 },
                 bgColor = LIGHT_GRAY_COLOR,
             })
 
-            if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+            if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
                 text = "Load Font",
                 position = { 0, 190 },
                 size = { 100, 30 },
                 bgColor = THEME_COLOR_1,
-                disabled = strings.builder_len(windowData.uiContext.textInputCtx.text) == 0,
+                disabled = strings.builder_len(windowData.uiTextInputCtx.text) == 0,
             }) {
                 // try load font
-                fontPath := strings.to_string(windowData.uiContext.textInputCtx.text)
+                fontPath := strings.to_string(windowData.uiTextInputCtx.text)
 
                 if os.exists(fontPath) {
                     directXState.textures[.FONT], windowData.font = loadFont(fontPath)
                 } else {
-                    pushAlert(&windowData.uiContext, UiAlert{
+                    ui.pushAlert(&windowData.uiContext, ui.Alert{
                         text = strings.clone("Specified file does not exist!"),
                         bgColor = RED_COLOR,
                     })
@@ -316,7 +175,7 @@ renderTopMenu :: proc() {
             
             @(static)
             checked := false
-            if .SUBMIT in renderCheckbox(&windowData.uiContext, UiCheckbox{
+            if .SUBMIT in ui.renderCheckbox(&windowData.uiContext, ui.Checkbox{
                 text = "word wrapping",
                 checked = &windowData.wordWrapping,
                 position = { 0, 40 },
@@ -333,7 +192,7 @@ renderTopMenu :: proc() {
 
             //testingButtons()
             
-            endPanel(&windowData.uiContext)
+            ui.endPanel(&windowData.uiContext)
         }
         topItemPosition += 100
     }
@@ -347,33 +206,33 @@ renderFolderExplorer :: proc() {
     // @(static)
     // explorerWidth: i32 = 200 // TODO: make it configurable
 
-    bgRect := Rect{
+    bgRect := ui.Rect{
         top = windowData.size.y / 2 - topOffset,
         bottom = -windowData.size.y / 2,
         left = -windowData.size.x / 2,
         right = -windowData.size.x / 2 + windowData.explorerWidth,
     }
-    bgRectSize := getRectSize(bgRect)
+    bgRectSize := ui.getRectSize(bgRect)
 
     renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
-    advanceUiZIndex(&windowData.uiContext)
+    ui.advanceZIndex(&windowData.uiContext)
 
     // explorer header
     explorerButtonsWidth: i32 = 50 
     explorerHeaderHeight: i32 = 25
     
     headerPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - topOffset - explorerHeaderHeight }
-    headerBgRect := toRect(headerPosition, { windowData.explorerWidth, explorerHeaderHeight })
+    headerBgRect := ui.toRect(headerPosition, { windowData.explorerWidth, explorerHeaderHeight })
 
     // header background
-    putEmptyUiElement(&windowData.uiContext, headerBgRect)
+    ui.putEmptyElement(&windowData.uiContext, headerBgRect)
     renderRect(headerBgRect, windowData.uiContext.zIndex, GRAY_COLOR)
-    advanceUiZIndex(&windowData.uiContext)
+    ui.advanceZIndex(&windowData.uiContext)
 
     // explorer root folder name
-    setClipRect(toRect(headerPosition, { windowData.explorerWidth - explorerButtonsWidth, explorerHeaderHeight }))
+    setClipRect(ui.toRect(headerPosition, { windowData.explorerWidth - explorerButtonsWidth, explorerHeaderHeight }))
     renderLine(filepath.base(windowData.explorer.rootPath), &windowData.font, headerPosition, WHITE_COLOR, windowData.uiContext.zIndex, explorerHeaderHeight)
-    advanceUiZIndex(&windowData.uiContext)
+    ui.advanceZIndex(&windowData.uiContext)
     resetClipRect()
 
     topOffset += explorerHeaderHeight
@@ -381,13 +240,13 @@ renderFolderExplorer :: proc() {
     @(static)
     topItemIndex: i32 = 0
     
-    contentRect := Rect{
+    contentRect := ui.Rect{
         top = windowData.size.y / 2 - topOffset,
         bottom = -windowData.size.y / 2,
         left = -windowData.size.x / 2,
         right = -windowData.size.x / 2 + windowData.explorerWidth,
     }
-    contentRectSize := getRectSize(contentRect)
+    contentRectSize := ui.getRectSize(contentRect)
 
     itemVerticalPadding :: 4
     itemHeight := i32(windowData.font.lineHeight) + itemVerticalPadding 
@@ -397,23 +256,23 @@ renderFolderExplorer :: proc() {
     // explorer action buttons
     // collapse button
     activeTab := getActiveTab()
-    if .SUBMIT in renderButton(&windowData.uiContext, UiImageButton{
+    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
         position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
-        texture = .COLLAPSE_FILES_ICON,
+        textureId = i32(TextureType.COLLAPSE_FILES_ICON),
         texturePadding = 4,
-        hoverBgColor = getDarkerColor(GRAY_COLOR),
+        hoverBgColor = ui.getDarkerColor(GRAY_COLOR),
     }) {
         collapseExplorer(windowData.explorer)
     }
 
     // jump to current file button
-    if .SUBMIT in renderButton(&windowData.uiContext, UiImageButton{
+    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
         position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
-        texture = .JUMP_TO_CURRENT_FILE_ICON,
+        textureId = i32(TextureType.JUMP_TO_CURRENT_FILE_ICON),
         texturePadding = 4,
-        hoverBgColor = getDarkerColor(GRAY_COLOR),
+        hoverBgColor = ui.getDarkerColor(GRAY_COLOR),
     }) {
         if expandExplorerToFile(windowData.explorer, activeTab.filePath) {
             itemIndex := getIndexInFlatenItemsByFilePath(activeTab.filePath, &windowData.explorer.items)
@@ -431,7 +290,7 @@ renderFolderExplorer :: proc() {
         windowData.size.y / 2 - topOffset - i32(windowData.font.lineHeight),
     }
 
-    beginScroll(&windowData.uiContext)
+    ui.beginScroll(&windowData.uiContext)
 
     openedItems := make([dynamic]^ExplorerItem)
     getOpenedItemsFlaten(&windowData.explorer.items, &openedItems)
@@ -466,7 +325,7 @@ renderFolderExplorer :: proc() {
         item := openedItems[itemIndex]
         defer position.y -= itemHeight
 
-        itemRect := Rect{ 
+        itemRect := ui.Rect{ 
             top = position.y + itemHeight, 
             bottom = position.y,
             left = position.x,
@@ -479,7 +338,7 @@ renderFolderExplorer :: proc() {
                 continue
             }
             
-            textInputActions, textInputId := renderTextField(&windowData.uiContext, UiTextField{
+            textInputActions, textInputId := renderTextField(&windowData.uiContext, ui.TextField{
                 text = item.name,
                 initSelection = { i32(len(filepath.short_stem(item.name))), 0 },
                 position = position,
@@ -497,7 +356,7 @@ renderFolderExplorer :: proc() {
 
             if .LOST_FOCUS in textInputActions {
                 // if after rename the name is the same, do nothing
-                newFileName := strings.to_string(windowData.uiContext.textInputCtx.text)
+                newFileName := strings.to_string(windowData.uiTextInputCtx.text)
 
                 if newFileName == item.name {
                     renameItemIndex = -1
@@ -513,7 +372,7 @@ renderFolderExplorer :: proc() {
                 if len(newFileName) == 0 {
                     fileContextMenuJustOpened = true
 
-                    pushAlert(&windowData.uiContext, UiAlert{
+                    ui.pushAlert(&windowData.uiContext, ui.Alert{
                         text = strings.clone("Can't save empty file name!"),
                         timeout = 5.0,
                         bgColor = RED_COLOR,
@@ -526,7 +385,7 @@ renderFolderExplorer :: proc() {
                 if err != nil {
                     fileContextMenuJustOpened = true
 
-                    pushAlert(&windowData.uiContext, UiAlert{
+                    ui.pushAlert(&windowData.uiContext, ui.Alert{
                         text = strings.clone(fmt.tprintf("Error: %s!", err)),
                         timeout = 5.0,
                         bgColor = RED_COLOR,
@@ -555,11 +414,11 @@ renderFolderExplorer :: proc() {
             continue
         }
 
-        itemActions := putEmptyUiElement(&windowData.uiContext, itemRect, customId = itemIndex)
+        itemActions := ui.putEmptyElement(&windowData.uiContext, itemRect, customId = itemIndex)
 
         if item.fullPath == activeTab.filePath { // highlight selected file
-            renderRect(itemRect, windowData.uiContext.zIndex, getDarkerColor(GRAY_COLOR))
-            advanceUiZIndex(&windowData.uiContext)
+            renderRect(itemRect, windowData.uiContext.zIndex, ui.getDarkerColor(GRAY_COLOR))
+            ui.advanceZIndex(&windowData.uiContext)
         }
 
         if .FOCUSED in itemActions && .F2 in inputState.wasPressedKeys {
@@ -569,7 +428,7 @@ renderFolderExplorer :: proc() {
 
         if .HOT in itemActions {
             renderRect(itemRect, windowData.uiContext.zIndex, THEME_COLOR_1)
-            advanceUiZIndex(&windowData.uiContext)
+            ui.advanceZIndex(&windowData.uiContext)
         }
 
         if .SUBMIT in itemActions {
@@ -588,7 +447,7 @@ renderFolderExplorer :: proc() {
 
         if .RIGHT_CLICK in itemActions {
             showFileContextMenu = true
-            fileContextMenuPosition = screenToDirectXCoords(inputState.mousePosition)
+            fileContextMenuPosition = ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
             itemContextMenuIndex = itemIndex
         }
 
@@ -610,7 +469,7 @@ renderFolderExplorer :: proc() {
         renderLine(item.name, &windowData.font, { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
         resetClipRect()
     }
-    advanceUiZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
+    ui.advanceZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
     verticalScrollSize: i32 = min(i32(f32(contentRectSize.y) * f32(maxItemsOnScreen) / f32(openedItemsCount)), contentRectSize.y)
     horizontalScrollSize: i32 = min(i32(f32(contentRectSize.x) * f32(contentRectSize.x) / f32(maxWidthItem)), contentRectSize.x)
@@ -620,8 +479,8 @@ renderFolderExplorer :: proc() {
 
     @(static)
     scrollHorizontalOffset: i32 = 0
-    verticalScrollActions, _ := endScroll(&windowData.uiContext, UiScroll{
-        bgRect = Rect{
+    verticalScrollActions, _ := ui.endScroll(&windowData.uiContext, ui.Scroll{
+        bgRect = ui.Rect{
             top = contentRect.top,
             bottom = contentRect.bottom,
             right = contentRect.right,
@@ -629,10 +488,10 @@ renderFolderExplorer :: proc() {
         },
         offset = &scrollVerticalOffset,
         size = verticalScrollSize,
-        color = setColorAlpha(DARKER_GRAY_COLOR, 0.6),
-        hoverColor = setColorAlpha(DARK_GRAY_COLOR, 0.9),
-    }, UiScroll{
-        bgRect = Rect{
+        color = ui.setColorAlpha(DARKER_GRAY_COLOR, 0.6),
+        hoverColor = ui.setColorAlpha(DARK_GRAY_COLOR, 0.9),
+    }, ui.Scroll{
+        bgRect = ui.Rect{
             top = contentRect.bottom + 15,
             bottom = contentRect.bottom,
             right = contentRect.right,
@@ -640,8 +499,8 @@ renderFolderExplorer :: proc() {
         },
         offset = &scrollHorizontalOffset,
         size = horizontalScrollSize,
-        color = setColorAlpha(DARKER_GRAY_COLOR, 0.6),
-        hoverColor = setColorAlpha(DARK_GRAY_COLOR, 0.9),
+        color = ui.setColorAlpha(DARKER_GRAY_COLOR, 0.6),
+        hoverColor = ui.setColorAlpha(DARK_GRAY_COLOR, 0.9),
     })
 
     if openedItemsCount > maxItemsOnScreen { // has vertical scrollbar
@@ -657,7 +516,7 @@ renderFolderExplorer :: proc() {
     }
 
     // NOTE: it won't work if some code above will show for example a popup
-    resizeDirection := putResizableRect(&windowData.uiContext, bgRect)
+    resizeDirection := ui.putResizableRect(&windowData.uiContext, bgRect)
 
     #partial switch resizeDirection {
     case .RIGHT:
@@ -666,20 +525,20 @@ renderFolderExplorer :: proc() {
         recalculateFileTabsContextRects()
     }
 
-    if beginPopup(&windowData.uiContext, UiPopup{
+    if ui.beginPopup(&windowData.uiContext, ui.Popup{
         position = fileContextMenuPosition, size = {100,75},
         bgColor = DARKER_GRAY_COLOR,
         isOpen = &showFileContextMenu,
-        clipRect = Rect{
+        clipRect = ui.Rect{
             top = windowData.size.y / 2 - 25, // TODO: remove hardcoded value
             bottom = -windowData.size.y / 2,
             right = windowData.size.x / 2,
             left = -windowData.size.x / 2,
         },
     }) {
-        defer endPopup(&windowData.uiContext)
+        defer ui.endPopup(&windowData.uiContext)
 
-        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "New file",
             position = { 0, 50 },
             size = { 100, 25 },
@@ -729,7 +588,7 @@ renderFolderExplorer :: proc() {
         //     showFileContextMenu = false
         // }
 
-        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Rename",
             position = { 0, 25 },
             size = { 100, 25 },
@@ -741,7 +600,7 @@ renderFolderExplorer :: proc() {
             fileContextMenuJustOpened = true
         }
 
-        if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Delete",
             position = { 0, 0 },
             size = { 100, 25 },
@@ -768,7 +627,7 @@ renderFolderExplorer :: proc() {
                 err := os.remove(item.fullPath)
 
                 if err != nil {
-                    pushAlert(&windowData.uiContext, UiAlert{
+                    ui.pushAlert(&windowData.uiContext, ui.Alert{
                         text = strings.clone(fmt.tprintf("Couldn't delete: \"%s\"!", item.name)),
                         timeout = 5.0,
                         bgColor = RED_COLOR,
@@ -776,7 +635,7 @@ renderFolderExplorer :: proc() {
                     break
                 }
 
-                pushAlert(&windowData.uiContext, UiAlert{
+                ui.pushAlert(&windowData.uiContext, ui.Alert{
                     text = strings.clone(fmt.tprintf("File: \"%s\" deleted!", item.name)),
                     timeout = 5.0,
                     bgColor = GREEN_COLOR,
@@ -795,11 +654,11 @@ renderEditorFileTabs :: proc() {
     topOffset: i32 = 25 // TODO: calcualte it
     leftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
     
-    renderRect(toRect({ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x - leftOffset, tabsHeight }), 
+    renderRect(ui.toRect({ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x - leftOffset, tabsHeight }), 
         windowData.uiContext.zIndex, GRAY_COLOR)
-    advanceUiZIndex(&windowData.uiContext)
+    ui.advanceZIndex(&windowData.uiContext)
 
-    tabItems := make([dynamic]UiTabsItem)
+    tabItems := make([dynamic]ui.TabsItem)
     defer delete(tabItems)
 
     atLeastTwoTabsOpened := len(windowData.fileTabs) > 1
@@ -809,17 +668,17 @@ renderEditorFileTabs :: proc() {
         if atLeastTwoTabsOpened { rightIcon = .CLOSE_ICON } // we always want to show at least one file tab, so remove close icon if only tab
         if !fileTab.isSaved { rightIcon = .CIRCLE }
 
-        tab := UiTabsItem{
+        tab := ui.TabsItem{
             text = fileTab.name,
-            leftIcon = getIconByFilePath(fileTab.filePath),
+            leftIconId = i32(getIconByFilePath(fileTab.filePath)),
             leftIconSize = { 16, 16 },
-            rightIcon = rightIcon,
+            rightIconId = i32(rightIcon),
         }
 
         append(&tabItems, tab)
     }
 
-    tabActions := renderTabs(&windowData.uiContext, UiTabs{
+    tabActions := ui.renderTabs(&windowData.uiContext, ui.Tabs{
         position = { -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight },
         activeTabIndex = &windowData.activeFileTab,
         items = tabItems[:],
@@ -831,16 +690,16 @@ renderEditorFileTabs :: proc() {
     })
 
     switch action in tabActions {
-    case UiTabsSwitched:
+    case ui.TabsSwitched:
         switchInputContextToEditor()
-    case UiTabsActionClose:
+    case ui.TabsActionClose:
         tryCloseFileTab(action.closedTabIndex)
     }
 }
 
 recalculateFileTabsContextRects :: proc() {
     for fileTab in windowData.fileTabs {
-        fileTab.ctx.rect = Rect{
+        fileTab.ctx.rect = ui.Rect{
             top = windowData.size.y / 2 - windowData.editorPadding.top,
             bottom = -windowData.size.y / 2 + windowData.editorPadding.bottom,
             left = -windowData.size.x / 2 + windowData.editorPadding.left,
@@ -871,7 +730,7 @@ renderEditorContent :: proc() {
     maxLinesOnScreen := getEditorSize().y / i32(windowData.font.lineHeight)
     totalLines := i32(len(editorCtx.lines))
 
-    editorRectSize := getRectSize(editorCtx.rect)
+    editorRectSize := ui.getRectSize(editorCtx.rect)
 
     @(static)
     verticalOffset: i32 = 0
@@ -891,11 +750,11 @@ renderEditorContent :: proc() {
         horizontalScrollSize = i32(f32(editorRectSize.x) * f32(editorRectSize.x) / editorCtx.maxLineWidth)
     }
 
-    beginScroll(&windowData.uiContext)
+    ui.beginScroll(&windowData.uiContext)
 
-    editorContentActions := putEmptyUiElement(&windowData.uiContext, editorCtx.rect)
+    editorContentActions := ui.putEmptyElement(&windowData.uiContext, editorCtx.rect)
 
-    handleTextInputActions(editorCtx, editorContentActions)
+    // ui.handleTextInputActions(editorCtx, editorContentActions)
 
     calculateLines(editorCtx)
     updateCusrorData(editorCtx)
@@ -906,7 +765,7 @@ renderEditorContent :: proc() {
     renderText(glyphsCount, selectionsCount, WHITE_COLOR, TEXT_SELECTION_BG_COLOR)
     resetClipRect()
 
-    verticalScrollActions, horizontalScrollActions := endScroll(&windowData.uiContext, UiScroll{
+    verticalScrollActions, horizontalScrollActions := ui.endScroll(&windowData.uiContext, ui.Scroll{
         bgRect = {
             top = editorCtx.rect.top,
             bottom = editorCtx.rect.bottom,
@@ -918,7 +777,7 @@ renderEditorContent :: proc() {
         color = float4{ 0.7, 0.7, 0.7, 1.0 },
         hoverColor = float4{ 1.0, 1.0, 1.0, 1.0 },
         bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
-    }, UiScroll{
+    }, ui.Scroll{
         bgRect = {
             top = editorCtx.rect.bottom,
             bottom = editorCtx.rect.bottom - horizontalScrollHeight,
@@ -958,145 +817,49 @@ renderEditorContent :: proc() {
     }
 }
 
-putEmptyUiElement :: proc(ctx: ^UiContext, rect: Rect, ignoreFocusUpdate := false, customId: i32 = 0, loc := #caller_location) -> UiActions {
-    uiId := getUiId(customId, loc)
+renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32 = 0, loc := #caller_location) -> (ui.Actions, ui.Id) {
+    actions, id := ui.renderTextField(&windowData.uiContext, textField, customId, loc)
 
-    return checkUiState(ctx, uiId, rect, ignoreFocusUpdate)
-}
+    // TODO: it's better to return rect from  renderTextField
+    position := textField.position + ui.getAbsolutePosition(ctx)
+    uiRect := ui.toRect(position, textField.size)
 
-advanceUiZIndex :: proc(uiContext: ^UiContext) {
-    uiContext.zIndex -= 0.1
-}
-
-checkUiState :: proc(ctx: ^UiContext, uiId: uiId, rect: Rect, ignoreFocusUpdate := false) -> UiActions {
-    if len(ctx.scrollableElements) > 0 {
-        ctx.scrollableElements[len(ctx.scrollableElements) - 1][uiId] = {}
-    }
-
-    mousePosition := screenToDirectXCoords({ i32(inputState.mousePosition.x), i32(inputState.mousePosition.y) })
-
-    action: UiActions = nil
+    textHeight := ctx.getTextHeight(ctx.font)
     
-    if ctx.activeId == uiId {
-        if .LEFT_WAS_UP in inputState.mouse || .RIGHT_WAS_UP in inputState.mouse {
-            if ctx.hotId == uiId {
-                if .RIGHT_WAS_UP in inputState.mouse {
-                    action += {.RIGHT_CLICK}
-                } else {
-                    action += {.SUBMIT}
-                }
-            }
+    if .GOT_FOCUS in actions {
+        switchInputContextToUiElement(textField.text, ui.Rect{
+            top = uiRect.top - textField.size.y / 2 + i32(textHeight / 2),
+            bottom = uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2),
+            left = uiRect.left + 5,
+            right = uiRect.right - 5,
+        }, true)
 
-            action += {.LOST_ACTIVE}
-            ctx.activeId = {}
-        } else {
-            action += {.ACTIVE}
-        }
-    } else if ctx.hotId == uiId {
-        if .LEFT_WAS_DOWN in inputState.mouse || .RIGHT_WAS_DOWN in inputState.mouse {
-            ctx.activeId = uiId
+        // pre-select text
+        windowData.uiTextInputCtx.editorState.selection = { int(textField.initSelection[0]), int(textField.initSelection[1]) }
+    } 
 
-            action += {.GOT_ACTIVE}
-
-            if !ignoreFocusUpdate { ctx.tmpFocusedId = uiId }
-        }
+    if .LOST_FOCUS in actions {
+        switchInputContextToEditor()
     }
 
-    if ctx.focusedIdChanged && ctx.focusedId == uiId {
-        action += {.GOT_FOCUS}
-    } else if ctx.focusedIdChanged && ctx.prevFocusedId == uiId {
-        action += {.LOST_FOCUS}
-    }
-
-    if ctx.hotIdChanged && ctx.hotId == uiId {
-        action += {.MOUSE_ENTER}
-    } else if ctx.hotIdChanged && ctx.prevHotId == uiId {
-        action += {.MOUSE_LEAVE}
-    }
+    if .FOCUSED in actions {
+        calculateLines(&windowData.uiTextInputCtx)
+        updateCusrorData(&windowData.uiTextInputCtx)
     
-    if ctx.hotId == uiId {
-        action += {.HOT}
-
-        if abs(inputState.scrollDelta) > 0 {
-            action += {.MOUSE_WHEEL_SCROLL}
-        }
+        handleTextInputActions(&windowData.uiTextInputCtx, actions)
     }
 
-    if isInRect(rect, mousePosition) {
-        ctx.tmpHotId = uiId
-    }
-
-    if ctx.focusedId == uiId {
-        action += {.FOCUSED}
-    }
-
-    return action
+    return actions, id
 }
 
-getDarkerColor :: proc(color: float4) -> float4 {
-    rgb := color.rgb * 0.8
-    return { rgb.r, rgb.g, rgb.b, color.a }
-}
 
-getAbsolutePosition :: proc(uiContext: ^UiContext) -> int2 {
-    absolutePosition := int2{ 0, 0 }
-
-    for position in uiContext.parentPositionsStack {
-        absolutePosition += position
+handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
+    if .GOT_ACTIVE in actions {
+        pos := getCursorIndexByMousePosition(ctx)
+        ctx.editorState.selection = { pos, pos }
     }
 
-    return absolutePosition
-}
-
-clipRect :: proc(target, source: Rect) -> Rect {
-    targetSize := getRectSize(target)
-    sourceSize := getRectSize(source)
-
-    // if source panel size is bigger then target panel size, do nothing 
-    if sourceSize.x > targetSize.x || sourceSize.y > targetSize.y {
-        return source
-    }
-
-    source := source
-
-    // right side
-    source.right = min(source.right, target.right)
-    source.left = source.right - sourceSize.x
-
-    // left side
-    source.left = max(source.left, target.left)
-    source.right = source.left + sourceSize.x
-
-    // top side
-    source.top = min(source.top, target.top)
-    source.bottom = source.top - sourceSize.y
-
-    // bottom side
-    source.bottom = max(source.bottom, target.bottom)
-    source.top = source.bottom + sourceSize.y
-
-    return source
-}
-
-screenToDirectXCoords :: proc(coords: int2) -> int2 {
-    return {
-        coords.x - windowData.size.x / 2,
-        -coords.y + windowData.size.y / 2,
-    }
-}
-
-directXToScreenRect :: proc(rect: Rect) -> Rect {
-    return Rect{
-        top = windowData.size.y / 2 - rect.top, 
-        bottom = windowData.size.y / 2 - rect.bottom, 
-        left = rect.left + windowData.size.x / 2, 
-        right = rect.right + windowData.size.x / 2, 
-    }
-}
-
-directXToScreenToCoords :: proc(coords: int2) -> int2 {
-    return {
-        coords.x + windowData.size.x / 2,
-        coords.y + windowData.size.x / 2,
-    }
+    if .ACTIVE in actions {
+        ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
+    }   
 }

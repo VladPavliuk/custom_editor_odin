@@ -3,6 +3,7 @@ package main
 import "core:strings"
 import "core:os"
 import "core:path/filepath"
+import "ui"
 
 getActiveTab :: proc() -> ^FileTab {
     return &windowData.fileTabs[windowData.activeFileTab]
@@ -132,7 +133,7 @@ checkTabFileExistance :: proc(tab: ^FileTab) {
     if len(tab.filePath) > 0 && !os.exists(tab.filePath) {
         // if file does not exist anymore, just mark tab as unsafed and remove old file association
 
-        pushAlert(&windowData.uiContext, UiAlert{
+        ui.pushAlert(&windowData.uiContext, ui.Alert{
             text = strings.clone(fmt.tprintfln("%q was removed!", tab.name)),
             timeout = 5.0,
             bgColor = RED_COLOR,

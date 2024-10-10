@@ -1,5 +1,6 @@
 package main
 
+import "ui"
 import "core:strings"
 
 import "base:intrinsics"
@@ -111,9 +112,9 @@ resetClipRect :: proc() {
     directXState.ctx->RSSetScissorRects(1, &scissorRect)
 }
 
-setClipRect :: proc(rect: Rect) {
+setClipRect :: proc(rect: ui.Rect) {
     rect := rect
-    rect = directXToScreenRect(rect)
+    rect = ui.directXToScreenRect(rect, &windowData.uiContext)
 
     scissorRect := d3d11.RECT{
         top = rect.top,
@@ -126,7 +127,7 @@ setClipRect :: proc(rect: Rect) {
 }
 
 testingButtons :: proc() {
-    if action := renderButton(&windowData.uiContext, UiTextButton{
+    if action := ui.renderButton(&windowData.uiContext, ui.TextButton{
         text = "Test 1",
         position = { 0, 0 },
         size = { 100, 30 },
@@ -149,7 +150,7 @@ testingButtons :: proc() {
         fmt.print('\n')
     }
 
-    if action := renderButton(&windowData.uiContext, UiTextButton{
+    if action := ui.renderButton(&windowData.uiContext, ui.TextButton{
         text = "Test 2",
         position = { 40, 10 },
         size = { 100, 30 },
@@ -173,8 +174,36 @@ testingButtons :: proc() {
     }
 }
 
+renderUi :: proc() {
+    ctx := &windowData.uiContext
+    for cmd in ctx.commands {
+        switch command in cmd {
+        case ui.RectCommand:
+            renderRect(command.rect, ctx.zIndex, command.bgColor)
+            ui.advanceZIndex(ctx)
+        case ui.ImageCommand:
+            renderImageRect(command.rect, ctx.zIndex, TextureType(command.textureId))
+            ui.advanceZIndex(ctx)
+        case ui.BorderRectCommand:
+            renderRectBorder(command.rect, f32(command.thikness), ctx.zIndex, command.color)
+            ui.advanceZIndex(ctx)
+        case ui.TextCommand:
+            renderLine(command.text, &windowData.font, command.position, command.color, ctx.zIndex)
+            ui.advanceZIndex(ctx)
+        case ui.EditableTextCommand:
+            glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiTextInputCtx, ctx.zIndex)
+
+            renderText(glyphsCount, selectionsCount, BLACK_COLOR, TEXT_SELECTION_BG_COLOR)
+        case ui.ClipCommand:
+            setClipRect(command.rect)
+        case ui.ResetClipCommand:
+            resetClipRect()
+        }
+    }
+}
+
 uiStaff :: proc() {
-    beginUi(&windowData.uiContext, windowData.maxZIndex / 2.0)
+    ui.beginUi(&windowData.uiContext, windowData.maxZIndex / 2.0)
 
     // startTimer()
 
@@ -331,14 +360,15 @@ uiStaff :: proc() {
 
     renderTopMenu()
 
-    endUi(&windowData.uiContext, windowData.delta)
+    ui.endUi(&windowData.uiContext, windowData.delta)
+    renderUi()
 
     windowData.isInputMode = windowData.uiContext.activeId == {}
 }
 
 renderRect :: proc{renderRectVec_Float, renderRectVec_Int, renderRect_Int}
 
-renderRect_Int :: proc(rect: Rect, zValue: f32, color: float4) {
+renderRect_Int :: proc(rect: ui.Rect, zValue: f32, color: float4) {
     renderRectVec_Float({ f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, color)
 }
@@ -370,7 +400,7 @@ renderRectVec_Float :: proc(position, size: float2, zValue: f32, color: float4) 
 
 renderImageRect :: proc{renderImageRectVec_Float, renderImageRectVec_Int, renderImageRect_Int}
 
-renderImageRect_Int :: proc(rect: Rect, zValue: f32, texture: TextureType) {
+renderImageRect_Int :: proc(rect: ui.Rect, zValue: f32, texture: TextureType) {
     renderImageRectVec_Float({ f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, texture)
 }
@@ -400,7 +430,7 @@ renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: T
 
 renderRectBorder :: proc{renderRectBorderVec_Float, renderRectBorderVec_Int, renderRectBorder_Int}
 
-renderRectBorder_Int :: proc(rect: Rect, thickness, zValue: f32, color: float4) {
+renderRectBorder_Int :: proc(rect: ui.Rect, thickness, zValue: f32, color: float4) {
     renderRectBorderVec_Float({ f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, thickness, zValue, color)
 }
@@ -471,7 +501,7 @@ renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
     if ctx.cursorLineIndex < ctx.lineIndex { return }
     
     // TODO: move it into a separate function
-    editorRectSize := getRectSize(ctx.rect)
+    editorRectSize := ui.getRectSize(ctx.rect)
     maxLinesOnScreen := editorRectSize.y / i32(windowData.font.lineHeight)
 
     // if cursor bellow bottom line, don't render it
@@ -503,7 +533,7 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
     topLine := ctx.lineIndex
     bottomLine := i32(len(ctx.lines))
 
-    editableRectSize := getRectSize(ctx.rect)
+    editableRectSize := ui.getRectSize(ctx.rect)
 
     glyphsCount := 0
     selectionsCount := 0

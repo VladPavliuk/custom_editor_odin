@@ -1,5 +1,6 @@
 package main
 
+import "ui"
 import "core:mem"
 import "core:os"
 import "vendor:directx/d3d11"
@@ -8,12 +9,12 @@ import stbtt "vendor:stb/truetype"
 
 // NOTE: struct is packed, because for GPU no padding allowed
 FontGlyphGpu :: struct #packed {
-    sourceRect: Rect,
+    sourceRect: ui.Rect,
     targetTransformation: mat4,
 }
 
 FontChar :: struct {
-    rect: Rect,
+    rect: ui.Rect,
     offset: int2,
     xAdvance: f32,
 }
@@ -154,7 +155,7 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
         stbtt.MakeGlyphBitmap(&font, bitmapOffset, gw, gh, bitmapSize.x, fontData.scale, fontData.scale, g)
 
         fontData.chars[char] = FontChar{
-            rect = Rect{
+            rect = ui.Rect{
                 top = y + gh,
                 bottom = y,
                 left = x,
@@ -192,18 +193,18 @@ BakeFontBitmapCustomChars :: proc(data: []byte, pixelHeight: f32, bitmap: []byte
     return fontData
 }
 
-getTextHeight :: proc(font: ^FontData) -> f32 {
+getTextHeight :: proc(font: rawptr) -> f32 {
     assert(font != nil)
 
-    return font.lineHeight
+    return (^FontData)(font).lineHeight
 }
 
-getTextWidth :: proc(text: string, font: ^FontData) -> f32 {
+getTextWidth :: proc(text: string, font: rawptr) -> f32 {
     assert(font != nil)
     width: f32 = 0.0
 
     for char in text {
-        width += font.chars[char].xAdvance
+        width += (^FontData)(font).chars[char].xAdvance
     }
 
     return width
