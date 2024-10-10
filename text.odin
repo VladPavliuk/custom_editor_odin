@@ -59,7 +59,6 @@ freeTextContext :: proc(ctx: ^EditableTextContext) {
     free(ctx)
 }
 
-
 getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext) -> int {
     stringToRender := strings.to_string(ctx.text)
 

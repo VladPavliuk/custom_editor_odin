@@ -215,9 +215,6 @@ renderFolderExplorer :: proc() {
         bgColor = GRAY_COLOR,
     })
 
-    // renderRect(bgRect, windowData.uiContext.zIndex, GRAY_COLOR)
-    // ui.advanceZIndex(&windowData.uiContext)
-
     // explorer header
     explorerButtonsWidth: i32 = 50 
     explorerHeaderHeight: i32 = 25
@@ -491,10 +488,6 @@ renderFolderExplorer :: proc() {
             color = WHITE_COLOR,
         })
         append(&windowData.uiContext.commands, ui.ResetClipCommand{})
-    
-        // renderImageRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }, windowData.uiContext.zIndex, icon)
-        // renderLine(item.name, &windowData.font, { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 }, WHITE_COLOR, windowData.uiContext.zIndex)
-        // resetClipRect()
     }
     ui.advanceZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
@@ -779,9 +772,9 @@ renderEditorContent :: proc() {
 
     ui.beginScroll(&windowData.uiContext)
 
-    //editorContentActions := ui.putEmptyElement(&windowData.uiContext, editorCtx.rect)
+    editorContentActions := ui.putEmptyElement(&windowData.uiContext, editorCtx.rect)
 
-    // ui.handleTextInputActions(editorCtx, editorContentActions)
+    handleTextInputActions(editorCtx, editorContentActions)
 
     calculateLines(editorCtx)
     updateCusrorData(editorCtx)
