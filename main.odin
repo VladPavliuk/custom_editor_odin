@@ -30,6 +30,13 @@ main :: proc() {
             continue
         }
 
+        // NOTE: For some reasons if mouse double click happened, windows sends WM_LBUTTONDOWN and WM_LBUTTONUP at the same time??!
+        // so we remove WM_LBUTTONUP and add DOUBLE_CLICK event
+        if .LEFT_WAS_DOWN in inputState.mouse && .LEFT_WAS_UP in inputState.mouse {
+            inputState.mouse -= {.LEFT_WAS_UP}
+            inputState.mouse += {.LEFT_WAS_DOUBLE_CLICKED}
+        }
+
         edit.update_time(&windowData.editableTextCtx.editorState)
 
         windowData.uiContext.deltaMousePosition = inputState.deltaMousePosition
@@ -48,7 +55,7 @@ main :: proc() {
         }
         windowData.sinceExplorerSync += windowData.delta
 
-        inputState.mouse = {}
+        inputState.mouse -= {.LEFT_WAS_DOWN, .LEFT_WAS_UP, .LEFT_WAS_DOUBLE_CLICKED, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP}
         inputState.wasPressedKeys = {}
 
         inputState.deltaMousePosition = { 0, 0 }

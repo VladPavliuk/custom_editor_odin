@@ -53,12 +53,13 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
         win32.ReleaseCapture()
-    case win32.WM_LBUTTONDBLCLK:
-        // NOTE: for simplicity just pretend that WM_LBUTTONDBLCLK message is just WM_LBUTTONDOWN
+    // case win32.WM_LBUTTONDBLCLK:
+    //     // NOTE: for simplicity just pretend that WM_LBUTTONDBLCLK message is just WM_LBUTTONDOWN
         
-        inputState.mouse += { .LEFT_IS_DOWN, .LEFT_WAS_DOWN }
+    //     // inputState.mouse += { .LEFT_IS_DOWN, .LEFT_WAS_DOWN, .LEFT_WAS_DOUBLE_CLICKED }
+    //     inputState.mouse += { .LEFT_WAS_DOUBLE_CLICKED }
         
-		win32.SetCapture(hwnd)
+	// 	win32.SetCapture(hwnd)
     case win32.WM_RBUTTONDOWN:
         inputState.mouse += { .RIGHT_IS_DOWN, .RIGHT_WAS_DOWN }
 

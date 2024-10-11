@@ -29,6 +29,8 @@ EditableTextContext :: struct {
     disableNewLines: bool,
     maxLineWidth: f32,
 
+    wordsSelection: bool,
+
     lineIndex: i32, // top line index from which text is rendered
     cursorLineIndex: i32,
     cursorLeftOffset: f32, // offset from line start
@@ -105,7 +107,7 @@ createWindow :: proc(size: int2) {
         hInstance = hInstance,
         lpszClassName = wndClassName,
         lpfnWndProc = winProc,
-        style = win32.CS_DBLCLKS,
+        // style = win32.CS_DBLCLKS,
         hCursor = defaultCursor,
         hIcon = (win32.HICON)(resourceIcon),
     }

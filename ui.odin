@@ -4,6 +4,7 @@ import "core:os"
 import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
+import "core:time"
 
 import "ui"
 
@@ -872,14 +873,36 @@ renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32
     return actions, id
 }
 
-
 handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
-    if .GOT_ACTIVE in actions {
+    if .GOT_ACTIVE in actions {        
         pos := getCursorIndexByMousePosition(ctx)
         ctx.editorState.selection = { pos, pos }
     }
 
+    if .DOUBLE_CLICK in actions {
+        ctx.wordsSelection = true
+    }
+
     if .ACTIVE in actions {
-        ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
-    }   
+        if ctx.wordsSelection {
+            prevSelection := ctx.editorState.selection 
+            ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
+
+            ctx.editorState.selection = {
+                edit.translate_position(&ctx.editorState, .Word_End),
+                edit.translate_position(&ctx.editorState, .Word_Start),
+            }
+
+            ctx.editorState.selection = {
+                max(prevSelection[0], ctx.editorState.selection[0]),
+                min(prevSelection[1], ctx.editorState.selection[1]),
+            }
+        } else {
+            ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
+        }
+    }
+
+    if .LOST_ACTIVE in actions {
+        ctx.wordsSelection = false   
+    }
 }
