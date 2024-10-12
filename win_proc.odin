@@ -46,10 +46,19 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
     case win32.WM_LBUTTONDOWN:
         inputState.mouse += { .LEFT_IS_DOWN, .LEFT_WAS_DOWN }
 
+        // NOTE: Apply double click only if cursor in the same position
+        if inputState.timeSinceMouseLeftDown < DOUBLE_CLICK_TIME_TRESHOLD && 
+            inputState.lastClickMousePosition == getCurrentMousePosition() {
+            inputState.mouse += {.LEFT_WAS_DOUBLE_CLICKED, .LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED}
+        }
+
+        inputState.timeSinceMouseLeftDown = 0.0
 		win32.SetCapture(hwnd)
     case win32.WM_LBUTTONUP:
         inputState.mouse += { .LEFT_WAS_UP }
-        inputState.mouse -= { .LEFT_IS_DOWN }
+        inputState.mouse -= { .LEFT_IS_DOWN, .LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED }
+
+        inputState.lastClickMousePosition = getCurrentMousePosition()
 
         // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
         win32.ReleaseCapture()

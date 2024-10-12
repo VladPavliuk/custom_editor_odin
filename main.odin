@@ -30,11 +30,11 @@ main :: proc() {
             continue
         }
 
-        // NOTE: For some reasons if mouse double click happened, windows sends WM_LBUTTONDOWN and WM_LBUTTONUP at the same time??!
+        // NOTE: For some reasons if mouse double click on laptop touchpad happened, windows sends WM_LBUTTONDOWN and WM_LBUTTONUP at the same time??!
         // so we remove WM_LBUTTONUP and add DOUBLE_CLICK event
         if .LEFT_WAS_DOWN in inputState.mouse && .LEFT_WAS_UP in inputState.mouse {
             inputState.mouse -= {.LEFT_WAS_UP}
-            inputState.mouse += {.LEFT_WAS_DOUBLE_CLICKED}
+            inputState.mouse += {.LEFT_WAS_DOUBLE_CLICKED, .LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED}
         }
 
         edit.update_time(&windowData.editableTextCtx.editorState)
@@ -55,11 +55,15 @@ main :: proc() {
         }
         windowData.sinceExplorerSync += windowData.delta
 
-        inputState.mouse -= {.LEFT_WAS_DOWN, .LEFT_WAS_UP, .LEFT_WAS_DOUBLE_CLICKED, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP}
+        //> update input state
+        inputState.mouse -= {.LEFT_WAS_DOWN, .LEFT_WAS_UP, .LEFT_WAS_CLICKED, .LEFT_WAS_DOUBLE_CLICKED, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP}
         inputState.wasPressedKeys = {}
 
         inputState.deltaMousePosition = { 0, 0 }
         inputState.scrollDelta = 0
+
+        inputState.timeSinceMouseLeftDown += windowData.delta
+        //<
 
         windowData.delta = time.duration_seconds(time.tick_diff(beforeFrame, time.tick_now()))
         

@@ -7,11 +7,16 @@ import "core:text/edit"
 
 import win32 "core:sys/windows"
 
+DOUBLE_CLICK_TIME_TRESHOLD :: 0.3
+
 InputState :: struct {
     deltaMousePosition: int2,
     mousePosition: int2,
+    lastClickMousePosition: int2,
 
     mouse: ui.MouseStates,
+
+    timeSinceMouseLeftDown: f64,
 
     wasPressedKeys: ui.Keys,
 

@@ -68,3 +68,11 @@ showOsConfirmMessage :: proc(title, message: string) -> WinConfirmMessageAction 
 
     return .CLOSE_WINDOW
 }
+
+getCurrentMousePosition :: proc() -> int2 {
+    point: win32.POINT
+    win32.GetCursorPos(&point)
+    win32.ScreenToClient(windowData.parentHwnd, &point)
+
+    return { i32(point.x), i32(point.y) }
+}

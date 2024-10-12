@@ -874,17 +874,13 @@ renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32
 }
 
 handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
-    if .GOT_ACTIVE in actions {        
+    if .GOT_ACTIVE in actions {
         pos := getCursorIndexByMousePosition(ctx)
         ctx.editorState.selection = { pos, pos }
     }
 
-    if .DOUBLE_CLICK in actions {
-        ctx.wordsSelection = true
-    }
-
     if .ACTIVE in actions {
-        if ctx.wordsSelection {
+        if .LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED in inputState.mouse {
             prevSelection := ctx.editorState.selection 
             ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
 
@@ -900,9 +896,5 @@ handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
         } else {
             ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
         }
-    }
-
-    if .LOST_ACTIVE in actions {
-        ctx.wordsSelection = false   
     }
 }

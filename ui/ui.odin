@@ -45,6 +45,7 @@ MouseState :: enum {
     LEFT_WAS_UP,
 
     LEFT_WAS_DOUBLE_CLICKED,
+    LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED,
 
     RIGHT_IS_DOWN,
     RIGHT_WAS_DOWN,
@@ -269,10 +270,6 @@ checkUiState :: proc(ctx: ^Context, Id: Id, rect: Rect, ignoreFocusUpdate := fal
     action: Actions = nil
     
     if ctx.activeId == Id {
-        if .LEFT_WAS_DOUBLE_CLICKED in ctx.mouse {
-            action += {.DOUBLE_CLICK}
-        }
-
         if .LEFT_WAS_UP in ctx.mouse || .RIGHT_WAS_UP in ctx.mouse {
             if ctx.hotId == Id {
                 if .RIGHT_WAS_UP in ctx.mouse {
@@ -282,10 +279,8 @@ checkUiState :: proc(ctx: ^Context, Id: Id, rect: Rect, ignoreFocusUpdate := fal
                 }
             }
 
-            // if !(.LEFT_WAS_DOUBLE_CLICKED in ctx.mouse) {
-                action += {.LOST_ACTIVE}
-                ctx.activeId = {}
-            // }
+            action += {.LOST_ACTIVE}
+            ctx.activeId = {}
         } else {
             action += {.ACTIVE}
         }
