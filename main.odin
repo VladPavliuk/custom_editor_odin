@@ -85,8 +85,10 @@ main :: proc() {
             fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)
         }
 
-        fmt.println("Total allocated", tracker.total_memory_allocated)
-        fmt.println("Total freed", tracker.total_memory_freed)
-        fmt.println("Total leaked", tracker.total_memory_allocated - tracker.total_memory_freed)
+        if tracker.total_memory_allocated - tracker.total_memory_freed > 0 {        
+            fmt.println("Total allocated", tracker.total_memory_allocated)
+            fmt.println("Total freed", tracker.total_memory_freed)
+            fmt.println("Total leaked", tracker.total_memory_allocated - tracker.total_memory_freed)
+        }
     }
 }
