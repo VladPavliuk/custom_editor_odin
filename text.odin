@@ -59,10 +59,10 @@ freeTextContext :: proc(ctx: ^EditableTextContext) {
     free(ctx)
 }
 
-getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext) -> int {
+getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext, clientPosition: int2) -> int {
     stringToRender := strings.to_string(ctx.text)
 
-    mousePosition := ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
+    mousePosition := ui.screenToDirectXCoords(clientPosition, &windowData.uiContext)
 
     mousePosition = {
         mousePosition.x - ctx.rect.left + ctx.leftOffset,
@@ -199,6 +199,15 @@ jumpToCursor :: proc(ctx: ^EditableTextContext) {
         ctx.leftOffset = i32(ctx.cursorLeftOffset)
     } else if ctx.leftOffset < i32(ctx.cursorLeftOffset) - ui.getRectSize(ctx.rect).x {
         ctx.leftOffset = i32(ctx.cursorLeftOffset) - ui.getRectSize(ctx.rect).x
+    }
+}
+
+selectWholeWord :: proc(ctx: ^EditableTextContext, cursorIndex: i32) {
+    ctx.editorState.selection[0] = int(cursorIndex)
+
+    ctx.editorState.selection = {
+        edit.translate_position(&ctx.editorState, .Word_End),
+        edit.translate_position(&ctx.editorState, .Word_Start),
     }
 }
 

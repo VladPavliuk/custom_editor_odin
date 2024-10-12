@@ -5,6 +5,7 @@ import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
 import "core:time"
+import "core:slice"
 
 import "ui"
 
@@ -875,26 +876,33 @@ renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32
 
 handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
     if .GOT_ACTIVE in actions {
-        pos := getCursorIndexByMousePosition(ctx)
+        pos := getCursorIndexByMousePosition(ctx, inputState.mousePosition)
         ctx.editorState.selection = { pos, pos }
     }
 
     if .ACTIVE in actions {
         if .LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED in inputState.mouse {
-            prevSelection := ctx.editorState.selection 
-            ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
+            originalClickCursorIndex := getCursorIndexByMousePosition(ctx, inputState.lastClickMousePosition)
+            currentCursorIndex := getCursorIndexByMousePosition(ctx, inputState.mousePosition)
+
+            selectWholeWord(ctx, i32(originalClickCursorIndex))
+
+            originalSelectedWordSelection := ctx.editorState.selection
+
+            selectWholeWord(ctx, i32(currentCursorIndex))
 
             ctx.editorState.selection = {
-                edit.translate_position(&ctx.editorState, .Word_End),
-                edit.translate_position(&ctx.editorState, .Word_Start),
+                max(originalSelectedWordSelection[0], ctx.editorState.selection[0]),
+                min(originalSelectedWordSelection[1], ctx.editorState.selection[1]),
             }
 
-            ctx.editorState.selection = {
-                max(prevSelection[0], ctx.editorState.selection[0]),
-                min(prevSelection[1], ctx.editorState.selection[1]),
+            // NOTE: If after words selection, user moves cursor moves before originally selected word, 
+            // set cursor at the beginning of the whole selection.
+            if currentCursorIndex < min(originalSelectedWordSelection[0], originalSelectedWordSelection[1]) {
+                slice.reverse(ctx.editorState.selection[:])
             }
         } else {
-            ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx)
+            ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx, inputState.mousePosition)
         }
     }
 }
