@@ -875,17 +875,27 @@ renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32
 }
 
 handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
+    // NOTE: that looks kinda werid,
+    // but I can't find any place where it might be used else where, so I just created a local var
+    @(static)
+    originalCurosorIndex: i32 = -1
+
     if .GOT_ACTIVE in actions {
         pos := getCursorIndexByMousePosition(ctx, inputState.mousePosition)
         ctx.editorState.selection = { pos, pos }
+
+        originalCurosorIndex = i32(pos)
+    }
+
+    if .LOST_ACTIVE in actions {
+        originalCurosorIndex = -1
     }
 
     if .ACTIVE in actions {
         if .LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED in inputState.mouse {
-            originalClickCursorIndex := getCursorIndexByMousePosition(ctx, inputState.lastClickMousePosition)
             currentCursorIndex := getCursorIndexByMousePosition(ctx, inputState.mousePosition)
 
-            selectWholeWord(ctx, i32(originalClickCursorIndex))
+            selectWholeWord(ctx, i32(originalCurosorIndex))
 
             originalSelectedWordSelection := ctx.editorState.selection
 
@@ -903,6 +913,24 @@ handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
             }
         } else {
             ctx.editorState.selection[0] = getCursorIndexByMousePosition(ctx, inputState.mousePosition)
+        }
+ 
+        mousePosition := ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
+
+        if mousePosition.y > ctx.rect.top {
+            ctx.lineIndex -= max(1, (mousePosition.y - ctx.rect.top) / 10)
+            validateTopLine(ctx)
+        } else if mousePosition.y < ctx.rect.bottom {
+            ctx.lineIndex += max(1, (ctx.rect.bottom - mousePosition.y) / 10)
+            validateTopLine(ctx)
+        }
+        
+        if mousePosition.x > ctx.rect.right {
+            ctx.leftOffset += max(5, (mousePosition.x - ctx.rect.right) / 5)
+            validateLeftOffset(ctx)
+        } else if mousePosition.x < ctx.rect.left {
+            ctx.leftOffset -= max(5, (ctx.rect.left - mousePosition.x) / 5)
+            validateLeftOffset(ctx)
         }
     }
 }

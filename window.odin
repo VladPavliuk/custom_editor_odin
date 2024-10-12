@@ -34,8 +34,6 @@ EditableTextContext :: struct {
     disableNewLines: bool,
     maxLineWidth: f32,
 
-    wordsSelection: bool,
-
     lineIndex: i32, // top line index from which text is rendered
     cursorLineIndex: i32,
     cursorLeftOffset: f32, // offset from line start
