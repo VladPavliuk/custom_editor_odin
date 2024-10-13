@@ -80,7 +80,7 @@ RectCommand :: struct {
 BorderRectCommand :: struct {
     rect: Rect,
     color: [4]f32,
-    thikness: u8,
+    thikness: i32,
 }
 
 ImageCommand :: struct {
@@ -255,8 +255,8 @@ putEmptyElement :: proc(ctx: ^Context, rect: Rect, ignoreFocusUpdate := false, c
     return checkUiState(ctx, Id, rect, ignoreFocusUpdate)
 }
 
-advanceZIndex :: proc(Context: ^Context) {
-    Context.zIndex -= 0.1
+advanceZIndex :: proc(ctx: ^Context) {
+    ctx.zIndex -= 0.1
 }
 
 @(private)

@@ -14,10 +14,12 @@ _ :: png._MAX_IDAT
 
 import "core:bytes"
 
-TextureType :: enum {
+TextureId :: enum {
     NONE,
     FONT,
     CIRCLE,
+    ICONS_ARRAY,
+    
     CLOSE_ICON,
     CHECK_ICON,
 
@@ -45,9 +47,21 @@ GpuBufferType :: enum {
     QUAD,
 }
 
+RectWithColor :: struct #packed {
+    transformation: mat4,
+    color: float4,   
+}
+
+RectWithImage :: struct #packed {
+    transformation: mat4,
+    imageIndex: i32,   
+}
+
 GpuStructuredBufferType :: enum {
     GLYPHS_LIST,
     RECTS_LIST,
+    RECTS_WITH_COLOR_LIST,
+    RECTS_WITH_IMAGE_LIST,
 }
 
 GpuBuffer :: struct {
@@ -62,6 +76,8 @@ GpuBuffer :: struct {
 VertexShaderType :: enum {
     BASIC,
     MULTIPLE_RECTS,
+    RECTS_WITH_COLOR,
+    RECTS_WITH_IMAGE,
     FONT,
 }
 
@@ -69,6 +85,8 @@ PixelShaderType :: enum {
     SOLID_COLOR,
     TEXTURE,
     FONT,
+    RECTS_WITH_COLOR,
+    RECTS_WITH_IMAGE,
 }
 
 InputLayoutType :: enum {
@@ -100,9 +118,13 @@ initGpuResources :: proc() {
     directXState.vertexShaders[.BASIC] = vertexShader 
     directXState.vertexShaders[.FONT], _ = compileVertexShader(#load("./shaders/font_vs.hlsl"))
     directXState.vertexShaders[.MULTIPLE_RECTS], _ = compileVertexShader(#load("./shaders/multiple_rects_vs.hlsl"))
+    directXState.vertexShaders[.RECTS_WITH_COLOR], _ = compileVertexShader(#load("./shaders/rects_with_color/vs.hlsl"))
+    directXState.vertexShaders[.RECTS_WITH_IMAGE], _ = compileVertexShader(#load("./shaders/rects_with_image/vs.hlsl"))
     directXState.pixelShaders[.FONT] = compilePixelShader(#load("./shaders/font_ps.hlsl"))
     directXState.pixelShaders[.SOLID_COLOR] = compilePixelShader(#load("./shaders/solid_color_ps.hlsl"))
     directXState.pixelShaders[.TEXTURE] = compilePixelShader(#load("./shaders/texture_ps.hlsl"))
+    directXState.pixelShaders[.RECTS_WITH_COLOR] = compilePixelShader(#load("./shaders/rects_with_color/ps.hlsl"))
+    directXState.pixelShaders[.RECTS_WITH_IMAGE] = compilePixelShader(#load("./shaders/rects_with_image/ps.hlsl"))
     directXState.inputLayouts[.POSITION_AND_TEXCOORD] = inputLayout
     
     VertexItem :: struct {
@@ -145,6 +167,12 @@ initGpuResources :: proc() {
 
     rectsList := make([]mat4, 15000)
     directXState.structuredBuffers[.RECTS_LIST] = createStructuredBuffer(rectsList)
+    
+    rectsWithColorList := make([]RectWithColor, 300)
+    directXState.structuredBuffers[.RECTS_WITH_COLOR_LIST] = createStructuredBuffer(rectsWithColorList)
+    
+    rectsWithImageList := make([]RectWithImage, 300)
+    directXState.structuredBuffers[.RECTS_WITH_IMAGE_LIST] = createStructuredBuffer(rectsWithImageList)
 }
 
 memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T {
@@ -152,12 +180,11 @@ memoryAsSlice :: proc($T: typeid, pointer: rawptr, #any_int length: int) -> []T 
 }
 
 loadTextures :: proc() {
-    textures := map[TextureType]string{
+    textures := map[TextureId]string{
         .CLOSE_ICON = #load("./resources/images/close_icon.png"),
         .CHECK_ICON = #load("./resources/images/check_icon.png"),
         .CIRCLE = #load("./resources/images/circle.png"),
         .TXT_FILE_ICON = #load("./resources/images/txt_file_icon.png"),
-        .CLOSE_ICON = #load("./resources/images/close_icon.png"),
         .C_FILE_ICON = #load("./resources/images/c_file_icon.png"),
         .C_PLUS_PLUS_FILE_ICON = #load("./resources/images/c_plus_plus_file_icon.png"),
         .C_SHARP_FILE_ICON = #load("./resources/images/c_sharp_file_icon.png"),
@@ -174,6 +201,20 @@ loadTextures :: proc() {
     }
 
     directXState.textures[.FONT], windowData.font = loadFont("c:/windows/fonts/arial.TTF")
+
+    directXState.textures[.ICONS_ARRAY] = initIcons2DTexture({ // 702 micoseconds
+        .CLOSE_ICON,
+        .CHECK_ICON,
+        .TXT_FILE_ICON,
+        .C_FILE_ICON,
+        .C_PLUS_PLUS_FILE_ICON,
+        .C_SHARP_FILE_ICON,
+        .JS_FILE_ICON,
+        .ARROW_DOWN_ICON,
+        .ARROW_RIGHT_ICON,
+        .COLLAPSE_FILES_ICON,
+        .JUMP_TO_CURRENT_FILE_ICON,
+    })
 }
 
 compileVertexShader :: proc(fileContent: string) -> (^d3d11.IVertexShader, ^d3d11.IBlob) {
@@ -398,6 +439,52 @@ createStructuredBuffer_NoInitData :: proc(length: u32, $T: typeid) -> GpuBuffer 
         strideSize = size_of(T),
         itemType = typeid_of(T),
     }
+}
+
+initIcons2DTexture :: proc(icons: []TextureId) -> GpuTexture {
+    for icon, index in icons {
+        directXState.iconsIndexesMapping[icon] = i32(index)
+    }
+
+    return createTexture2DArray(icons)
+}
+
+createTexture2DArray :: proc(textures: []TextureId) -> GpuTexture {
+    assert(len(textures) > 0)
+    arrayTexture: GpuTexture
+    texturesCount := u32(len(textures))
+    textureDesc: d3d11.TEXTURE2D_DESC
+    
+    // NOTE: this approach assumes that all images the same format
+    directXState.textures[textures[0]].buffer->GetDesc(&textureDesc)
+
+    textureDesc.ArraySize = texturesCount
+
+    // texture: ^d3d11.ITexture2D
+    hr := directXState.device->CreateTexture2D(&textureDesc, nil, &arrayTexture.buffer);
+    assert(hr == 0)
+
+    srvDesc := d3d11.SHADER_RESOURCE_VIEW_DESC {
+        Format = textureDesc.Format,
+        ViewDimension = .TEXTURE2DARRAY,
+        Texture2DArray = {
+            MostDetailedMip = 0,
+            MipLevels = 1,
+            ArraySize = texturesCount,
+            FirstArraySlice = 0,
+        },
+    }
+
+	hr = directXState.device->CreateShaderResourceView(arrayTexture.buffer, &srvDesc, &arrayTexture.srv);
+	assert(hr == 0)
+
+    // copy data into textures array
+    for textureId, index in textures {
+		directXState.ctx->CopySubresourceRegion(arrayTexture.buffer, u32(index), 0, 0, 0,
+            directXState.textures[textureId].buffer, 0, nil)
+    }
+
+    return arrayTexture
 }
 
 loadTextureFromImage :: proc(imageFileContent: []u8) -> GpuTexture {

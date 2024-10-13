@@ -58,11 +58,13 @@ render :: proc() {
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
-    // startTimer()
-    uiStaff()
-    // stopTimer() // 4524.782 ms
+    //startTimer()
+    uiStaff() // 5702.110 ms
 
     renderLineNumbers()
+    //stopTimer()
+
+    // d3d11.VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE
 
     hr := directXState.swapchain->Present(1, {})
     assert(hr == 0, fmt.tprintfln("DirectX presentation error: %i", hr))
@@ -143,29 +145,124 @@ testingButtons :: proc() {
 }
 
 renderUi :: proc() {
-    ctx := &windowData.uiContext
-    for cmd in ctx.commands {
-        switch command in cmd {
-        case ui.RectCommand:
-            renderRect(command.rect, ctx.zIndex, command.bgColor)
-            ui.advanceZIndex(ctx)
-        case ui.ImageCommand:
-            renderImageRect(command.rect, ctx.zIndex, TextureType(command.textureId))
-            ui.advanceZIndex(ctx)
-        case ui.BorderRectCommand:
-            renderRectBorder(command.rect, f32(command.thikness), ctx.zIndex, command.color)
-            ui.advanceZIndex(ctx)
-        case ui.TextCommand:
-            renderLine(command.text, &windowData.font, command.position, command.color, ctx.zIndex)
-            ui.advanceZIndex(ctx)
-        case ui.EditableTextCommand:
-            glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiTextInputCtx, ctx.zIndex)
+    uiCtx := &windowData.uiContext
+    gpuCtx := directXState.ctx
 
-            renderText(glyphsCount, selectionsCount, BLACK_COLOR, TEXT_SELECTION_BG_COLOR)
-        case ui.ClipCommand:
-            setClipRect(command.rect)
-        case ui.ResetClipCommand:
-            resetClipRect()
+    //TODO: it's better to split up commands list by Rects, Image, Lines
+
+    // render all rectangle objects in commands list
+    {
+        rectsWithColorListBuffer := directXState.structuredBuffers[.RECTS_WITH_COLOR_LIST]
+        rectsWithColorList := memoryAsSlice(RectWithColor, rectsWithColorListBuffer.cpuBuffer, rectsWithColorListBuffer.length)
+        rectsWithColorIndex: i32 = 0
+
+        pushToRectsWithColor :: proc(rect: ui.Rect, color: float4, zIndex: f32, index: ^i32, list: []RectWithColor) {
+            position, size := ui.fromRect(rect)
+            rect := RectWithColor{
+                // TODO: investigate removing of intrinsics.transpose
+                transformation = intrinsics.transpose(getTransformationMatrix(
+                    { f32(position.x), f32(position.y), zIndex }, 
+                    { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 })),
+                color = color,
+            }
+            list[index^] = rect
+
+            index^ += 1
+        }
+
+        // NOTE: draw non-transparect objects first, otherwise there will be weird artifacts (bacause of blending???)
+        for cmd in uiCtx.commands {
+            #partial switch command in cmd {
+            case ui.RectCommand:
+                pushToRectsWithColor(command.rect, command.bgColor, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+                ui.advanceZIndex(uiCtx)
+            case ui.BorderRectCommand:
+                pushToRectsWithColor(ui.Rect{ // top border
+                    top = command.rect.top, bottom = command.rect.top - command.thikness,
+                    left = command.rect.left, right = command.rect.right,
+                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+
+                pushToRectsWithColor(ui.Rect{ // bottom border
+                    top = command.rect.bottom + command.thikness, bottom = command.rect.bottom,
+                    left = command.rect.left, right = command.rect.right,
+                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+
+                pushToRectsWithColor(ui.Rect{ // left border
+                    top = command.rect.top, bottom = command.rect.bottom,
+                    left = command.rect.left, right = command.rect.left + command.thikness,
+                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+
+                pushToRectsWithColor(ui.Rect{ // right border
+                    top = command.rect.top, bottom = command.rect.bottom,
+                    left = command.rect.right - command.thikness, right = command.rect.right,
+                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+
+                ui.advanceZIndex(uiCtx)
+            }
+        }
+        
+        gpuCtx->VSSetShader(directXState.vertexShaders[.RECTS_WITH_COLOR], nil, 0)
+        gpuCtx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+        gpuCtx->VSSetShaderResources(0, 1, &rectsWithColorListBuffer.srv)
+
+        gpuCtx->PSSetShader(directXState.pixelShaders[.RECTS_WITH_COLOR], nil, 0)
+
+        updateGpuBuffer(rectsWithColorList, rectsWithColorListBuffer)
+        directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(rectsWithColorIndex), 0, 0, 0)
+    }
+
+    // render image commands
+    {
+        rectsWithImageListBuffer := directXState.structuredBuffers[.RECTS_WITH_IMAGE_LIST]
+        rectsWithImageList := memoryAsSlice(RectWithImage, rectsWithImageListBuffer.cpuBuffer, rectsWithImageListBuffer.length)
+        rectsWithImageIndex: i32 = 0
+
+        for cmd in uiCtx.commands {
+            #partial switch command in cmd {
+            case ui.ImageCommand:
+                position, size := ui.fromRect(command.rect)
+                image := RectWithImage{
+                    // TODO: investigate removing of intrinsics.transpose
+                    transformation = intrinsics.transpose(getTransformationMatrix(
+                        { f32(position.x), f32(position.y), uiCtx.zIndex }, 
+                        { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 })),
+                    imageIndex = directXState.iconsIndexesMapping[TextureId(command.textureId)],
+                }
+                rectsWithImageList[rectsWithImageIndex] = image
+                
+                // renderImageRect(command.rect, uiCtx.zIndex, TextureId(command.textureId))
+                // ui.advanceZIndex(uiCtx)
+                rectsWithImageIndex += 1
+            }
+        }
+
+        gpuCtx->VSSetShader(directXState.vertexShaders[.RECTS_WITH_IMAGE], nil, 0)
+        gpuCtx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+        gpuCtx->VSSetShaderResources(0, 1, &rectsWithImageListBuffer.srv)
+
+        gpuCtx->PSSetShader(directXState.pixelShaders[.RECTS_WITH_IMAGE], nil, 0)
+        gpuCtx->PSSetShaderResources(0, 1, &directXState.textures[.ICONS_ARRAY].srv)
+
+        updateGpuBuffer(rectsWithImageList, rectsWithImageListBuffer)
+        directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(rectsWithImageIndex), 0, 0, 0)
+    }
+
+    // render rest of ui commands
+    {
+        for cmd in uiCtx.commands {
+            #partial switch command in cmd {
+            case ui.TextCommand:
+                renderLine(command.text, &windowData.font, command.position, command.color, uiCtx.zIndex)
+                ui.advanceZIndex(uiCtx)
+            case ui.EditableTextCommand:
+                glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiTextInputCtx, uiCtx.zIndex)
+
+                renderText(glyphsCount, selectionsCount, BLACK_COLOR, TEXT_SELECTION_BG_COLOR)
+            case ui.ClipCommand:
+                setClipRect(command.rect)
+            case ui.ResetClipCommand:
+                resetClipRect()
+            }
         }
     }
 }
@@ -173,163 +270,20 @@ renderUi :: proc() {
 uiStaff :: proc() {
     ui.beginUi(&windowData.uiContext, windowData.maxZIndex / 2.0)
 
-    // startTimer()
+    renderEditorContent() // 2620.899 ms
 
-    renderEditorContent()
-
-    // stopTimer()
-
+    //> 63.444 ms
     renderEditorFileTabs()
     renderFolderExplorer()
 
-    // @(static)
-    // isPopupOpen := true
-    // if beginPopup(&windowData.uiContext, UiPopup{
-    //     position = {0,0}, size = {100,200},
-    //     bgColor = RED_COLOR,
-    //     isOpen = &isPopupOpen,
-    // }) {
-    //     defer endPopup(&windowData.uiContext)
-
-
-    // }
-
-    // @(static)
-    // isDropdownOpen := false
-
-    // dropDonButtonActions := renderButton(&windowData.uiContext, UiTextButton{
-    //     position = { -200, -100 }, size = { 150, 30 },
-    //     text = "test dropdown",
-    //     bgColor = THEME_COLOR_1,
-    // }) 
-    
-    // if .SUBMIT in dropDonButtonActions {
-    //     isDropdownOpen = !isDropdownOpen
-    // }
-
-    // beginDropdown(&windowData.uiContext, UiNewDropdown{
-    //     position = { 0, -300 }, size = { 200, 300 },
-    //     isOpen = &isDropdownOpen,
-    //     bgColor = THEME_COLOR_2,
-    // }, dropDonButtonActions)
-
-
-    // endDropdown(&windowData.uiContext)
-
-    // @(static)
-    // showPanel := false
-    
-    // if .SUBMIT in renderButton(&windowData.uiContext, UiTextButton{
-    //     text = "Show/Hide panel",
-    //     position = { 39, -100 },
-    //     size = { 150, 30 },
-    //     // color = WHITE_COLOR,
-    //     bgColor = THEME_COLOR_4,
-    //     // hoverBgColor = BLACK_COLOR,
-    // }) { showPanel = !showPanel }
-    
-    // if showPanel {
-    //     @(static)
-    //     panelPosition: int2 = { -250, -100 } 
-
-    //     @(static)
-    //     panelSize: int2 = { 200, 300 }
-
-    //     beginPanel(&windowData.uiContext, UiPanel{
-    //         title = "PANEL 1",
-    //         position = &panelPosition,
-    //         size = &panelSize,
-    //         bgColor = THEME_COLOR_1,
-    //         // hoverBgColor = THEME_COLOR_5,
-    //     }, &showPanel)
-
-    //     @(static)
-    //     checked := false
-    //     renderCheckbox(&windowData.uiContext, UiCheckbox{
-    //         text = "word wrapping",
-    //         checked = &windowData.wordWrapping,
-    //         position = { 0, 0 },
-    //         color = WHITE_COLOR,
-    //         bgColor = GREEN_COLOR,
-    //         hoverBgColor = BLACK_COLOR,
-    //     })
-        // @(static)
-        // testinItemCheckbox := false
-
-        // testItems := []UiDropdownItem{
-        //     {
-        //         text = "item 1",
-        //     },
-        //     {
-        //         text = "item 2",
-        //         checkbox = &testinItemCheckbox,
-        //     },
-        //     {
-        //         checkbox = &testinItemCheckbox,
-        //     },
-        //     {
-        //         rightText = "item 4", 
-        //     },
-        //     {
-        //         text = "item 5",
-        //         rightText = "asdasd",
-        //     },
-        //     {
-        //         text = "item 6asdsadasdasdadsasdsadsadsadasd",
-        //     },
-        //     {
-        //         isSeparator = true,
-        //     },
-        //     {
-        //         rightText = "item 7 loooooooooooooooooooooooooooong", 
-        //     },
-        // }
-        // @(static)
-        // selectedItem: i32 = 0
-        // @(static)
-        // dropdownScrollOffset: i32 = 0
-        // @(static)
-        // isOpen: bool = false
-        // if actions, selected := renderDropdown(&windowData.uiContext, UiDropdown{
-        //     // text = "YEAH",
-        //     position = { 0, 100 }, size = { 120, 40 },
-        //     items = testItems,
-        //     bgColor = THEME_COLOR_2,
-        //     selectedItemIndex = selectedItem,
-        //     maxItemShow = 5,
-        //     isOpen = &isOpen,
-        //     scrollOffset = &dropdownScrollOffset,
-        //     itemStyles = {
-        //         size = { 200, 0 },
-        //         padding = Rect{ top = 3, bottom = 3, left = 35, right = 5 },
-        //         bgColor = THEME_COLOR_3,
-        //         hoverColor = THEME_COLOR_4,
-        //     },
-        // }); .SUBMIT in actions {
-        //     selectedItem = selected
-        // }
-
-    //     endPanel(&windowData.uiContext)
-    // }
-
-    // @(static)
-    // offset: i32 = 0
-    // renderVerticalScroll(windowData, UiScroll{
-    //     bgRect = Rect{
-    //         top = 150, bottom = -150,
-    //         left = 50, right = 100,
-    //     },
-    //     offset = &offset,
-    //     height = 30,
-    //     color = THEME_COLOR_3,
-    //     hoverColor = THEME_COLOR_2,
-    //     bgColor = THEME_COLOR_1,
-    // })
-
     renderTopMenu()
+    //<
 
     ui.endUi(&windowData.uiContext, windowData.delta)
-    renderUi()
+    startTimer()
+
+    renderUi() // 3726.791 ms THIS IS TO SLOW!! WORK ON IT FOR NOW
+    stopTimer()
 
     windowData.isInputMode = windowData.uiContext.activeId == {}
 }
@@ -368,16 +322,16 @@ renderRectVec_Float :: proc(position, size: float2, zValue: f32, color: float4) 
 
 renderImageRect :: proc{renderImageRectVec_Float, renderImageRectVec_Int, renderImageRect_Int}
 
-renderImageRect_Int :: proc(rect: ui.Rect, zValue: f32, texture: TextureType) {
+renderImageRect_Int :: proc(rect: ui.Rect, zValue: f32, texture: TextureId) {
     renderImageRectVec_Float({ f32(rect.left), f32(rect.bottom) }, 
         { f32(rect.right - rect.left), f32(rect.top - rect.bottom) }, zValue, texture)
 }
 
-renderImageRectVec_Int :: proc(position, size: int2, zValue: f32, texture: TextureType) {
+renderImageRectVec_Int :: proc(position, size: int2, zValue: f32, texture: TextureId) {
     renderImageRectVec_Float({ f32(position.x), f32(position.y) }, { f32(size.x), f32(size.y) }, zValue, texture)
 }
 
-renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: TextureType) {
+renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: TextureId) {
     ctx := directXState.ctx
 
     ctx->VSSetShader(directXState.vertexShaders[.BASIC], nil, 0)

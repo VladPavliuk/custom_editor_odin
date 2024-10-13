@@ -12,13 +12,16 @@ import "ui"
 renderTopMenu :: proc() {
     // top menu background
     fileMenuHeight: i32 = 25
-    renderRect(ui.Rect{
-        top = windowData.size.y / 2,
-        bottom = windowData.size.y / 2 - fileMenuHeight,
-        left = -windowData.size.x / 2,
-        right = windowData.size.x / 2,
-    }, windowData.uiContext.zIndex, DARKER_GRAY_COLOR)
-    ui.advanceZIndex(&windowData.uiContext)
+    
+    append(&windowData.uiContext.commands, ui.RectCommand{
+        rect = ui.Rect{
+            top = windowData.size.y / 2,
+            bottom = windowData.size.y / 2 - fileMenuHeight,
+            left = -windowData.size.x / 2,
+            right = windowData.size.x / 2,
+        },
+        bgColor = DARKER_GRAY_COLOR,
+    })
 
     topItemPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - fileMenuHeight }
 
@@ -267,7 +270,7 @@ renderFolderExplorer :: proc() {
     if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
         position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
-        textureId = i32(TextureType.COLLAPSE_FILES_ICON),
+        textureId = i32(TextureId.COLLAPSE_FILES_ICON),
         texturePadding = 4,
         hoverBgColor = ui.getDarkerColor(GRAY_COLOR),
     }) {
@@ -278,7 +281,7 @@ renderFolderExplorer :: proc() {
     if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
         position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
-        textureId = i32(TextureType.JUMP_TO_CURRENT_FILE_ICON),
+        textureId = i32(TextureId.JUMP_TO_CURRENT_FILE_ICON),
         texturePadding = 4,
         hoverBgColor = ui.getDarkerColor(GRAY_COLOR),
     }) {
@@ -468,7 +471,7 @@ renderFolderExplorer :: proc() {
         })
 
         iconSize: i32 = 16
-        icon: TextureType
+        icon: TextureId
 
         if item.isDir {
             icon = item.isOpen ? .ARROW_DOWN_ICON : .ARROW_RIGHT_ICON
@@ -676,16 +679,17 @@ renderEditorFileTabs :: proc() {
     topOffset: i32 = 25 // TODO: calcualte it
     leftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
     
-    renderRect(ui.toRect({ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x - leftOffset, tabsHeight }), 
-        windowData.uiContext.zIndex, GRAY_COLOR)
-    ui.advanceZIndex(&windowData.uiContext)
+    append(&windowData.uiContext.commands, ui.RectCommand{
+        rect = ui.toRect({ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x - leftOffset, tabsHeight }),
+        bgColor = GRAY_COLOR,
+    })
 
     tabItems := make([dynamic]ui.TabsItem)
     defer delete(tabItems)
 
     atLeastTwoTabsOpened := len(windowData.fileTabs) > 1
     for &fileTab in windowData.fileTabs {
-        rightIcon: TextureType = .NONE
+        rightIcon: TextureId = .NONE
         
         if atLeastTwoTabsOpened { rightIcon = .CLOSE_ICON } // we always want to show at least one file tab, so remove close icon if only tab
         if !fileTab.isSaved { rightIcon = .CIRCLE }
@@ -730,7 +734,7 @@ recalculateFileTabsContextRects :: proc() {
     }
 }
 
-getIconByFilePath :: proc(filePath: string) -> TextureType {
+getIconByFilePath :: proc(filePath: string) -> TextureId {
     if len(filePath) == 0 { return .NONE }
 
     fileExtension := filepath.ext(filePath)

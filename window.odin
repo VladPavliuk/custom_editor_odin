@@ -183,8 +183,8 @@ createWindow :: proc(size: int2) {
     windowData.uiContext.getTextHeight = getTextHeight
     windowData.uiContext.font = &windowData.font
     windowData.uiContext.clientSize = windowData.size
-    windowData.uiContext.closeIconId = i32(TextureType.CLOSE_ICON)
-    windowData.uiContext.checkIconId = i32(TextureType.CHECK_ICON)
+    windowData.uiContext.closeIconId = i32(TextureId.CLOSE_ICON)
+    windowData.uiContext.checkIconId = i32(TextureId.CHECK_ICON)
 
     windowData.uiContext.setCursor = proc(cursor: ui.CursorType) {
         switch cursor {

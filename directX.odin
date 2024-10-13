@@ -16,7 +16,7 @@ DirectXState :: struct {
     blendState: ^d3d11.IBlendState,
 	samplerState: ^d3d11.ISamplerState,
 
-    textures: [TextureType]GpuTexture,
+    textures: [TextureId]GpuTexture,
     vertexBuffers: [GpuBufferType]GpuBuffer,
     indexBuffers: [GpuBufferType]GpuBuffer,
     constantBuffers: [GpuConstantBufferType]GpuBuffer,
@@ -26,6 +26,9 @@ DirectXState :: struct {
 
     vertexShaders: [VertexShaderType]^d3d11.IVertexShader,
     pixelShaders: [PixelShaderType]^d3d11.IPixelShader,
+
+    // NOTE: mapps enum value of texutre id to it's index in 2d texture for icons
+    iconsIndexesMapping: map[TextureId]i32,
 }
 
 directXState: DirectXState
@@ -174,6 +177,8 @@ clearDirectX :: proc() {
     directXState.depthStencilState->Release()
     directXState.samplerState->Release()
     directXState.blendState->Release()
+
+    delete(directXState.iconsIndexesMapping)
 
     for texture in directXState.textures {
         if texture.buffer != nil { texture.buffer->Release() }
