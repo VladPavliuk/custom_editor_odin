@@ -11,7 +11,7 @@ default_context: runtime.Context
 winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARAM, lParam: win32.LPARAM) -> win32.LRESULT {
     // NOTE: it's a hack to override some context data like allocators, that might be redefined in other code 
     context = default_context
-
+    
     switch msg {
     case win32.WM_NCCREATE:
         // context = runtime.default_context()

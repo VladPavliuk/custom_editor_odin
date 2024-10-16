@@ -40,6 +40,7 @@ THEME_COLOR_5 := float4{ 142 / 255.0, 202 / 255.0, 230 / 255.0, 1.0 }
 render :: proc() {
     ctx := directXState.ctx
 
+    // ctx->DiscardView(directXState.backBufferView)
     ctx->ClearRenderTargetView(directXState.backBufferView, &EDITOR_BG_COLOR)
     ctx->ClearDepthStencilView(directXState.depthBufferView, { .DEPTH, .STENCIL }, 1.0, 0)
     
@@ -60,9 +61,9 @@ render :: proc() {
 
     //startTimer()
     uiStaff() // 5702.110 ms
-
-    renderLineNumbers()
     //stopTimer()
+
+    // renderLineNumbers()
 
     // d3d11.VIEWPORT_AND_SCISSORRECT_OBJECT_COUNT_PER_PIPELINE
 
@@ -148,6 +149,11 @@ renderUi :: proc() {
     uiCtx := &windowData.uiContext
     gpuCtx := directXState.ctx
 
+    // TODO: that does not look good!
+    // try to attach some kind of index to a command
+    initZIndex := windowData.maxZIndex / 2.0
+    zIndexStep: f32 = 0.1
+
     //TODO: it's better to split up commands list by Rects, Image, Lines
 
     // render all rectangle objects in commands list
@@ -171,33 +177,35 @@ renderUi :: proc() {
         }
 
         // NOTE: draw non-transparect objects first, otherwise there will be weird artifacts (bacause of blending???)
-        for cmd in uiCtx.commands {
+        for cmd, index in uiCtx.commands {
+            zIndex := initZIndex - f32(index) * zIndexStep
+
             #partial switch command in cmd {
             case ui.RectCommand:
-                pushToRectsWithColor(command.rect, command.bgColor, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
-                ui.advanceZIndex(uiCtx)
+                pushToRectsWithColor(command.rect, command.bgColor, zIndex, &rectsWithColorIndex, rectsWithColorList)
+                // ui.advanceZIndex(uiCtx)
             case ui.BorderRectCommand:
                 pushToRectsWithColor(ui.Rect{ // top border
                     top = command.rect.top, bottom = command.rect.top - command.thikness,
                     left = command.rect.left, right = command.rect.right,
-                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
                 pushToRectsWithColor(ui.Rect{ // bottom border
                     top = command.rect.bottom + command.thikness, bottom = command.rect.bottom,
                     left = command.rect.left, right = command.rect.right,
-                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
                 pushToRectsWithColor(ui.Rect{ // left border
                     top = command.rect.top, bottom = command.rect.bottom,
                     left = command.rect.left, right = command.rect.left + command.thikness,
-                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
                 pushToRectsWithColor(ui.Rect{ // right border
                     top = command.rect.top, bottom = command.rect.bottom,
                     left = command.rect.right - command.thikness, right = command.rect.right,
-                }, command.color, uiCtx.zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
-                ui.advanceZIndex(uiCtx)
+                // ui.advanceZIndex(uiCtx)
             }
         }
         
@@ -217,22 +225,24 @@ renderUi :: proc() {
         rectsWithImageList := memoryAsSlice(RectWithImage, rectsWithImageListBuffer.cpuBuffer, rectsWithImageListBuffer.length)
         rectsWithImageIndex: i32 = 0
 
-        for cmd in uiCtx.commands {
+        for cmd, index in uiCtx.commands {
+            zIndex := initZIndex - f32(index) * zIndexStep
+
             #partial switch command in cmd {
             case ui.ImageCommand:
                 position, size := ui.fromRect(command.rect)
                 image := RectWithImage{
                     // TODO: investigate removing of intrinsics.transpose
                     transformation = intrinsics.transpose(getTransformationMatrix(
-                        { f32(position.x), f32(position.y), uiCtx.zIndex }, 
+                        { f32(position.x), f32(position.y), zIndex }, 
                         { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 })),
                     imageIndex = directXState.iconsIndexesMapping[TextureId(command.textureId)],
                 }
                 rectsWithImageList[rectsWithImageIndex] = image
                 
+                rectsWithImageIndex += 1
                 // renderImageRect(command.rect, uiCtx.zIndex, TextureId(command.textureId))
                 // ui.advanceZIndex(uiCtx)
-                rectsWithImageIndex += 1
             }
         }
 
@@ -247,17 +257,80 @@ renderUi :: proc() {
         directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(rectsWithImageIndex), 0, 0, 0)
     }
 
-    // render rest of ui commands
+    // render text
     {
-        for cmd in uiCtx.commands {
+        fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
+        fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
+        charIndex: i32 = 0
+
+        for cmd, comandIndex in uiCtx.commands {
+            zIndex := initZIndex - f32(comandIndex) * zIndexStep
+
+            // populate clip rects
+            // comandIndex
+
             #partial switch command in cmd {
             case ui.TextCommand:
-                renderLine(command.text, &windowData.font, command.position, command.color, uiCtx.zIndex)
-                ui.advanceZIndex(uiCtx)
-            case ui.EditableTextCommand:
-                glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiTextInputCtx, uiCtx.zIndex)
+                // renderLine(command.text, &windowData.font, command.position, command.color, uiCtx.zIndex)
+                // ui.advanceZIndex(uiCtx)
+                position := command.position
+                font := &windowData.font
 
-                renderText(glyphsCount, selectionsCount, BLACK_COLOR, TEXT_SELECTION_BG_COLOR)
+                leftOffset := f32(position.x)
+                topOffset := f32(position.y) - font.descent
+
+                // if containerHeight > 0 {
+                //     textHeight := getTextHeight(&windowData.font)
+
+                //     topOffset += f32(containerHeight) / 2.0 - textHeight / 2.0
+                // }
+
+                for char in command.text {
+                    fontChar := font.chars[char]
+
+                    glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
+                    glyphPosition: int2 = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
+
+                    modelMatrix := getTransformationMatrix(
+                        { f32(glyphPosition.x), f32(glyphPosition.y), zIndex }, 
+                        { 0.0, 0.0, 0.0 }, 
+                        { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
+                    )
+                    
+                    fontsList[charIndex] = FontGlyphGpu{
+                        sourceRect = fontChar.rect,
+                        targetTransformation = intrinsics.transpose(modelMatrix),
+                        color = command.color,
+                        //clipRectIndex = i32(comandIndex),
+                    }
+                    charIndex += 1
+                    leftOffset += fontChar.xAdvance
+                }
+            }
+            // ui.advanceZIndex(uiCtx)
+        }
+        
+        gpuCtx->VSSetShader(directXState.vertexShaders[.FONT], nil, 0)
+        gpuCtx->VSSetShaderResources(0, 1, &directXState.structuredBuffers[.GLYPHS_LIST].srv)
+        gpuCtx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+
+        gpuCtx->PSSetShader(directXState.pixelShaders[.FONT], nil, 0)
+        gpuCtx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
+
+        updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
+        directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(charIndex), 0, 0, 0)
+    }
+
+    // render rest of ui commands
+    {
+        for cmd, index in uiCtx.commands {
+            zIndex := initZIndex - f32(index) * zIndexStep
+
+            #partial switch command in cmd {
+            case ui.EditableTextCommand:
+                glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiTextInputCtx, BLACK_COLOR, zIndex)
+
+                renderText(glyphsCount, selectionsCount, TEXT_SELECTION_BG_COLOR)
             case ui.ClipCommand:
                 setClipRect(command.rect)
             case ui.ResetClipCommand:
@@ -269,8 +342,11 @@ renderUi :: proc() {
 
 uiStaff :: proc() {
     ui.beginUi(&windowData.uiContext, windowData.maxZIndex / 2.0)
-
+    // stopTimer()
     renderEditorContent() // 2620.899 ms
+    // startTimer()
+
+    renderLineNumbers()
 
     //> 63.444 ms
     renderEditorFileTabs()
@@ -280,10 +356,8 @@ uiStaff :: proc() {
     //<
 
     ui.endUi(&windowData.uiContext, windowData.delta)
-    startTimer()
 
-    renderUi() // 3726.791 ms THIS IS TO SLOW!! WORK ON IT FOR NOW
-    stopTimer()
+    renderUi() // 532 ms
 
     windowData.isInputMode = windowData.uiContext.activeId == {}
 }
@@ -440,7 +514,7 @@ renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
         zIndex, CURSOR_COLOR)
 }
 
-fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
+fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) -> (i32, i32) {
     //TODO: this looks f*ing stupid!
     shouldRenderCursor := windowData.editableTextCtx == ctx
 
@@ -521,7 +595,8 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
             
             fontsList[glyphsCount] = FontGlyphGpu{
                 sourceRect = fontChar.rect,
-                targetTransformation = intrinsics.transpose(modelMatrix), 
+                targetTransformation = intrinsics.transpose(modelMatrix),
+                color = color,
             }
             glyphsCount += 1
         
@@ -535,11 +610,7 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, zIndex: f32) -> (i32, i32) {
 }
 
 renderLineNumbers :: proc() {
-    // lineNumbersRect: Rect = {
-    //     left = -f32(windowData.size.x) / 2.0,
-    // }
-
-    lineNumbersLeftOffset: f32 = windowData.explorer == nil ? 0.0 : f32(windowData.explorerWidth) // TODO: make it configurable
+    lineNumbersLeftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
 
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
@@ -547,83 +618,58 @@ renderLineNumbers :: proc() {
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
     
     // draw background
-    renderRect(float2{ -f32(windowData.size.x) / 2.0 + lineNumbersLeftOffset, -f32(windowData.size.y) / 2.0 }, 
-        float2{ f32(windowData.editorPadding.left) - lineNumbersLeftOffset, f32(windowData.size.y) }, windowData.maxZIndex, LINE_NUMBERS_BG_COLOR)
-
+    append(&windowData.uiContext.commands, ui.RectCommand{
+        rect = ui.toRect({ -windowData.size.x / 2 + lineNumbersLeftOffset, -windowData.size.y / 2. },
+            { windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }),
+        bgColor = LINE_NUMBERS_BG_COLOR
+    })
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
-    
-    lineNumberStrBuffer: [255]byte
-    glyphsCount := 0
     
     editorCtx := getActiveTabContext()
     firstNumber := editorCtx.lineIndex + 1
     lastNumber := min(i32(len(editorCtx.lines)), editorCtx.lineIndex + maxLinesOnScreen)
 
     for lineIndex in firstNumber..=lastNumber {
+        lineNumberStrBuffer := new([255]byte, context.temp_allocator)
+
         lineNumberStr := strconv.itoa(lineNumberStrBuffer[:], int(lineIndex))
 
-        leftOffset := -f32(windowData.size.x) / 2.0 + lineNumbersLeftOffset
-
-        for digit in lineNumberStr {
-            fontChar := windowData.font.chars[digit]
-
-            glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-            glyphPosition: int2 = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
-
-            modelMatrix := getTransformationMatrix(
-                { f32(glyphPosition.x), f32(glyphPosition.y), windowData.maxZIndex - 1.0 }, 
-                { 0.0, 0.0, 0.0 }, 
-                { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
-            )
-            
-            fontsList[glyphsCount] = FontGlyphGpu{
-                sourceRect = fontChar.rect,
-                targetTransformation = intrinsics.transpose(modelMatrix), 
-            }
-            glyphsCount += 1
-            leftOffset += fontChar.xAdvance
-        }
+        leftOffset := -f32(windowData.size.x) / 2.0 + f32(lineNumbersLeftOffset)
+        
+        append(&windowData.uiContext.commands, ui.TextCommand{
+            text = lineNumberStr,
+            position = { i32(leftOffset), i32(topOffset) },
+            color = WHITE_COLOR,
+        })
 
         topOffset -= windowData.font.lineHeight
     }
-
-    ctx := directXState.ctx
-
-    ctx->VSSetShader(directXState.vertexShaders[.FONT], nil, 0)
-    ctx->VSSetShaderResources(0, 1, &directXState.structuredBuffers[.GLYPHS_LIST].srv)
-    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
-
-    ctx->PSSetShader(directXState.pixelShaders[.FONT], nil, 0)
-    ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
-    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
-
-    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
-    updateGpuBuffer(&WHITE_COLOR, directXState.constantBuffers[.COLOR])
-    directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(glyphsCount), 0, 0, 0)
 }
 
 // BENCHMARKS:
 // +-20000 microseconds with -speed build option without instancing
 // +-750 microseconds with -speed build option with instancing
-renderText :: proc(glyphsCount: i32, selectionsCount: i32, textColor: float4, selectionColor: float4) {
+renderText :: proc(glyphsCount: i32, selectionsCount: i32, selectionColor: float4) {
     ctx := directXState.ctx
 
     //> draw selection
-    rectsListBuffer := directXState.structuredBuffers[.RECTS_LIST]
-    rectsList := memoryAsSlice(mat4, rectsListBuffer.cpuBuffer, rectsListBuffer.length)
+    if selectionsCount > 0 {
+        rectsListBuffer := directXState.structuredBuffers[.RECTS_LIST]
+        rectsList := memoryAsSlice(mat4, rectsListBuffer.cpuBuffer, rectsListBuffer.length)
 
-    ctx->VSSetShader(directXState.vertexShaders[.MULTIPLE_RECTS], nil, 0)
-    ctx->VSSetShaderResources(0, 1, &directXState.structuredBuffers[.RECTS_LIST].srv)
-    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+        ctx->VSSetShader(directXState.vertexShaders[.MULTIPLE_RECTS], nil, 0)
+        ctx->VSSetShaderResources(0, 1, &directXState.structuredBuffers[.RECTS_LIST].srv)
+        ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
 
-    ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
-    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
+        ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
+        ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    updateGpuBuffer(rectsList, directXState.structuredBuffers[.RECTS_LIST])
-    selectionColor := selectionColor
-    updateGpuBuffer(&selectionColor, directXState.constantBuffers[.COLOR])
+        updateGpuBuffer(rectsList, directXState.structuredBuffers[.RECTS_LIST])
+        selectionColor := selectionColor
+        updateGpuBuffer(&selectionColor, directXState.constantBuffers[.COLOR])
 
-    directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(selectionsCount), 0, 0, 0)
+        directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(selectionsCount), 0, 0, 0)
+    }
     //<
     
     //> draw text
@@ -638,8 +684,6 @@ renderText :: proc(glyphsCount: i32, selectionsCount: i32, textColor: float4, se
     ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
     ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    textColor := textColor
-    updateGpuBuffer(&textColor, directXState.constantBuffers[.COLOR])
     updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
     directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(glyphsCount), 0, 0, 0)
     //<

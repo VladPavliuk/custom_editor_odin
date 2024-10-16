@@ -11,6 +11,8 @@ import stbtt "vendor:stb/truetype"
 FontGlyphGpu :: struct #packed {
     sourceRect: ui.Rect,
     targetTransformation: mat4,
+    color: float4,
+    //clipRectIndex: i32,
 }
 
 FontChar :: struct {

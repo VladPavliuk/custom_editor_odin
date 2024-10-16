@@ -494,7 +494,7 @@ renderFolderExplorer :: proc() {
         })
         append(&windowData.uiContext.commands, ui.ResetClipCommand{})
     }
-    ui.advanceZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
+    // ui.advanceZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
     verticalScrollSize: i32 = min(i32(f32(contentRectSize.y) * f32(maxItemsOnScreen) / f32(openedItemsCount)), contentRectSize.y)
     horizontalScrollSize: i32 = min(i32(f32(contentRectSize.x) * f32(contentRectSize.x) / f32(maxWidthItem)), contentRectSize.x)
@@ -786,9 +786,9 @@ renderEditorContent :: proc() {
     updateCusrorData(editorCtx)
 
     setClipRect(editorCtx.rect)
-    glyphsCount, selectionsCount := fillTextBuffer(editorCtx, windowData.maxZIndex)
+    glyphsCount, selectionsCount := fillTextBuffer(editorCtx, WHITE_COLOR, windowData.maxZIndex)
     
-    renderText(glyphsCount, selectionsCount, WHITE_COLOR, TEXT_SELECTION_BG_COLOR)
+    renderText(glyphsCount, selectionsCount, TEXT_SELECTION_BG_COLOR)
     resetClipRect()
 
     verticalScrollActions, horizontalScrollActions := ui.endScroll(&windowData.uiContext, ui.Scroll{

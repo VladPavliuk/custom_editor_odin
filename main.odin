@@ -55,6 +55,7 @@ main :: proc() {
         }
         windowData.sinceExplorerSync += windowData.delta
 
+        
         //> update input state
         inputState.mouse -= {.LEFT_WAS_DOWN, .LEFT_WAS_UP, .LEFT_WAS_DOUBLE_CLICKED, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP}
         inputState.wasPressedKeys = {}
