@@ -710,7 +710,7 @@ renderEditorFileTabs :: proc() {
         activeTabIndex = &windowData.activeFileTab,
         items = tabItems[:],
         itemStyles = {
-            padding = { top = 2, bottom = 2, left = 2, right = 30 },
+            padding = { top = 2, bottom = 2, left = 2, right = 5 },
             size = { 120, tabsHeight },
         },
         bgColor = GRAY_COLOR,
@@ -783,8 +783,8 @@ renderEditorContent :: proc() {
 
     handleTextInputActions(editorCtx, editorContentActions)
 
-    calculateLines(editorCtx)
-    updateCusrorData(editorCtx)
+    //calculateLines(editorCtx)
+    // updateCusrorData(editorCtx)
 
     setClipRect(editorCtx.rect)
     glyphsCount, selectionsCount := fillTextBuffer(editorCtx, WHITE_COLOR, windowData.maxZIndex)
@@ -863,6 +863,9 @@ renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32
 
         // pre-select text
         windowData.uiTextInputCtx.editorState.selection = { int(textField.initSelection[0]), int(textField.initSelection[1]) }
+        
+        calculateLines(&windowData.uiTextInputCtx)
+        updateCusrorData(&windowData.uiTextInputCtx)
     } 
 
     if .LOST_FOCUS in actions {
@@ -870,9 +873,6 @@ renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32
     }
 
     if .FOCUSED in actions {
-        calculateLines(&windowData.uiTextInputCtx)
-        updateCusrorData(&windowData.uiTextInputCtx)
-    
         handleTextInputActions(&windowData.uiTextInputCtx, actions)
     }
 
@@ -937,5 +937,6 @@ handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
             ctx.leftOffset -= max(5, (ctx.rect.left - mousePosition.x) / 5)
             validateLeftOffset(ctx)
         }
+        updateCusrorData(ctx)
     }
 }

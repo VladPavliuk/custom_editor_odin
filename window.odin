@@ -261,7 +261,9 @@ switchInputContextToUiElement :: proc(text: string, rect: ui.Rect, disableNewLin
 }
 
 switchInputContextToEditor :: proc() {
-    windowData.editableTextCtx = getActiveTabContext() 
+    windowData.editableTextCtx = getActiveTabContext()
+    calculateLines(windowData.editableTextCtx)
+    updateCusrorData(windowData.editableTextCtx)
 }
 
 tryCloseEditor :: proc() {
