@@ -488,9 +488,10 @@ renderFolderExplorer :: proc() {
             textureId = i32(icon)
         })
         append(&windowData.uiContext.commands, ui.TextCommand{
-            text = item.name, 
+            text = item.name,
             position = { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 },
             color = WHITE_COLOR,
+            maxWidth = ui.getRectSize(itemRect).x - iconSize - 5 - leftOffset,
         })
         append(&windowData.uiContext.commands, ui.ResetClipCommand{})
     }
@@ -709,7 +710,7 @@ renderEditorFileTabs :: proc() {
         activeTabIndex = &windowData.activeFileTab,
         items = tabItems[:],
         itemStyles = {
-            padding = { top = 2, bottom = 2, left = 15, right = 30 },
+            padding = { top = 2, bottom = 2, left = 2, right = 30 },
             size = { 120, tabsHeight },
         },
         bgColor = GRAY_COLOR,

@@ -11,6 +11,7 @@ import "core:unicode/utf8"
 
 import "core:math"
 import "core:strconv"
+import "core:slice"
 
 // TODO: make all them configurable
 EMPTY_COLOR := float4{ 0.0, 0.0, 0.0, 0.0 }
@@ -285,7 +286,7 @@ renderUi :: proc() {
                 //     topOffset += f32(containerHeight) / 2.0 - textHeight / 2.0
                 // }
 
-                for char in command.text {
+                for char, lineCharIndex in command.text {
                     fontChar := font.chars[char]
 
                     glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
@@ -301,10 +302,18 @@ renderUi :: proc() {
                         sourceRect = fontChar.rect,
                         targetTransformation = intrinsics.transpose(modelMatrix),
                         color = command.color,
-                        //clipRectIndex = i32(comandIndex),
                     }
-                    charIndex += 1
                     leftOffset += fontChar.xAdvance
+                    
+                    // if text width is exceeded the max width value, replace last 3 symbols in text by ...
+                    if command.maxWidth > 0 && i32(leftOffset) > position.x + command.maxWidth {
+                        if lineCharIndex >= 4 {
+                            replace3SymbolsByDots(fontsList, charIndex - 1, topOffset, zIndex, command.color, font)
+                        }
+                        break
+                    }
+
+                    charIndex += 1
                 }
             }
             // ui.advanceZIndex(uiCtx)
@@ -336,6 +345,34 @@ renderUi :: proc() {
             case ui.ResetClipCommand:
                 resetClipRect()
             }
+        }
+    }
+}
+
+@(private="file")
+replace3SymbolsByDots :: proc(fontsList: []FontGlyphGpu, lastIndexToReplace: i32, yPosition: f32, zIndex: f32, color: float4, font: ^FontData) {
+    fontChar := font.chars['.']
+    lastIndexToReplace := lastIndexToReplace - 2
+
+    // TODO: improve it, right it just removes last 3 symbols and replace it by 3 dots
+    // instead, try to find minimum amount of symbols that should be removed in order to fit 3 dots.
+    startPosition := fontsList[lastIndexToReplace].targetTransformation[3][0]
+    glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
+
+    for i: i32 = 0; i < 3; i += 1 {
+        glyphPosition: int2 = { i32(startPosition) + fontChar.offset.x, i32(yPosition) - glyphSize.y - fontChar.offset.y }
+        startPosition += fontChar.xAdvance
+
+        modelMatrix := getTransformationMatrix(
+            { f32(glyphPosition.x), f32(glyphPosition.y), zIndex }, 
+            { 0.0, 0.0, 0.0 }, 
+            { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
+        )
+
+        fontsList[lastIndexToReplace + i] = FontGlyphGpu{
+            sourceRect = fontChar.rect,
+            targetTransformation = intrinsics.transpose(modelMatrix),
+            color = color,
         }
     }
 }

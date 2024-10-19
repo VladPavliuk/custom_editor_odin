@@ -73,7 +73,7 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
         iconRightPadding: i32 = 0
         if item.leftIconId != 0 {
             iconWidth = item.leftIconSize.x
-            iconRightPadding = 5
+            iconRightPadding = 3
             iconPosition: int2 = { position.x + padding.left, position.y + height / 2 - item.leftIconSize.y / 2 }
             
             append(&ctx.commands, ImageCommand{
@@ -91,12 +91,13 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
             text = item.text,
             position = textPosition,
             color = WHITE_COLOR,
+            maxWidth = itemRect.right - padding.right - textPosition.x,
         })
         append(&ctx.commands, ResetClipCommand{})
 
         if item.rightIconId != 0 {
             iconWidth = 20
-            iconRightPadding = 5
+            iconRightPadding = 3
             iconPosition: int2 = { position.x + width - iconWidth - iconRightPadding, position.y + height / 2 - iconWidth / 2 }
             
             customId += 1

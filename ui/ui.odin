@@ -92,6 +92,7 @@ TextCommand :: struct {
     text: string,
     position: [2]i32,
     color: [4]f32,
+    maxWidth: i32, // optional, used to indicate max width (in pixels) that text should use
 }
 
 EditableTextCommand :: struct {
