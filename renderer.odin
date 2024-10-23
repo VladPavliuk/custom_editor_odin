@@ -1,17 +1,14 @@
 package main
 
 import "ui"
-import "core:strings"
 
 import "base:intrinsics"
 
 import "vendor:directx/d3d11"
 import "vendor:directx/dxgi"
-import "core:unicode/utf8"
 
 import "core:math"
 import "core:strconv"
-import "core:slice"
 
 // TODO: make all them configurable
 EMPTY_COLOR := float4{ 0.0, 0.0, 0.0, 0.0 }
@@ -337,8 +334,9 @@ renderUi :: proc() {
 
             #partial switch command in cmd {
             case ui.EditableTextCommand:
+                fillGlyphsLocations(&windowData.uiTextInputCtx)
                 glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiTextInputCtx, BLACK_COLOR, zIndex)
-
+                
                 renderText(glyphsCount, selectionsCount, TEXT_SELECTION_BG_COLOR)
             case ui.ClipCommand:
                 setClipRect(command.rect)
@@ -352,7 +350,8 @@ renderUi :: proc() {
 @(private="file")
 replace3SymbolsByDots :: proc(fontsList: []FontGlyphGpu, lastIndexToReplace: i32, yPosition: f32, zIndex: f32, color: float4, font: ^FontData) {
     fontChar := font.chars['.']
-    lastIndexToReplace := lastIndexToReplace - 2
+    lastIndexToReplace := lastIndexToReplace
+    lastIndexToReplace -= 2
 
     // TODO: improve it, right it just removes last 3 symbols and replace it by 3 dots
     // instead, try to find minimum amount of symbols that should be removed in order to fit 3 dots.
@@ -388,6 +387,10 @@ uiStaff :: proc() {
     //> 63.444 ms
     renderEditorFileTabs()
     renderFolderExplorer()
+
+    if windowData.isFileSearchOpen {
+        renderFileSearch()
+    }
 
     renderTopMenu()
     //<
@@ -542,6 +545,11 @@ renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
 
     topOffset := f32(ctx.rect.top) - f32(ctx.cursorLineIndex - ctx.lineIndex) * windowData.font.lineHeight
     topOffset -= windowData.font.lineHeight
+    
+    // render highlighted cursor line
+    renderRect(float2{ f32(ctx.rect.left), topOffset }, 
+        float2{ f32(editorRectSize.x), windowData.font.lineHeight }, zIndex + 3, CURSOR_LINE_BG_COLOR)
+
     leftOffset := f32(ctx.rect.left) + ctx.cursorLeftOffset - f32(ctx.leftOffset)
 
     if leftOffset < f32(ctx.rect.left) || leftOffset > f32(ctx.rect.right) { return }
@@ -555,18 +563,11 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
     //TODO: this looks f*ing stupid!
     shouldRenderCursor := windowData.editableTextCtx == ctx
 
-    stringToRender := strings.to_string(ctx.text)
-
     fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
     fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
 
     rectsListBuffer := directXState.structuredBuffers[.RECTS_LIST]
     rectsList := memoryAsSlice(mat4, rectsListBuffer.cpuBuffer, rectsListBuffer.length)
-
-    topLine := ctx.lineIndex
-    bottomLine := i32(len(ctx.lines))
-
-    editableRectSize := ui.getRectSize(ctx.rect)
 
     glyphsCount := 0
     selectionsCount := 0
@@ -575,72 +576,35 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
         i32(min(ctx.editorState.selection[0], ctx.editorState.selection[1])),
         i32(max(ctx.editorState.selection[0], ctx.editorState.selection[1])),
     }
-
-    screenPosition := float2{ f32(ctx.rect.left), f32(ctx.rect.top) - windowData.font.ascent }
     
     if shouldRenderCursor {
         renderCursor(ctx, zIndex - 3.0)
     }
-
-    for lineIndex in topLine..<bottomLine {
-        if screenPosition.y < -f32(editableRectSize.y) / 2 {
-            break
-        }
-        line := ctx.lines[lineIndex]
-
-        screenPosition.x = f32(ctx.rect.left)
-
-        if lineIndex == ctx.cursorLineIndex {
-            renderRect(float2{ screenPosition.x, screenPosition.y + windowData.font.descent }, float2{ f32(editableRectSize.x), windowData.font.lineHeight }, zIndex, CURSOR_LINE_BG_COLOR)
-        }
-
-        byteIndex := line.x
-        lineLeftOffset: f32 = 0.0
-        for byteIndex <= line.y {
-            // TODO: add RUNE_ERROR handling
-            char, charSize := utf8.decode_rune(stringToRender[byteIndex:])
-            defer byteIndex += i32(charSize)
-
-            fontChar := windowData.font.chars[char]
-            
-            glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-            glyphPosition: int2 = { i32(screenPosition.x) + fontChar.offset.x, i32(screenPosition.y) - glyphSize.y - fontChar.offset.y }
-
-            // NOTE: last symbol in string is EOF which has 0 length
-            // TODO: optimize it
-            if charSize == 0 { break }
-
-            lineLeftOffset += fontChar.xAdvance
-
-            if lineLeftOffset > f32(ctx.leftOffset + editableRectSize.x) { break } // stop line rendering if outside of line rigth boundary
-            else if lineLeftOffset < f32(ctx.leftOffset) { continue } // don't render glyphs until their position is inside visible region 
-
-            if hasSelection && byteIndex >= selectionRange.x && byteIndex < selectionRange.y  {
-                rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
-                    { screenPosition.x, screenPosition.y + windowData.font.descent, zIndex - 1.0 }, 
-                    { 0.0, 0.0, 0.0 }, 
-                    { fontChar.xAdvance, windowData.font.lineHeight, 1.0 },
-                ))
-                selectionsCount += 1
-            }
-
-            modelMatrix := getTransformationMatrix(
-                { f32(glyphPosition.x), f32(glyphPosition.y), zIndex - 2.0 }, 
+    
+    for glyphIndex, glyph in ctx.glyphsLocations {
+        fontChar := windowData.font.chars[glyph.char]
+        
+        if hasSelection && glyphIndex >= selectionRange.x && glyphIndex < selectionRange.y  {
+            rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
+                { f32(glyph.position.x), f32(glyph.lineStart), zIndex - 1.0 }, 
                 { 0.0, 0.0, 0.0 }, 
-                { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
-            )
-            
-            fontsList[glyphsCount] = FontGlyphGpu{
-                sourceRect = fontChar.rect,
-                targetTransformation = intrinsics.transpose(modelMatrix),
-                color = color,
-            }
-            glyphsCount += 1
-        
-            screenPosition.x += fontChar.xAdvance
+                { fontChar.xAdvance, windowData.font.lineHeight, 1.0 },
+            ))
+            selectionsCount += 1
         }
+
+        modelMatrix := getTransformationMatrix(
+            { f32(glyph.position.x), f32(glyph.position.y), zIndex - 2.0 }, 
+            { 0.0, 0.0, 0.0 }, 
+            { f32(glyph.size.x), f32(glyph.size.y), 1.0 },
+        )
         
-        screenPosition.y -= windowData.font.lineHeight
+        fontsList[glyphsCount] = FontGlyphGpu{
+            sourceRect = fontChar.rect,
+            targetTransformation = intrinsics.transpose(modelMatrix),
+            color = color,
+        }
+        glyphsCount += 1
     }
 
     return i32(glyphsCount), i32(selectionsCount)
@@ -650,15 +614,12 @@ renderLineNumbers :: proc() {
     lineNumbersLeftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
 
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
-
-    fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
-    fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
     
     // draw background
     append(&windowData.uiContext.commands, ui.RectCommand{
         rect = ui.toRect({ -windowData.size.x / 2 + lineNumbersLeftOffset, -windowData.size.y / 2. },
             { windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }),
-        bgColor = LINE_NUMBERS_BG_COLOR
+        bgColor = LINE_NUMBERS_BG_COLOR,
     })
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
     
@@ -710,18 +671,20 @@ renderText :: proc(glyphsCount: i32, selectionsCount: i32, selectionColor: float
     //<
     
     //> draw text
-    fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
-    fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
-    
-    ctx->VSSetShader(directXState.vertexShaders[.FONT], nil, 0)
-    ctx->VSSetShaderResources(0, 1, &directXState.structuredBuffers[.GLYPHS_LIST].srv)
-    ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
+    if glyphsCount > 0 {       
+        fontListBuffer := directXState.structuredBuffers[.GLYPHS_LIST]
+        fontsList := memoryAsSlice(FontGlyphGpu, fontListBuffer.cpuBuffer, fontListBuffer.length)
+        
+        ctx->VSSetShader(directXState.vertexShaders[.FONT], nil, 0)
+        ctx->VSSetShaderResources(0, 1, &directXState.structuredBuffers[.GLYPHS_LIST].srv)
+        ctx->VSSetConstantBuffers(0, 1, &directXState.constantBuffers[.PROJECTION].gpuBuffer)
 
-    ctx->PSSetShader(directXState.pixelShaders[.FONT], nil, 0)
-    ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
-    ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
+        ctx->PSSetShader(directXState.pixelShaders[.FONT], nil, 0)
+        ctx->PSSetShaderResources(0, 1, &directXState.textures[.FONT].srv)
+        ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
-    directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(glyphsCount), 0, 0, 0)
+        updateGpuBuffer(fontsList, directXState.structuredBuffers[.GLYPHS_LIST])
+        directXState.ctx->DrawIndexedInstanced(directXState.indexBuffers[.QUAD].length, u32(glyphsCount), 0, 0, 0)
+    }
     //<
 }

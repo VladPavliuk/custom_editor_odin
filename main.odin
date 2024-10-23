@@ -18,6 +18,9 @@ main :: proc() {
     initDirectX()
     
     initGpuResources()
+    
+    // set default editable context
+    switchInputContextToEditor()
 
     msg: win32.MSG
     for msg.message != win32.WM_QUIT {

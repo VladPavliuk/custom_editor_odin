@@ -54,6 +54,7 @@ createEmptyTextContext :: proc(initText := "") -> ^EditableTextContext {
 
 freeTextContext :: proc(ctx: ^EditableTextContext) {
     delete(ctx.lines)
+    delete(ctx.glyphsLocations)
     edit.destroy(&ctx.editorState)
     strings.builder_destroy(&ctx.text)
     free(ctx)
@@ -219,6 +220,53 @@ selectWholeWord :: proc(ctx: ^EditableTextContext, cursorIndex: i32) {
     }
 }
 
+fillGlyphsLocations :: proc(ctx: ^EditableTextContext) {
+    clear(&ctx.glyphsLocations)
+    
+    screenPosition := float2{ f32(ctx.rect.left), f32(ctx.rect.top) - windowData.font.ascent }
+    
+    editableRectSize := ui.getRectSize(ctx.rect)
+    maxLinesOnScreen := editableRectSize.y / i32(windowData.font.lineHeight)
+
+    topLine := ctx.lineIndex
+    bottomLine := min(topLine + maxLinesOnScreen, i32(len(ctx.lines)))
+    text := strings.to_string(ctx.text)
+
+    for lineIndex in topLine..<bottomLine {
+        line := ctx.lines[lineIndex]
+
+        screenPosition.x = f32(ctx.rect.left)
+
+        lineLeftOffset: f32 = 0.0
+        charIndex := line.x
+        for char, index in text[line.x : line.y] {
+            charIndex = i32(index) + line.x
+            fontChar := windowData.font.chars[char]
+            
+            glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
+            glyphPosition: int2 = { i32(screenPosition.x) + fontChar.offset.x, i32(screenPosition.y) - glyphSize.y - fontChar.offset.y }
+
+            lineLeftOffset += fontChar.xAdvance
+
+            if lineLeftOffset > f32(ctx.leftOffset + editableRectSize.x) { // stop line rendering if outside of line rigth boundary
+                break 
+            } else if lineLeftOffset < f32(ctx.leftOffset) { // don't render glyphs until their position is inside visible region 
+                continue 
+            }
+
+            screenPosition.x += fontChar.xAdvance
+
+            ctx.glyphsLocations[charIndex] = GlyphsLocation{
+                position = glyphPosition,
+                lineStart = i32(screenPosition.y + windowData.font.descent),
+                size = glyphSize,
+                char = char,
+            }
+        }
+        screenPosition.y -= windowData.font.lineHeight
+    }
+}
+
 calculateLines :: proc(ctx: ^EditableTextContext) {
     clear(&ctx.lines)
     stringToRender := strings.to_string(ctx.text)
@@ -269,4 +317,3 @@ calculateLines :: proc(ctx: ^EditableTextContext) {
     lineBoundaryIndexes.y = i32(stringLength)
     append(&ctx.lines, lineBoundaryIndexes)
 }
-

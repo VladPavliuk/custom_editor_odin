@@ -25,6 +25,13 @@ InputState :: struct {
 
 inputState: InputState
 
+GlyphsLocation :: struct {
+    char: rune,
+    position: int2,
+    size: int2,
+    lineStart: i32,
+}
+
 EditableTextContext :: struct {
     text: strings.Builder,
     rect: ui.Rect,
@@ -38,6 +45,8 @@ EditableTextContext :: struct {
     cursorLineIndex: i32,
     cursorLeftOffset: f32, // offset from line start
     lines: [dynamic]int2,
+
+    glyphsLocations: map[i32]GlyphsLocation,
 
     //TODO: probabyly put word wrapping property here
 }
@@ -58,6 +67,12 @@ WindowData :: struct {
 
     uiContext: ui.Context,
     uiTextInputCtx: EditableTextContext,
+
+    isFileSearchOpen: bool,
+    fileSearchJustOpened: bool,
+    fileSearchStr: strings.Builder,
+    currentFileSearchTermIndex: i32,
+    //foundSearchTerms: []i32,
 
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
 
@@ -176,9 +191,6 @@ createWindow :: proc(size: int2) {
     windowData.explorerSyncInterval = 0.3
     //<
 
-    // set default editable context
-    switchInputContextToEditor()
-
     windowData.uiContext.getTextWidth = getTextWidth
     windowData.uiContext.getTextHeight = getTextHeight
     windowData.uiContext.font = &windowData.font
@@ -193,6 +205,8 @@ createWindow :: proc(size: int2) {
         case .VERTICAL_SIZE: win32.SetCursor(verticalSizeCursor)
         }
     }
+
+    windowData.fileSearchStr = strings.builder_make()
 
     // TODO: testing
     windowData.uiTextInputCtx.text = strings.builder_make()

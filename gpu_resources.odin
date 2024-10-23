@@ -460,8 +460,7 @@ createTexture2DArray :: proc(textures: []TextureId) -> GpuTexture {
 
     textureDesc.ArraySize = texturesCount
 
-    // texture: ^d3d11.ITexture2D
-    hr := directXState.device->CreateTexture2D(&textureDesc, nil, &arrayTexture.buffer);
+    hr := directXState.device->CreateTexture2D(&textureDesc, nil, &arrayTexture.buffer)
     assert(hr == 0)
 
     srvDesc := d3d11.SHADER_RESOURCE_VIEW_DESC {
@@ -475,7 +474,7 @@ createTexture2DArray :: proc(textures: []TextureId) -> GpuTexture {
         },
     }
 
-	hr = directXState.device->CreateShaderResourceView(arrayTexture.buffer, &srvDesc, &arrayTexture.srv);
+	hr = directXState.device->CreateShaderResourceView(arrayTexture.buffer, &srvDesc, &arrayTexture.srv)
 	assert(hr == 0)
 
     // copy data into textures array

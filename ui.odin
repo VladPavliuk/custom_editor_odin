@@ -4,7 +4,6 @@ import "core:os"
 import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
-import "core:time"
 import "core:slice"
 
 import "ui"
@@ -189,6 +188,9 @@ renderTopMenu :: proc() {
                 if windowData.wordWrapping {
                     getActiveTabContext().leftOffset = 0
                 }
+                calculateLines(getActiveTabContext())
+                updateCusrorData(getActiveTabContext())
+                validateTopLine(getActiveTabContext())
                 // jumpToCursor(&windowData.editorCtx)
             }
 
@@ -485,7 +487,7 @@ renderFolderExplorer :: proc() {
         
         append(&windowData.uiContext.commands, ui.ImageCommand{
             rect = ui.toRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }),
-            textureId = i32(icon)
+            textureId = i32(icon),
         })
         append(&windowData.uiContext.commands, ui.TextCommand{
             text = item.name,
@@ -783,6 +785,7 @@ renderEditorContent :: proc() {
 
     handleTextInputActions(editorCtx, editorContentActions)
 
+    fillGlyphsLocations(editorCtx)
     //calculateLines(editorCtx)
     // updateCusrorData(editorCtx)
 
@@ -852,27 +855,30 @@ renderTextField :: proc(ctx: ^ui.Context, textField: ui.TextField, customId: i32
     uiRect := ui.toRect(position, textField.size)
 
     textHeight := ctx.getTextHeight(ctx.font)
+
+    inputContextRect := ui.Rect{
+        top = uiRect.top - textField.size.y / 2 + i32(textHeight / 2),
+        bottom = uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2),
+        left = uiRect.left + 5,
+        right = uiRect.right - 5,
+    }
     
     if .GOT_FOCUS in actions {
-        switchInputContextToUiElement(textField.text, ui.Rect{
-            top = uiRect.top - textField.size.y / 2 + i32(textHeight / 2),
-            bottom = uiRect.bottom + textField.size.y / 2 - i32(textHeight / 2),
-            left = uiRect.left + 5,
-            right = uiRect.right - 5,
-        }, true)
+        switchInputContextToUiElement(textField.text, inputContextRect, true)
 
         // pre-select text
         windowData.uiTextInputCtx.editorState.selection = { int(textField.initSelection[0]), int(textField.initSelection[1]) }
         
         calculateLines(&windowData.uiTextInputCtx)
         updateCusrorData(&windowData.uiTextInputCtx)
-    } 
+    }
 
     if .LOST_FOCUS in actions {
         switchInputContextToEditor()
     }
 
     if .FOCUSED in actions {
+        windowData.uiTextInputCtx.rect = inputContextRect
         handleTextInputActions(&windowData.uiTextInputCtx, actions)
     }
 

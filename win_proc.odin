@@ -338,6 +338,9 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         addEmptyTab()
     case win32.VK_W:
         tryCloseFileTab(windowData.activeFileTab)
+    case win32.VK_F:
+        windowData.isFileSearchOpen = true
+        windowData.fileSearchJustOpened = true
     }
 
     switch wParam {
