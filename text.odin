@@ -52,12 +52,14 @@ createEmptyTextContext :: proc(initText := "") -> ^EditableTextContext {
     return ctx
 }
 
-freeTextContext :: proc(ctx: ^EditableTextContext) {
+freeTextContext :: proc(ctx: ^EditableTextContext, freeContext := true) {
     delete(ctx.lines)
     delete(ctx.glyphsLocations)
     edit.destroy(&ctx.editorState)
     strings.builder_destroy(&ctx.text)
-    free(ctx)
+    if freeContext {
+        free(ctx)
+    }
 }
 
 getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext, clientPosition: int2) -> int {

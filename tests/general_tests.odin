@@ -5,6 +5,7 @@ import "core:testing"
 import "core:strings"
 import "core:os"
 import "core:time"
+import "core:sync"
 
 import win32 "core:sys/windows"
 
@@ -34,6 +35,40 @@ just_run_and_close :: proc(t: ^testing.T) {
     typeStringOnKeyboard(windowData.parentHwnd, text)
 
     testing.expect_value(t, strings.to_string(main.getActiveTabContext().text), text)
+}
+
+@(test)
+basic_file_search :: proc(t: ^testing.T) {
+    os.remove(main.editorStateFilePath)
+
+    appThread, windowData := startApp(proc(windowData: ^main.WindowData) -> bool {
+        return windowData.windowCreated
+    })
+    defer stopApp(appThread, windowData.parentHwnd)
+
+    time.sleep(200_000_000)
+
+    text := "all work and no play makes jack a dull boy. work"
+
+    typeStringOnKeyboard(windowData.parentHwnd, text)
+
+    clickCtrlF()
+
+    time.sleep(100_000_000)
+    testing.expect(t, sync.atomic_load(&windowData.isFileSearchOpen))
+
+    typeStringOnKeyboard(windowData.parentHwnd, "work")
+
+    clickEnter()
+
+    testing.expect_value(t, 1, int(sync.atomic_load(&windowData.currentFileSearchTermIndex)))
+
+    clickEnter()
+    testing.expect_value(t, 0, int(sync.atomic_load(&windowData.currentFileSearchTermIndex)))
+
+    clickEsc()
+
+    testing.expect(t, !sync.atomic_load(&windowData.isFileSearchOpen))
 }
 
 // save file, open it again, should be only one tab

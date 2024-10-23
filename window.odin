@@ -230,6 +230,9 @@ removeWindowData :: proc() {
     }
     delete(windowData.fileTabs)
     
+    freeTextContext(&windowData.uiTextInputCtx, false)
+    strings.builder_destroy(&windowData.fileSearchStr)
+    
     ui.clearContext(&windowData.uiContext)
     delete(windowData.uiTextInputCtx.lines)
 

@@ -96,6 +96,39 @@ typeStringOnKeyboard :: proc(hwnd: win32.HWND, stringToType: string) {
     time.sleep(1_000_000)
 }
 
+emulateKey :: proc(key: i32, isDown: bool) {
+    input := win32.INPUT {
+        type = win32.INPUT_TYPE.KEYBOARD,
+        ki = win32.KEYBDINPUT{
+            wVk = win32.WORD(key),
+            dwFlags = isDown ? 0 : 0x0002,
+        },
+    }
+
+    stopIfAppNotActive()
+    win32.SendInput(1, &input, size_of(win32.INPUT))
+}
+
+clickEsc :: proc() {
+    emulateKey(win32.VK_ESCAPE, true)
+    time.sleep(10_000_000)
+}
+
+clickEnter :: proc() {
+    emulateKey(win32.VK_RETURN, true)
+    time.sleep(10_000_000)
+}
+
+clickCtrlF :: proc() {
+    emulateKey(win32.VK_CONTROL, true)
+    emulateKey(0x46, true) // F
+
+    time.sleep(10_000_000) // if it's less then 1ms, then it seems it's iggnored?
+
+    emulateKey(win32.VK_CONTROL, false)
+    emulateKey(0x46, false) // F
+}
+
 clickMouse :: proc{clickMouse_Single, clickMouse_Multiple}
 
 clickMouse_Multiple :: proc(points: [][2]i32) {
@@ -195,24 +228,24 @@ typeSymbol :: proc(hwnd: win32.HWND, symbol: rune) {
     win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
 }
 
-clickEnter :: proc() {
-    stopIfAppNotActive()
+// clickEnter :: proc() {
+//     stopIfAppNotActive()
 
-    input := []win32.INPUT {
-        {
-            type = win32.INPUT_TYPE.KEYBOARD,
-            ki = win32.KEYBDINPUT{
-                wVk = win32.VK_RETURN,
-                dwFlags = 0,
-            },
-        }, {
-            type = win32.INPUT_TYPE.KEYBOARD,
-            ki = win32.KEYBDINPUT{
-                wVk = win32.VK_RETURN,
-                dwFlags = 0x0002, // KEYEVENTF_KEYUP
-            },
-        },
-    }
+//     input := []win32.INPUT {
+//         {
+//             type = win32.INPUT_TYPE.KEYBOARD,
+//             ki = win32.KEYBDINPUT{
+//                 wVk = win32.VK_RETURN,
+//                 dwFlags = 0,
+//             },
+//         }, {
+//             type = win32.INPUT_TYPE.KEYBOARD,
+//             ki = win32.KEYBDINPUT{
+//                 wVk = win32.VK_RETURN,
+//                 dwFlags = 0x0002, // KEYEVENTF_KEYUP
+//             },
+//         },
+//     }
 
-    win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
-}
+//     win32.SendInput(u32(len(input)), raw_data(input[:]), size_of(win32.INPUT))
+// }
