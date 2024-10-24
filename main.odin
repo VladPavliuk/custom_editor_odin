@@ -11,8 +11,10 @@ main :: proc() {
         mem.tracking_allocator_init(&tracker, context.allocator)
         defer mem.tracking_allocator_destroy(&tracker)
         context.allocator = mem.tracking_allocator(&tracker)
-        default_context = context
     }
+
+    default_context = context
+
     createWindow({ 800, 800 })
 
     initDirectX()
