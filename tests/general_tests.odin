@@ -60,14 +60,12 @@ basic_file_search :: proc(t: ^testing.T) {
     typeStringOnKeyboard(windowData.parentHwnd, "work")
 
     clickEnter()
-
     testing.expect_value(t, 1, int(sync.atomic_load(&windowData.currentFileSearchTermIndex)))
 
     clickEnter()
     testing.expect_value(t, 0, int(sync.atomic_load(&windowData.currentFileSearchTermIndex)))
 
     clickEsc()
-
     testing.expect(t, !sync.atomic_load(&windowData.isFileSearchOpen))
 }
 

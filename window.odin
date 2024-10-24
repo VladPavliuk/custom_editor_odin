@@ -99,6 +99,9 @@ WindowData :: struct {
     //> static settings
     explorerSyncInterval: f64, // time interval to validte files in explorer
     sinceExplorerSync: f64,
+
+    autoSaveStateInterval: f64,
+    sinceAutoSaveState: f64,
     //<
 }
 
@@ -189,6 +192,7 @@ createWindow :: proc(size: int2) {
     windowData.wordWrapping = false
 
     windowData.explorerSyncInterval = 0.3
+    windowData.autoSaveStateInterval = 5.0
     //<
 
     windowData.uiContext.getTextWidth = getTextWidth

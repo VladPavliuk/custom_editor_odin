@@ -58,6 +58,11 @@ main :: proc() {
         }
         windowData.sinceExplorerSync += windowData.delta
 
+        if windowData.sinceAutoSaveState > windowData.autoSaveStateInterval {
+            saveEditorState()
+            windowData.sinceAutoSaveState = 0.0
+        }
+        windowData.sinceAutoSaveState += windowData.delta
         
         //> update input state
         inputState.mouse -= {.LEFT_WAS_DOWN, .LEFT_WAS_UP, .LEFT_WAS_DOUBLE_CLICKED, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP}
