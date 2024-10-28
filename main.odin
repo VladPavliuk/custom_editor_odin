@@ -77,7 +77,9 @@ main :: proc() {
         //<
 
         windowData.delta = time.duration_seconds(time.tick_diff(beforeFrame, time.tick_now()))
-        
+        windowData.wasTextContextModified = false
+        windowData.wasFileTabChanged = false
+
         // when ODIN_DEBUG {    
         //     // fmt.println("Total allocated", tracker.current_memory_allocated)
         //     // fmt.println("Total freed", tracker.total_memory_freed)

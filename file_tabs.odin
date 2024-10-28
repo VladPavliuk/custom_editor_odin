@@ -31,6 +31,7 @@ addTab :: proc(title: string, filePath := "", text := "") {
     append(&windowData.fileTabs, tab)
 
     windowData.activeFileTab = i32(len(windowData.fileTabs) - 1) // switch to new tab
+    windowData.wasFileTabChanged = true
 
     switchInputContextToEditor()
 }
@@ -56,6 +57,7 @@ loadFileIntoNewTab :: proc(filePath: string) {
 
     if tabIndex != -1 {
         windowData.activeFileTab = tabIndex
+        windowData.wasFileTabChanged = true
         switchInputContextToEditor()
         return
     }
@@ -103,11 +105,13 @@ replaceTabInfoByIndex :: proc(tab: FileTab, index: i32) {
 
 moveToNextTab :: proc() {
     windowData.activeFileTab = (windowData.activeFileTab + 1) % i32(len(windowData.fileTabs))
+    windowData.wasFileTabChanged = true
     switchInputContextToEditor()
 }
 
 moveToPrevTab :: proc() {
     windowData.activeFileTab = windowData.activeFileTab == 0 ? i32(len(windowData.fileTabs) - 1) : windowData.activeFileTab - 1
+    windowData.wasFileTabChanged = true
 
     switchInputContextToEditor()
 }
@@ -163,6 +167,7 @@ tryCloseFileTab :: proc(index: i32, force := false) {
     
     ordered_remove(&windowData.fileTabs, index)
     windowData.activeFileTab = index == 0 ? index : index - 1
+    windowData.wasFileTabChanged = true
 
     if len(windowData.fileTabs) == 0 {
         addEmptyTab()

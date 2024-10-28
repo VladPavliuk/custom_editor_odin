@@ -38,39 +38,61 @@ renderFileSearch :: proc() {
     }
 
     if windowData.uiContext.focusedId == fieldId && .ESC in inputState.wasPressedKeys {
+        windowData.currentFileSearchTermIndex = 0
+        windowData.foundTermsCount = 0
         windowData.isFileSearchOpen = false
         windowData.uiContext.tmpFocusedId = 0
+        strings.builder_reset(&windowData.fileSearchStr)
+        clear(&windowData.foundTermsIndexes)
         switchInputContextToEditor()
     }
 
-    count, indexes := count_with_indexes(strings.to_string(getActiveTab().ctx.text), strings.to_string(windowData.fileSearchStr))
+    // searchChanged := strings.to_string(windowData.fileSearchStr) != strings.to_string(windowData.uiTextInputCtx.text)
+
+    // if searchChanged {
+    //     windowData.foundTermsCount = count_with_indexes(strings.to_string(getActiveTab().ctx.text), strings.to_string(windowData.uiTextInputCtx.text), &windowData.foundTermsIndexes)
+    // }
 
     ui.renderLabel(&windowData.uiContext, ui.Label{
-        text = fmt.tprintf("%i of %i matches", windowData.currentFileSearchTermIndex + 1, count),
+        text = windowData.foundTermsCount > 0 ? fmt.tprintf("%i of %i", windowData.currentFileSearchTermIndex + 1, windowData.foundTermsCount) : fmt.tprintf("no matches"),
         position = { position.x + 5, position.y + 5 },
         color = BLACK_COLOR,
     })
 
+    if windowData.wasTextContextModified || windowData.wasFileTabChanged {
+        windowData.foundTermsCount = count_with_indexes(strings.to_string(getActiveTab().ctx.text), strings.to_string(windowData.uiTextInputCtx.text), &windowData.foundTermsIndexes)
+    }
+
     if .FOCUSED in actions {
-        strings.builder_reset(&windowData.fileSearchStr)
+        if windowData.wasTextContextModified {
+            windowData.currentFileSearchTermIndex = 0
+            strings.builder_reset(&windowData.fileSearchStr)
 
-        strings.write_string(&windowData.fileSearchStr, strings.to_string(windowData.uiTextInputCtx.text))
+            strings.write_string(&windowData.fileSearchStr, strings.to_string(windowData.uiTextInputCtx.text))
+        }
 
-        if count > 0 && .ENTER in inputState.wasPressedKeys {
-            windowData.currentFileSearchTermIndex = (windowData.currentFileSearchTermIndex + 1) % i32(len(indexes))
+        if windowData.foundTermsCount > 0 && .ENTER in inputState.wasPressedKeys {
+            if isShiftPressed() {
+                windowData.currentFileSearchTermIndex -= 1
+                if windowData.currentFileSearchTermIndex <= -1 {
+                    windowData.currentFileSearchTermIndex = i32(len(windowData.foundTermsIndexes)) - 1
+                }
+            } else {
+                windowData.currentFileSearchTermIndex = (windowData.currentFileSearchTermIndex + 1) % i32(len(windowData.foundTermsIndexes))
+            }
 
             tabTextCtx := getActiveTabContext() 
 
             tabTextCtx.editorState.selection = {
-                indexes[windowData.currentFileSearchTermIndex],
-                indexes[windowData.currentFileSearchTermIndex],
+                windowData.foundTermsIndexes[windowData.currentFileSearchTermIndex],
+                windowData.foundTermsIndexes[windowData.currentFileSearchTermIndex],
             }
             updateCusrorData(tabTextCtx)
             jumpToCursor(tabTextCtx)
         }
     }
 
-    renderFoundSearchTerms(indexes, strings.to_string(windowData.fileSearchStr))
+    renderFoundSearchTerms(windowData.foundTermsIndexes[:], strings.to_string(windowData.fileSearchStr))
 }
 
 renderFoundSearchTerms :: proc(indexes: []int, serchTerm: string) {
@@ -137,29 +159,30 @@ any_of_with_index :: proc(s: $S/[]$T, value: T) -> (bool, int) where intrinsics.
 	return false, -1
 }
 
-count_with_indexes :: proc(s, substr: string) -> (res: int, indexes: []int) {
-    indexes_list := make([dynamic]int, context.temp_allocator)
+count_with_indexes :: proc(s, substr: string, indexes_list: ^[dynamic]int) -> (res: int) {
+    clear(indexes_list)
+    // indexes_list := make([dynamic]int, allocator)
 
 	if len(substr) == 0 { // special case
-		return 0, indexes_list[:]
+		return 0
 	}
 
 	if len(substr) == 1 {
 		c := substr[0]
 		switch len(s) {
 		case 0:
-			return 0, indexes_list[:]
+			return 0
 		case 1:
-			return int(s[0] == c), indexes_list[:]
+			return int(s[0] == c)
 		}
 		n := 0
 		for i := 0; i < len(s); i += 1 {
 			if s[i] == c {
 				n += 1
-                append(&indexes_list, i)
+                append(indexes_list, i)
 			}
 		}
-		return n, indexes_list[:]
+		return n
 	}
 
 	// TODO(bill): Use a non-brute for approach
@@ -169,12 +192,12 @@ count_with_indexes :: proc(s, substr: string) -> (res: int, indexes: []int) {
 	for {
 		i := strings.index(str, substr)
 		if i == -1 {
-			return n, indexes_list[:]
+			return n
 		}
 		n += 1
-        append(&indexes_list, i + c)
+        append(indexes_list, i + c)
 		str = str[i+len(substr):]
         c += i+len(substr)
 	}
-	return n, indexes_list[:]
+	return n
 }

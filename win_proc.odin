@@ -102,6 +102,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         if windowData.wasInputSymbolTyped && windowData.isInputMode {
             edit.input_rune(&windowData.editableTextCtx.editorState, rune(wParam))
             if isActiveTabContext() { getActiveTab().isSaved = false }
+            windowData.wasTextContextModified = true
             
             calculateLines(windowData.editableTextCtx)
             updateCusrorData(windowData.editableTextCtx)
@@ -128,12 +129,12 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
     return win32.DefWindowProcA(hwnd, msg, wParam, lParam)
 }
 
-@(private="file") 
+// @(private="file") 
 isShiftPressed :: proc() -> bool {
     return uint(win32.GetKeyState(win32.VK_SHIFT)) & 0x8000 == 0x8000
 }
 
-@(private="file") 
+// @(private="file") 
 isCtrlPressed :: proc() -> bool {
     return uint(win32.GetKeyState(win32.VK_LCONTROL)) & 0x8000 == 0x8000
 }
@@ -219,6 +220,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
             edit.input_text(&editorCtx.editorState, string(editorCtx.text.buf[lineStart:][:whiteSpacesCount]))
         }
         if isActiveTabContext() { getActiveTab().isSaved = false }
+        windowData.wasTextContextModified = true
     case win32.VK_TAB:
         if isCtrlPressed() {
             if isShiftPressed() {
@@ -229,6 +231,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         } else {
             edit.input_rune(&editorCtx.editorState, rune('\t'))
             if isActiveTabContext() { getActiveTab().isSaved = false }
+            windowData.wasTextContextModified = true
         }
     case win32.VK_LEFT:
         if isCtrlPressed() {
@@ -277,6 +280,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
             edit.perform_command(&editorCtx.editorState, edit.Command.Backspace)
         }
         if isActiveTabContext() { getActiveTab().isSaved = false }
+        windowData.wasTextContextModified = true
     case win32.VK_DELETE:        
         if isCtrlPressed() {
             edit.perform_command(&editorCtx.editorState, edit.Command.Delete_Word_Right)
@@ -284,6 +288,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
             edit.perform_command(&editorCtx.editorState, edit.Command.Delete)
         }
         if isActiveTabContext() { getActiveTab().isSaved = false }
+        windowData.wasTextContextModified = true
     case win32.VK_HOME:
         jumpToCursor(editorCtx)
 
@@ -310,6 +315,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         edit.perform_command(&editorCtx.editorState, edit.Command.Paste)
         
         if isActiveTabContext() { getActiveTab().isSaved = false }
+        windowData.wasTextContextModified = true
     case win32.VK_X:
         // NOTE: if no text selection, copy current line
         if !edit.has_selection(&editorCtx.editorState) {
@@ -324,6 +330,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
         edit.perform_command(&editorCtx.editorState, edit.Command.Cut)
 
         if isActiveTabContext() { getActiveTab().isSaved = false }
+        windowData.wasTextContextModified = true
     case win32.VK_Z:
         if isShiftPressed() {
             edit.perform_command(&editorCtx.editorState, edit.Command.Redo)

@@ -69,12 +69,14 @@ WindowData :: struct {
     uiTextInputCtx: EditableTextContext,
 
     isFileSearchOpen: bool,
+    foundTermsIndexes: [dynamic]int,
+    foundTermsCount: int,
     fileSearchJustOpened: bool,
     fileSearchStr: strings.Builder,
     currentFileSearchTermIndex: i32,
-    //foundSearchTerms: []i32,
 
     wasInputSymbolTyped: bool, // distingushed between symbols on keyboard and control keys like backspace, delete, etc.
+    wasTextContextModified: bool,
 
     maxZIndex: f32,
 
@@ -88,6 +90,7 @@ WindowData :: struct {
 
     fileTabs: [dynamic]FileTab,
     activeFileTab: i32,
+    wasFileTabChanged: bool,
 
     explorer: ^Explorer,
     explorerWidth: i32,
@@ -233,6 +236,7 @@ removeWindowData :: proc() {
         freeTextContext(tab.ctx)
     }
     delete(windowData.fileTabs)
+    delete(windowData.foundTermsIndexes)
     
     freeTextContext(&windowData.uiTextInputCtx, false)
     strings.builder_destroy(&windowData.fileSearchStr)

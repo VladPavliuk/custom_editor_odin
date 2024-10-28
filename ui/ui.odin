@@ -250,10 +250,10 @@ endUi :: proc(using ctx: ^Context, frameDelta: f64) {
     assert(len(ctx.parentElementsStack) == 0)
 }
 
-putEmptyElement :: proc(ctx: ^Context, rect: Rect, ignoreFocusUpdate := false, customId: i32 = 0, loc := #caller_location) -> Actions {
-    Id := getId(customId, loc)
+putEmptyElement :: proc(ctx: ^Context, rect: Rect, ignoreFocusUpdate := false, customId: i32 = 0, loc := #caller_location) -> (Actions, i64) {
+    id := getId(customId, loc)
 
-    return checkUiState(ctx, Id, rect, ignoreFocusUpdate)
+    return checkUiState(ctx, id, rect, ignoreFocusUpdate), id
 }
 
 advanceZIndex :: proc(ctx: ^Context) {

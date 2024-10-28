@@ -408,7 +408,6 @@ renderFolderExplorer :: proc() {
                 
                 // update into in tab
                 tabIndex := getFileTabIndex(windowData.fileTabs[:], item.fullPath)
-                fmt.println(tabIndex)
                 if tabIndex != -1 {
                     tab := &windowData.fileTabs[tabIndex]
 
@@ -427,7 +426,7 @@ renderFolderExplorer :: proc() {
             continue
         }
 
-        itemActions := ui.putEmptyElement(&windowData.uiContext, itemRect, customId = itemIndex)
+        itemActions, _ := ui.putEmptyElement(&windowData.uiContext, itemRect, customId = itemIndex)
 
         if item.fullPath == activeTab.filePath { // highlight selected file
             append(&windowData.uiContext.commands, ui.RectCommand{
@@ -720,6 +719,7 @@ renderEditorFileTabs :: proc() {
 
     switch action in tabActions {
     case ui.TabsSwitched:
+        windowData.wasFileTabChanged = true
         switchInputContextToEditor()
     case ui.TabsActionClose:
         tryCloseFileTab(action.closedTabIndex)
@@ -781,7 +781,11 @@ renderEditorContent :: proc() {
 
     ui.beginScroll(&windowData.uiContext)
 
-    editorContentActions := ui.putEmptyElement(&windowData.uiContext, editorCtx.rect)
+    editorContentActions, editorContentId := ui.putEmptyElement(&windowData.uiContext, editorCtx.rect)
+
+    if windowData.wasFileTabChanged {
+        windowData.uiContext.tmpFocusedId = editorContentId
+    }
 
     handleTextInputActions(editorCtx, editorContentActions)
 

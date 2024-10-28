@@ -18,7 +18,7 @@ putResizableRect :: proc(ctx: ^Context, rect: Rect, customId: i32 = 0, loc := #c
         right = rect.right + resizeZoneSize,
         left = rect.right - resizeZoneSize,
     }
-    rightBorderActions := putEmptyElement(ctx, rightRect, false, customId, loc)
+    rightBorderActions, _ := putEmptyElement(ctx, rightRect, false, customId, loc)
 
     if .HOT in rightBorderActions || .ACTIVE in rightBorderActions {
         ctx.setCursor(.HORIZONTAL_SIZE)

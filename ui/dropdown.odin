@@ -120,7 +120,7 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
                 continue
             }
 
-            itemActions := putEmptyElement(ctx, itemRect, true, customId, loc)
+            itemActions, _ := putEmptyElement(ctx, itemRect, true, customId, loc)
 
             if .HOT in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.hoverColor, getDarkerColor(bgColor)) }
             if .ACTIVE in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.activeColor, getDarkerColor(bgColor)) } 
@@ -158,7 +158,7 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
                     thikness = 2,
                 })
 
-                if .SUBMIT in putEmptyElement(ctx, checkboxRect, true) {
+                if actions, _ := putEmptyElement(ctx, checkboxRect, true); .SUBMIT in actions {
                     item.checkbox^ = !item.checkbox^
                 }
             }

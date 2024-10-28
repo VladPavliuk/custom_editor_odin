@@ -47,7 +47,7 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
 
         itemRect := toRect(position, { width, height })
 
-        itemActions := putEmptyElement(ctx, itemRect, customId = customId, loc = loc)
+        itemActions, _ := putEmptyElement(ctx, itemRect, customId = customId, loc = loc)
 
         bgColor := tabs.bgColor
 

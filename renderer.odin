@@ -57,9 +57,9 @@ render :: proc() {
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
-    //startTimer()
+    startTimer()
     uiStaff() // 5702.110 ms
-    //stopTimer()
+    stopTimer()
 
     // renderLineNumbers()
 
