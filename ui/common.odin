@@ -17,6 +17,13 @@ Rect :: struct {
     right: i32,
 }
 
+RectF :: struct {
+    top: f32,
+    bottom: f32,
+    left: f32,
+    right: f32,
+}
+
 setColorAlpha :: proc(color: float4, alpha: f32) -> float4 {
     return { color.r, color.g, color.b, alpha}
 }
@@ -29,7 +36,9 @@ isValidColor :: proc(color: float4) -> bool {
     return color.a != 0
 }
 
-toRect :: proc(position, size: int2) -> Rect {
+toRect :: proc{toRect_Int, toRect_Float}
+
+toRect_Int :: proc(position, size: int2) -> Rect {
     return {
         top = position.y + size.y,
         bottom = position.y,
@@ -38,7 +47,40 @@ toRect :: proc(position, size: int2) -> Rect {
     }
 }
 
-fromRect :: proc(using rect: Rect) -> (int2, int2) {
+toRect_Float :: proc(position, size: float2) -> RectF {
+    return {
+        top = position.y + size.y,
+        bottom = position.y,
+        left = position.x,
+        right = position.x + size.x,
+    }
+}
+
+toFloatRect :: proc(a: Rect) -> RectF {
+    return {
+        top = f32(a.top),
+        bottom = f32(a.bottom),
+        left = f32(a.left),
+        right = f32(a.right),
+    }
+}
+
+toIntRect :: proc(a: RectF) -> Rect {
+    return {
+        top = i32(a.top),
+        bottom = i32(a.bottom),
+        left = i32(a.left),
+        right = i32(a.right),
+    }
+}
+
+fromRect :: proc{fromRect_Int, fromRect_Float}
+
+fromRect_Int :: proc(using rect: Rect) -> (int2, int2) {
+    return { left, bottom }, { right - left, top - bottom }
+}
+
+fromRect_Float :: proc(using rect: RectF) -> (float2, float2) {
     return { left, bottom }, { right - left, top - bottom }
 }
 
@@ -58,35 +100,78 @@ shrinkRect :: proc(using rect: Rect, amount: i32) -> Rect {
     }
 }
 
-clipRect :: proc(target, source: Rect) -> Rect {
-    targetSize := getRectSize(target)
-    sourceSize := getRectSize(source)
+clipRect :: proc{clipRect_Int, clipRect_Float}
 
-    // if source panel size is bigger then target panel size, do nothing 
-    if sourceSize.x > targetSize.x || sourceSize.y > targetSize.y {
-        return source
+clipRect_Int :: proc(a, b: Rect) -> Rect {
+    return Rect{
+        top = min(a.top, b.top),
+        bottom = max(a.bottom, b.bottom),
+        left = max(a.left, b.left),
+        right = min(a.right, b.right),
     }
-
-    source := source
-
-    // right side
-    source.right = min(source.right, target.right)
-    source.left = source.right - sourceSize.x
-
-    // left side
-    source.left = max(source.left, target.left)
-    source.right = source.left + sourceSize.x
-
-    // top side
-    source.top = min(source.top, target.top)
-    source.bottom = source.top - sourceSize.y
-
-    // bottom side
-    source.bottom = max(source.bottom, target.bottom)
-    source.top = source.bottom + sourceSize.y
-
-    return source
 }
+
+clipRect_Float :: proc(a, b: RectF) -> RectF {
+    return RectF{
+        top = min(a.top, b.top),
+        bottom = max(a.bottom, b.bottom),
+        left = max(a.left, b.left),
+        right = min(a.right, b.right),
+    }
+}
+
+normalizeClippedToOriginal :: proc(clipped, original: Rect) -> (offset: [2]f32, scale: [2]f32){
+    originalRectSize := getRectSize(original)
+    clippedRectSize := getRectSize(clipped)
+
+    scaleX := f32(clippedRectSize.x) / f32(originalRectSize.x)
+    offsetX := f32(clipped.left - original.left) / f32(originalRectSize.x)
+
+    scaleY := f32(clippedRectSize.y) / f32(originalRectSize.y)
+    offsetY := f32(original.top - clipped.top) / f32(originalRectSize.y)
+
+    return { offsetX, offsetY }, { scaleX, scaleY }
+}
+
+isValidRect :: proc{isValidRect_Int, isValidRect_Float}
+
+isValidRect_Int :: proc(rect: Rect) -> bool {
+    return rect.right > rect.left && rect.top > rect.bottom
+}
+
+isValidRect_Float :: proc(rect: RectF) -> bool {
+    return rect.right > rect.left && rect.top > rect.bottom
+}
+
+// clipRect :: proc(target, source: Rect) -> Rect {
+//     targetSize := getRectSize(target)
+//     sourceSize := getRectSize(source)
+
+//     // if source panel size is bigger then target panel size, do nothing 
+//     if sourceSize.x > targetSize.x || sourceSize.y > targetSize.y {
+//         return source
+//     }
+
+//     source := source
+
+//     // right side
+//     source.right = min(source.right, target.right)
+//     source.left = source.right - sourceSize.x
+
+//     // left side
+//     source.left = max(source.left, target.left)
+//     source.right = source.left + sourceSize.x
+
+//     // top side
+//     source.top = min(source.top, target.top)
+//     source.bottom = source.top - sourceSize.y
+
+//     // bottom side
+//     source.bottom = max(source.bottom, target.bottom)
+//     source.top = source.bottom + sourceSize.y
+
+//     return source
+// }
 
 isInRect :: proc(rect: Rect, point: int2) -> bool {
 	return point.x >= rect.left && point.x < rect.right && 

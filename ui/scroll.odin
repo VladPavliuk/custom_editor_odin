@@ -53,7 +53,7 @@ renderVerticalScroll :: proc(ctx: ^Context, scroll: Scroll, customId: i32 = 0, l
     }
 
     // background
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = bgRect,
         bgColor = scroll.bgColor,
     })
@@ -62,7 +62,7 @@ renderVerticalScroll :: proc(ctx: ^Context, scroll: Scroll, customId: i32 = 0, l
 
     // scroll
     isHover := ctx.activeId == scrollId || ctx.hotId == scrollId
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = scrollRect,
         bgColor = isHover ? scroll.hoverColor : scroll.color,
     })
@@ -129,7 +129,7 @@ renderHorizontalScroll :: proc(ctx: ^Context, scroll: Scroll, customId: i32 = 0,
     }
 
     // background
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = bgRect,
         bgColor = scroll.bgColor,
     })
@@ -137,7 +137,7 @@ renderHorizontalScroll :: proc(ctx: ^Context, scroll: Scroll, customId: i32 = 0,
     // scroll
     isHover := ctx.activeId == scrollId || ctx.hotId == scrollId
     
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = scrollRect,
         bgColor = isHover ? scroll.hoverColor : scroll.color,
     })

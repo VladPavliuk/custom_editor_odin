@@ -12,7 +12,7 @@ renderTopMenu :: proc() {
     // top menu background
     fileMenuHeight: i32 = 25
     
-    append(&windowData.uiContext.commands, ui.RectCommand{
+    ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = ui.Rect{
             top = windowData.size.y / 2,
             bottom = windowData.size.y / 2 - fileMenuHeight,
@@ -217,7 +217,7 @@ renderFolderExplorer :: proc() {
         right = -windowData.size.x / 2 + windowData.explorerWidth,
     }
 
-    append(&windowData.uiContext.commands, ui.RectCommand{
+    ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = bgRect,
         bgColor = GRAY_COLOR,
     })
@@ -227,26 +227,26 @@ renderFolderExplorer :: proc() {
     explorerHeaderHeight: i32 = 25
     
     headerPosition: int2 = { -windowData.size.x / 2, windowData.size.y / 2 - topOffset - explorerHeaderHeight }
-    headerBgRect := ui.toRect(headerPosition, { windowData.explorerWidth, explorerHeaderHeight })
+    headerBgRect := ui.toRect(headerPosition, int2{ windowData.explorerWidth, explorerHeaderHeight })
 
     // header background
     ui.putEmptyElement(&windowData.uiContext, headerBgRect)
     
-    append(&windowData.uiContext.commands, ui.RectCommand{
+    ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = headerBgRect,
         bgColor = GRAY_COLOR,
     })
 
     // explorer root folder name
-    append(&windowData.uiContext.commands, ui.ClipCommand{
-        rect = ui.toRect(headerPosition, { windowData.explorerWidth - explorerButtonsWidth, explorerHeaderHeight }), 
-    })
-    append(&windowData.uiContext.commands, ui.TextCommand{
+    // ui.pushCommand(&windowData.uiContext, ui.ClipCommand{
+    //     rect = ui.toRect(headerPosition, { windowData.explorerWidth - explorerButtonsWidth, explorerHeaderHeight }), 
+    // })
+    ui.pushCommand(&windowData.uiContext, ui.TextCommand{
         text = filepath.base(windowData.explorer.rootPath), 
         position = headerPosition,
         color = WHITE_COLOR,
     })
-    append(&windowData.uiContext.commands, ui.ResetClipCommand{})
+    // ui.pushCommand(&windowData.uiContext, ui.ResetClipCommand{})
 
     topOffset += explorerHeaderHeight
 
@@ -429,7 +429,7 @@ renderFolderExplorer :: proc() {
         itemActions, _ := ui.putEmptyElement(&windowData.uiContext, itemRect, customId = itemIndex)
 
         if item.fullPath == activeTab.filePath { // highlight selected file
-            append(&windowData.uiContext.commands, ui.RectCommand{
+            ui.pushCommand(&windowData.uiContext, ui.RectCommand{
                 rect = itemRect,
                 bgColor = ui.getDarkerColor(GRAY_COLOR),
             })
@@ -440,8 +440,8 @@ renderFolderExplorer :: proc() {
             fileContextMenuJustOpened = true
         }
 
-        if .HOT in itemActions {    
-            append(&windowData.uiContext.commands, ui.RectCommand{
+        if .HOT in itemActions {
+            ui.pushCommand(&windowData.uiContext, ui.RectCommand{
                 rect = itemRect,
                 bgColor = THEME_COLOR_1,
             })
@@ -467,9 +467,9 @@ renderFolderExplorer :: proc() {
             itemContextMenuIndex = itemIndex
         }
         
-        append(&windowData.uiContext.commands, ui.ClipCommand{
-            rect = itemRect,
-        })
+        // ui.pushCommand(&windowData.uiContext, ui.ClipCommand{
+        //     rect = itemRect,
+        // })
 
         iconSize: i32 = 16
         icon: TextureId
@@ -484,17 +484,17 @@ renderFolderExplorer :: proc() {
         itemWidth := iconSize + 5 + i32(getTextWidth(item.name, &windowData.font))
         if itemWidth > maxWidthItem { maxWidthItem = itemWidth } 
         
-        append(&windowData.uiContext.commands, ui.ImageCommand{
+        ui.pushCommand(&windowData.uiContext, ui.ImageCommand{
             rect = ui.toRect(int2{ position.x + leftOffset, position.y + itemVerticalPadding / 2 }, int2{ iconSize, iconSize }),
             textureId = i32(icon),
         })
-        append(&windowData.uiContext.commands, ui.TextCommand{
+        ui.pushCommand(&windowData.uiContext, ui.TextCommand{
             text = item.name,
             position = { position.x + leftOffset + iconSize + 5, position.y + itemVerticalPadding / 2 },
             color = WHITE_COLOR,
             maxWidth = ui.getRectSize(itemRect).x - iconSize - 5 - leftOffset,
         })
-        append(&windowData.uiContext.commands, ui.ResetClipCommand{})
+        // ui.pushCommand(&windowData.uiContext, ui.ResetClipCommand{})
     }
     // ui.advanceZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once
 
@@ -681,8 +681,10 @@ renderEditorFileTabs :: proc() {
     topOffset: i32 = 25 // TODO: calcualte it
     leftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
     
-    append(&windowData.uiContext.commands, ui.RectCommand{
-        rect = ui.toRect({ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, { windowData.size.x - leftOffset, tabsHeight }),
+    ui.pushCommand(&windowData.uiContext, ui.RectCommand{
+        rect = ui.toRect(
+            int2{ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, 
+            int2{ windowData.size.x - leftOffset, tabsHeight }),
         bgColor = GRAY_COLOR,
     })
 
@@ -793,11 +795,11 @@ renderEditorContent :: proc() {
     //calculateLines(editorCtx)
     // updateCusrorData(editorCtx)
 
-    setClipRect(editorCtx.rect)
+    // setClipRect(editorCtx.rect)
     glyphsCount, selectionsCount := fillTextBuffer(editorCtx, WHITE_COLOR, windowData.maxZIndex)
     
     renderText(glyphsCount, selectionsCount, TEXT_SELECTION_BG_COLOR)
-    resetClipRect()
+    // resetClipRect()
 
     verticalScrollActions, horizontalScrollActions := ui.endScroll(&windowData.uiContext, ui.Scroll{
         bgRect = {

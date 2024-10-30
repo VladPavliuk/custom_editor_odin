@@ -97,21 +97,21 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
 
             defer offset -= itemHeight
 
-            itemRect := toRect({ dropdown.position.x, offset }, { itemWidth, itemHeight })
+            itemRect := toRect(int2{ dropdown.position.x, offset }, int2{ itemWidth, itemHeight })
 
             bgColor := getOrDefaultColor(dropdown.itemStyles.bgColor, dropdown.bgColor)
 
             if item.isSeparator {
                 putEmptyElement(ctx, itemRect, true, customId, loc) // just to prevent closing dropdown on seperator click
 
-                append(&ctx.commands, RectCommand{
+                pushCommand(ctx, RectCommand{
                     rect = itemRect,
                     bgColor = bgColor,
                 })
 
                 separatorHorizontalPadding: i32 = 10
                 
-                append(&ctx.commands, RectCommand{
+                pushCommand(ctx, RectCommand{
                     rect = toRect([2]i32{ dropdown.position.x + separatorHorizontalPadding, offset + itemHeight / 2 }, 
                         [2]i32{ itemWidth - 2 * separatorHorizontalPadding, 1 }),
                     bgColor = WHITE_COLOR,
@@ -125,15 +125,14 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
             if .HOT in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.hoverColor, getDarkerColor(bgColor)) }
             if .ACTIVE in itemActions { bgColor = getOrDefaultColor(dropdown.itemStyles.activeColor, getDarkerColor(bgColor)) } 
 
-            append(&ctx.commands, ClipCommand{
-                rect = itemRect,
-            })            
-            append(&ctx.commands, RectCommand{
+            // pushCommand(ctx, ClipCommand{
+            //     rect = itemRect,
+            // })
+            pushCommand(ctx, RectCommand{
                 rect = itemRect,
                 bgColor = bgColor,
             })
-
-            append(&ctx.commands, TextCommand{
+            pushCommand(ctx, TextCommand{
                 text = item.text, 
                 position = { dropdown.position.x + itemPadding.left, offset + itemPadding.bottom },
                 color = WHITE_COLOR,
@@ -144,15 +143,15 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
                 checkboxSize := itemHeight
 
                 checkboxPosition: int2 = { dropdown.position.x, offset }
-                checkboxRect := toRect(checkboxPosition, { checkboxSize, checkboxSize })
+                checkboxRect := toRect(checkboxPosition, int2{ checkboxSize, checkboxSize })
                 if item.checkbox^ {
-                    append(&ctx.commands, ImageCommand{
+                    pushCommand(ctx, ImageCommand{
                         rect = shrinkRect(checkboxRect, 3),
                         textureId = ctx.checkIconId,
                     })
                 }
                 
-                append(&ctx.commands, BorderRectCommand{
+                pushCommand(ctx, BorderRectCommand{
                     rect = checkboxRect,
                     color = DARK_GRAY_COLOR,
                     thikness = 2,
@@ -166,13 +165,13 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
             if len(item.rightText) > 0 {
                 rightTextPositionX := dropdown.position.x + itemWidth - i32(ctx.getTextWidth(item.rightText, ctx.font)) - itemPadding.right
                 
-                append(&ctx.commands, TextCommand{
+                pushCommand(ctx, TextCommand{
                     text = item.rightText, 
                     position = { rightTextPositionX, offset + itemPadding.bottom },
                     color = WHITE_COLOR,
                 })
             }
-            append(&ctx.commands, ResetClipCommand{})
+            // pushCommand(ctx, ResetClipCommand{})
 
             if .SUBMIT in itemActions {
                 selectedItemIndex = i32(index)

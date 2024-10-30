@@ -89,7 +89,7 @@ renderActiveAlert :: proc(ctx: ^Context, customId: i32 = 0, loc := #caller_locat
     bgColor := alert.bgColor
     bgColor.a = transparency 
     
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = alertRect,
         bgColor = bgColor,
     })
@@ -101,7 +101,7 @@ renderActiveAlert :: proc(ctx: ^Context, customId: i32 = 0, loc := #caller_locat
 
     fontColor.a = transparency
     
-    append(&ctx.commands, TextCommand{
+    pushCommand(ctx, TextCommand{
         text = alert.text, 
         position = { i32(leftTextPadding) + alertRect.left, i32(bottomTextPadding) + alertRect.bottom },
         color = fontColor,

@@ -12,7 +12,9 @@ FontGlyphGpu :: struct #packed {
     sourceRect: ui.Rect,
     targetTransformation: mat4,
     color: float4,
-    //clipRectIndex: i32,
+    
+    textureOffset: float2,
+    textureScale: float2,
 }
 
 FontChar :: struct {

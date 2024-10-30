@@ -6,6 +6,8 @@ struct PSInput
     float4 positionSV : SV_POSITION;
     float2 texcoord : TEXCOORD;
     int imageIndex : IMAGE_INDEX;
+    float2 textureOffset : TEX_OFFSET;
+    float2 textureScale : TEX_SCALE;
 };
 
 struct PSOutput
@@ -17,7 +19,9 @@ PSOutput main(PSInput input)
 {
     PSOutput output;
 
-	float4 pixelColor = objTexture.Sample(objSamplerState, float3(input.texcoord.xy, input.imageIndex));
+    // float2 textureCoords = float2(input.textureOffset.x + input.texcoord.x * input.textureScale.x, input.textureOffset.y + input.texcoord.y * input.textureScale.y);
+    float2 textureCoords = input.textureOffset + input.texcoord * input.textureScale;
+	float4 pixelColor = objTexture.Sample(objSamplerState, float3(textureCoords, input.imageIndex));
 
     output.pixelColor = pixelColor;
 

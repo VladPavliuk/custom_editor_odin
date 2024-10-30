@@ -37,7 +37,7 @@ beginPanel :: proc(ctx: ^Context, panel: Panel, open: ^bool, customId: i32 = 0, 
     //<
 
     // panel body
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = panelRect,
         bgColor = panel.bgColor,
     })
@@ -48,13 +48,13 @@ beginPanel :: proc(ctx: ^Context, panel: Panel, open: ^bool, customId: i32 = 0, 
     if ctx.hotId == headerId { headerBgColor = getDarkerColor(headerBgColor) }
     if ctx.activeId == headerId { headerBgColor = getDarkerColor(headerBgColor) }
 
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = headerRect,
         bgColor = headerBgColor,
     })
 
-    // panel title    
-    append(&ctx.commands, TextCommand{
+    // panel title
+    pushCommand(ctx, TextCommand{
         text = panel.title,
         position = { panelRect.left, panelRect.top - textHeight },
         color = WHITE_COLOR,
@@ -79,7 +79,7 @@ beginPanel :: proc(ctx: ^Context, panel: Panel, open: ^bool, customId: i32 = 0, 
 
     borderColor := getOrDefaultColor(panel.borderColor, GRAY_COLOR)
     
-    append(&ctx.commands, BorderRectCommand{
+    pushCommand(ctx, BorderRectCommand{
         rect = toRect(panel.position^, panel.size^),
         thikness = 1,
         color = borderColor,

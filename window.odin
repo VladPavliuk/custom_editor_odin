@@ -27,8 +27,7 @@ inputState: InputState
 
 GlyphsLocation :: struct {
     char: rune,
-    position: int2,
-    size: int2,
+    position, size: float2,
     lineStart: i32,
 }
 

@@ -45,7 +45,7 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
         height := tabs.itemStyles.size.y
         if height == 0 { height = i32(ctx.getTextHeight(ctx.font)) }
 
-        itemRect := toRect(position, { width, height })
+        itemRect := toRect(position, int2{ width, height })
 
         itemActions, _ := putEmptyElement(ctx, itemRect, customId = customId, loc = loc)
 
@@ -63,7 +63,7 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
             tabs.activeTabIndex^ = i32(index)
         }
         
-        append(&ctx.commands, RectCommand{
+        pushCommand(ctx, RectCommand{
             rect = itemRect,
             bgColor = bgColor,
         })
@@ -76,24 +76,24 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
             iconRightPadding = 3
             iconPosition: int2 = { position.x + padding.left, position.y + height / 2 - item.leftIconSize.y / 2 }
             
-            append(&ctx.commands, ImageCommand{
-                rect = toRect(iconPosition, { item.leftIconSize.x, item.leftIconSize.y }),
+            pushCommand(ctx, ImageCommand{
+                rect = toRect(iconPosition, int2{ item.leftIconSize.x, item.leftIconSize.y }),
                 textureId = item.leftIconId,
             })
         }
 
         textPosition: int2 = { position.x + padding.left + iconWidth + iconRightPadding, position.y + padding.bottom }
         
-        append(&ctx.commands, ClipCommand{
-            rect = Rect { top = itemRect.top, bottom = itemRect.bottom, left = textPosition.x, right = itemRect.right - padding.right },
-        })
-        append(&ctx.commands, TextCommand{
+        // pushCommand(ctx, ClipCommand{
+        //     rect = Rect { top = itemRect.top, bottom = itemRect.bottom, left = textPosition.x, right = itemRect.right - padding.right },
+        // })
+        pushCommand(ctx, TextCommand{
             text = item.text,
             position = textPosition,
             color = WHITE_COLOR,
             maxWidth = itemRect.right - padding.right - textPosition.x,
         })
-        append(&ctx.commands, ResetClipCommand{})
+        // pushCommand(ctx, ResetClipCommand{})
 
         if item.rightIconId != 0 {
             iconWidth = 20

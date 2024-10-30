@@ -368,7 +368,7 @@ windowSizeChangedHandler :: proc "c" (width, height: i32) {
     windowData.size = { width, height }
     windowData.uiContext.clientSize = windowData.size 
     recalculateFileTabsContextRects()
-    resetClipRect()
+    // resetClipRect()
 
     directXState.ctx->OMSetRenderTargets(0, nil, nil)
     directXState.backBufferView->Release()

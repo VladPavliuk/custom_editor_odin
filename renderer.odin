@@ -57,9 +57,16 @@ render :: proc() {
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
-    startTimer()
+    // startTimer()
+    ui.setClipRect(&windowData.uiContext, ui.Rect{
+        top = windowData.size.y / 2,
+        bottom = -windowData.size.y / 2,
+        left = -windowData.size.x / 2,
+        right = windowData.size.x / 2,
+    })
     uiStaff() // 5702.110 ms
-    stopTimer()
+    ui.resetClipRect(&windowData.uiContext)
+    // stopTimer()
 
     // renderLineNumbers()
 
@@ -70,30 +77,30 @@ render :: proc() {
     //TODO: if pc went to sleep mode hr variable might be not 0, investigate why is that
 }
 
-resetClipRect :: proc() {
-    scissorRect := d3d11.RECT{
-        top = 0,
-        bottom = windowData.size.y,
-        left = 0,
-        right = windowData.size.x,
-    }
+// resetClipRect :: proc() {
+//     scissorRect := d3d11.RECT{
+//         top = 0,
+//         bottom = windowData.size.y,
+//         left = 0,
+//         right = windowData.size.x,
+//     }
 
-    directXState.ctx->RSSetScissorRects(1, &scissorRect)
-}
+//     directXState.ctx->RSSetScissorRects(1, &scissorRect)
+// }
 
-setClipRect :: proc(rect: ui.Rect) {
-    rect := rect
-    rect = ui.directXToScreenRect(rect, &windowData.uiContext)
+// setClipRect :: proc(rect: ui.Rect) {
+//     rect := rect
+//     rect = ui.directXToScreenRect(rect, &windowData.uiContext)
 
-    scissorRect := d3d11.RECT{
-        top = rect.top,
-        bottom = rect.bottom,
-        left = rect.left,
-        right = rect.right,
-    }
+//     scissorRect := d3d11.RECT{
+//         top = rect.top,
+//         bottom = rect.bottom,
+//         left = rect.left,
+//         right = rect.right,
+//     }
 
-    directXState.ctx->RSSetScissorRects(1, &scissorRect)
-}
+//     directXState.ctx->RSSetScissorRects(1, &scissorRect)
+// }
 
 testingButtons :: proc() {
     if action := ui.renderButton(&windowData.uiContext, ui.TextButton{
@@ -160,16 +167,24 @@ renderUi :: proc() {
         rectsWithColorList := memoryAsSlice(RectWithColor, rectsWithColorListBuffer.cpuBuffer, rectsWithColorListBuffer.length)
         rectsWithColorIndex: i32 = 0
 
-        pushToRectsWithColor :: proc(rect: ui.Rect, color: float4, zIndex: f32, index: ^i32, list: []RectWithColor) {
+        pushToRectsWithColor :: proc(rect: ui.Rect, clipRect: ui.Rect, color: float4, zIndex: f32, index: ^i32, list: []RectWithColor) {
+            rect := rect
+            rect = ui.clipRect(rect, clipRect)
+
+            // NOTE: if after clipping rect has incorrect side, that means it was outside of clip rect, so don't draw it 
+            if !ui.isValidRect(rect) {
+                return
+            }
+
             position, size := ui.fromRect(rect)
-            rect := RectWithColor{
+            rectGpu := RectWithColor{
                 // TODO: investigate removing of intrinsics.transpose
                 transformation = intrinsics.transpose(getTransformationMatrix(
                     { f32(position.x), f32(position.y), zIndex }, 
                     { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 })),
                 color = color,
             }
-            list[index^] = rect
+            list[index^] = rectGpu
 
             index^ += 1
         }
@@ -180,28 +195,29 @@ renderUi :: proc() {
 
             #partial switch command in cmd {
             case ui.RectCommand:
-                pushToRectsWithColor(command.rect, command.bgColor, zIndex, &rectsWithColorIndex, rectsWithColorList)
+                pushToRectsWithColor(command.rect, command.clipRect, command.bgColor, zIndex, &rectsWithColorIndex, rectsWithColorList)
+
                 // ui.advanceZIndex(uiCtx)
             case ui.BorderRectCommand:
                 pushToRectsWithColor(ui.Rect{ // top border
                     top = command.rect.top, bottom = command.rect.top - command.thikness,
                     left = command.rect.left, right = command.rect.right,
-                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.clipRect, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
                 pushToRectsWithColor(ui.Rect{ // bottom border
                     top = command.rect.bottom + command.thikness, bottom = command.rect.bottom,
                     left = command.rect.left, right = command.rect.right,
-                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.clipRect, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
                 pushToRectsWithColor(ui.Rect{ // left border
                     top = command.rect.top, bottom = command.rect.bottom,
                     left = command.rect.left, right = command.rect.left + command.thikness,
-                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.clipRect, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
                 pushToRectsWithColor(ui.Rect{ // right border
                     top = command.rect.top, bottom = command.rect.bottom,
                     left = command.rect.right - command.thikness, right = command.rect.right,
-                }, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
+                }, command.clipRect, command.color, zIndex, &rectsWithColorIndex, rectsWithColorList)
 
                 // ui.advanceZIndex(uiCtx)
             }
@@ -228,13 +244,21 @@ renderUi :: proc() {
 
             #partial switch command in cmd {
             case ui.ImageCommand:
-                position, size := ui.fromRect(command.rect)
+                rect := ui.clipRect(command.rect, command.clipRect)
+
+                if !ui.isValidRect(rect) { break }
+
+                offset, scale := ui.normalizeClippedToOriginal(rect, command.rect)
+
+                position, size := ui.fromRect(rect)
                 image := RectWithImage{
                     // TODO: investigate removing of intrinsics.transpose
                     transformation = intrinsics.transpose(getTransformationMatrix(
                         { f32(position.x), f32(position.y), zIndex }, 
                         { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 })),
                     imageIndex = directXState.iconsIndexesMapping[TextureId(command.textureId)],
+                    textureOffset = offset,
+                    textureScale =  scale,
                 }
                 rectsWithImageList[rectsWithImageIndex] = image
                 
@@ -289,23 +313,38 @@ renderUi :: proc() {
                     glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
                     glyphPosition: int2 = { i32(leftOffset) + fontChar.offset.x, i32(topOffset) - glyphSize.y - fontChar.offset.y }
 
+                    leftOffset += fontChar.xAdvance
+
+                    //> validate clipping
+                    originalGlyphRect := ui.toRect(glyphPosition, glyphSize)
+                    glyphRect := ui.clipRect(command.clipRect, originalGlyphRect)
+                    if !ui.isValidRect(glyphRect) {
+                        continue
+                    }
+                    
+                    offset, scale := ui.normalizeClippedToOriginal(glyphRect, originalGlyphRect)
+
+                    glyphPosition, glyphSize = ui.fromRect(glyphRect)
+                    //<
+
                     modelMatrix := getTransformationMatrix(
                         { f32(glyphPosition.x), f32(glyphPosition.y), zIndex }, 
                         { 0.0, 0.0, 0.0 }, 
                         { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
                     )
-                    
+
                     fontsList[charIndex] = FontGlyphGpu{
                         sourceRect = fontChar.rect,
                         targetTransformation = intrinsics.transpose(modelMatrix),
                         color = command.color,
+                        textureOffset = offset,
+                        textureScale = scale,
                     }
-                    leftOffset += fontChar.xAdvance
                     
                     // if text width is exceeded the max width value, replace last 3 symbols in text by ...
                     if command.maxWidth > 0 && i32(leftOffset) > position.x + command.maxWidth {
                         if lineCharIndex >= 4 {
-                            replace3SymbolsByDots(fontsList, charIndex - 1, topOffset, zIndex, command.color, font)
+                            // replace3SymbolsByDots(fontsList, charIndex - 1, topOffset, zIndex, command.color, font)
                         }
                         break
                     }
@@ -338,10 +377,10 @@ renderUi :: proc() {
                 glyphsCount, selectionsCount := fillTextBuffer(&windowData.uiTextInputCtx, BLACK_COLOR, zIndex)
                 
                 renderText(glyphsCount, selectionsCount, TEXT_SELECTION_BG_COLOR)
-            case ui.ClipCommand:
-                setClipRect(command.rect)
-            case ui.ResetClipCommand:
-                resetClipRect()
+            // case ui.ClipCommand:
+            //     // setClipRect(command.rect)
+            // case ui.ResetClipCommand:
+            //     // resetClipRect()
             }
         }
     }
@@ -583,26 +622,52 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
     
     for glyphIndex, glyph in ctx.glyphsLocations {
         fontChar := windowData.font.chars[glyph.char]
-        
-        if hasSelection && glyphIndex >= selectionRange.x && glyphIndex < selectionRange.y  {
-            rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
-                { f32(glyph.position.x), f32(glyph.lineStart), zIndex - 1.0 }, 
-                { 0.0, 0.0, 0.0 }, 
-                { fontChar.xAdvance, windowData.font.lineHeight, 1.0 },
-            ))
-            selectionsCount += 1
+
+        if hasSelection && glyphIndex >= selectionRange.x && glyphIndex < selectionRange.y {
+            //> validate clipping
+            originalSelectionRect := ui.toRect(
+                float2{ f32(glyph.position.x), f32(glyph.lineStart) }, 
+                float2{ fontChar.xAdvance, windowData.font.lineHeight })
+            selectionRect := ui.clipRect(ui.toFloatRect(ctx.rect), originalSelectionRect)
+            if ui.isValidRect(selectionRect) {
+                offset, scale := ui.normalizeClippedToOriginal(ui.toIntRect(selectionRect), ui.toIntRect(originalSelectionRect))
+
+                selectionPosition, selectionSize := ui.fromRect(selectionRect)
+                //<
+
+                rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
+                    { selectionPosition.x, selectionPosition.y, zIndex - 1.0 }, 
+                    { 0.0, 0.0, 0.0 }, 
+                    { selectionSize.x, selectionSize.y, 1.0 },
+                ))
+                selectionsCount += 1
+            }
         }
 
+        //> validate clipping
+        originalGlyphRect := ui.toRect(glyph.position, glyph.size)
+        glyphRect := ui.clipRect(ui.toFloatRect(ctx.rect), originalGlyphRect)
+        if !ui.isValidRect(glyphRect) {
+            continue
+        }
+        
+        offset, scale := ui.normalizeClippedToOriginal(ui.toIntRect(glyphRect), ui.toIntRect(originalGlyphRect))
+
+        glyphPosition, glyphSize := ui.fromRect(glyphRect)
+        //<
+
         modelMatrix := getTransformationMatrix(
-            { f32(glyph.position.x), f32(glyph.position.y), zIndex - 2.0 }, 
+            { f32(glyphPosition.x), f32(glyphPosition.y), zIndex - 2.0 }, 
             { 0.0, 0.0, 0.0 }, 
-            { f32(glyph.size.x), f32(glyph.size.y), 1.0 },
+            { f32(glyphSize.x), f32(glyphSize.y), 1.0 },
         )
         
         fontsList[glyphsCount] = FontGlyphGpu{
             sourceRect = fontChar.rect,
             targetTransformation = intrinsics.transpose(modelMatrix),
             color = color,
+            textureOffset = offset,
+            textureScale = scale,
         }
         glyphsCount += 1
     }
@@ -616,9 +681,9 @@ renderLineNumbers :: proc() {
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
     
     // draw background
-    append(&windowData.uiContext.commands, ui.RectCommand{
-        rect = ui.toRect({ -windowData.size.x / 2 + lineNumbersLeftOffset, -windowData.size.y / 2. },
-            { windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }),
+    ui.pushCommand(&windowData.uiContext, ui.RectCommand{
+        rect = ui.toRect(int2{ -windowData.size.x / 2 + lineNumbersLeftOffset, -windowData.size.y / 2. },
+            int2{ windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }),
         bgColor = LINE_NUMBERS_BG_COLOR,
     })
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
@@ -634,7 +699,7 @@ renderLineNumbers :: proc() {
 
         leftOffset := -f32(windowData.size.x) / 2.0 + f32(lineNumbersLeftOffset)
         
-        append(&windowData.uiContext.commands, ui.TextCommand{
+        ui.pushCommand(&windowData.uiContext, ui.TextCommand{
             text = lineNumberStr,
             position = { i32(leftOffset), i32(topOffset) },
             color = WHITE_COLOR,

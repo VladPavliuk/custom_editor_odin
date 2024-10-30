@@ -10,7 +10,7 @@ renderLabel :: proc(ctx: ^Context, label: Label, customId: i32 = 0, loc := #call
     position := label.position + getAbsolutePosition(ctx)
     actions := Actions{}
 
-    append(&ctx.commands, TextCommand{
+    pushCommand(ctx, TextCommand{
         text = label.text, 
         position = position,
         color = label.color,

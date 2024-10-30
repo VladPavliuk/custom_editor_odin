@@ -11,11 +11,11 @@ renderFileSearch :: proc() {
 
     bgRect := ui.toRect(position, size)
     ui.putEmptyElement(&windowData.uiContext, bgRect)
-    append(&windowData.uiContext.commands, ui.RectCommand{
+    ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = bgRect,
         bgColor = GRAY_COLOR,
     })
-    append(&windowData.uiContext.commands, ui.BorderRectCommand{
+    ui.pushCommand(&windowData.uiContext, ui.BorderRectCommand{
         rect = bgRect,
         color = BLACK_COLOR,
         thikness = 1,
@@ -46,12 +46,6 @@ renderFileSearch :: proc() {
         clear(&windowData.foundTermsIndexes)
         switchInputContextToEditor()
     }
-
-    // searchChanged := strings.to_string(windowData.fileSearchStr) != strings.to_string(windowData.uiTextInputCtx.text)
-
-    // if searchChanged {
-    //     windowData.foundTermsCount = count_with_indexes(strings.to_string(getActiveTab().ctx.text), strings.to_string(windowData.uiTextInputCtx.text), &windowData.foundTermsIndexes)
-    // }
 
     ui.renderLabel(&windowData.uiContext, ui.Label{
         text = windowData.foundTermsCount > 0 ? fmt.tprintf("%i of %i", windowData.currentFileSearchTermIndex + 1, windowData.foundTermsCount) : fmt.tprintf("no matches"),
@@ -141,9 +135,11 @@ renderFoundSearchTerms :: proc(indexes: []int, serchTerm: string) {
             }
 
             if int(firstFoundIndex) + index == int(windowData.currentFileSearchTermIndex) {
-                renderRectBorder(ui.toRect({ initLocation.position.x, initLocation.lineStart }, { i32(size), i32(windowData.font.lineHeight) }), 1, windowData.uiContext.zIndex, RED_COLOR)
+                renderRectBorder(ui.toRect(int2{ i32(initLocation.position.x), initLocation.lineStart }, 
+                    int2{ i32(size), i32(windowData.font.lineHeight) }), 1, windowData.uiContext.zIndex, RED_COLOR)
             } else {
-                renderRectBorder(ui.toRect({ initLocation.position.x, initLocation.lineStart }, { i32(size), i32(windowData.font.lineHeight) }), 1, windowData.uiContext.zIndex, BLACK_COLOR)
+                renderRectBorder(ui.toRect(int2{ i32(initLocation.position.x), initLocation.lineStart }, 
+                    int2{ i32(size), i32(windowData.font.lineHeight) }), 1, windowData.uiContext.zIndex, BLACK_COLOR)
             }
         }
     }

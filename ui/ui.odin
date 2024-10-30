@@ -72,23 +72,31 @@ Element :: struct {
     parent: ^Element,
 }
 
+BaseCommand :: struct {
+    clipRect: Rect,
+}
+
 RectCommand :: struct {
+    using base: BaseCommand,
     rect: Rect,
     bgColor: [4]f32,
 }
 
 BorderRectCommand :: struct {
+    using base: BaseCommand,
     rect: Rect,
     color: [4]f32,
     thikness: i32,
 }
 
 ImageCommand :: struct {
+    using base: BaseCommand,
     rect: Rect,
     textureId: i32,
 }
 
 TextCommand :: struct {
+    using base: BaseCommand,
     text: string,
     position: [2]i32,
     color: [4]f32,
@@ -96,22 +104,31 @@ TextCommand :: struct {
 }
 
 EditableTextCommand :: struct {
+    using base: BaseCommand,
     // text: string,
     // position: [2]i32,
     // color: [4]f32,
 }
 
-ClipCommand :: struct {
-    rect: Rect,
-}
+// ClipCommand :: struct {
+//     rect: Rect,
+// }
 
-ResetClipCommand :: struct {}
+// ResetClipCommand :: struct {}
 
 pushCommand :: proc(ctx: ^Context, command: Command) {
+    switch &c in command {
+    case RectCommand: c.clipRect = ctx.clipRect
+    case ImageCommand: c.clipRect = ctx.clipRect
+    case BorderRectCommand: c.clipRect = ctx.clipRect
+    case TextCommand: c.clipRect = ctx.clipRect
+    case EditableTextCommand: c.clipRect = ctx.clipRect
+    }
+    
     append(&ctx.commands, command)
 }
 
-Command :: union{RectCommand, ImageCommand, BorderRectCommand, TextCommand, EditableTextCommand, ClipCommand, ResetClipCommand}
+Command :: union{RectCommand, ImageCommand, BorderRectCommand, TextCommand, EditableTextCommand}
 
 Context :: struct {
     //> set up by client
@@ -133,6 +150,8 @@ Context :: struct {
     scrollDelta: i32,
     mouse: MouseStates,
     wasPressedKeys: Keys,
+
+    clipRect: Rect,
 
     commands: [dynamic]Command,
     zIndex: f32,
@@ -248,6 +267,14 @@ endUi :: proc(using ctx: ^Context, frameDelta: f64) {
 
     clear(&ctx.elements)
     assert(len(ctx.parentElementsStack) == 0)
+}
+
+setClipRect :: proc(ctx: ^Context, rect: Rect) {
+    ctx.clipRect = rect
+}
+
+resetClipRect :: proc(ctx: ^Context) {
+    ctx.clipRect = { 0, 0, 0, 0 }
 }
 
 putEmptyElement :: proc(ctx: ^Context, rect: Rect, ignoreFocusUpdate := false, customId: i32 = 0, loc := #caller_location) -> (Actions, i64) {

@@ -34,13 +34,13 @@ renderButton_Base :: proc(ctx: ^Context, button: Button, customId: i32 = 0, loc 
         bgColor = DARK_GRAY_COLOR
     }
 
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = uiRect,
         bgColor = bgColor,
     })
 
-    if !button.noBorder {    
-        append(&ctx.commands, BorderRectCommand{
+    if !button.noBorder {
+        pushCommand(ctx, BorderRectCommand{
             rect = uiRect,
             color = ctx.activeId == Id ? DARKER_GRAY_COLOR : GRAY_COLOR,
             thikness = 1,
@@ -73,15 +73,15 @@ renderTextButton :: proc(ctx: ^Context, button: TextButton, customId: i32 = 0, l
 
     fontColor := button.color.a != 0.0 ? button.color : WHITE_COLOR
 
-    append(&ctx.commands, ClipCommand{
-        rect = uiRect, 
-    })
-    append(&ctx.commands, TextCommand{
+    // pushCommand(ctx, ClipCommand{
+    //     rect = uiRect, 
+    // })
+    pushCommand(ctx, TextCommand{
         text = button.text, 
         position = { i32(leftTextPadding) + uiRect.left, i32(bottomTextPadding) + uiRect.bottom },
         color = fontColor,
     })
-    append(&ctx.commands, ResetClipCommand{})
+    // pushCommand(ctx, ResetClipCommand{})
 
     return actions
 }
@@ -108,7 +108,7 @@ renderImageButton :: proc(ctx: ^Context, button: ImageButton, customId: i32 = 0,
 
     position, size = fromRect(uiRect)
 
-    append(&ctx.commands, ImageCommand{
+    pushCommand(ctx, ImageCommand{
         rect = uiRect,
         textureId = button.textureId,
     })

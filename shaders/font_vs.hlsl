@@ -7,7 +7,9 @@ struct FontGlyph {
     int4 sourceRect;
     float4x4 targetTransformation;
     float4 color;
-    //int clipRectIndex;
+
+    float2 textureOffset;
+    float2 textureScale;
 };
 
 StructuredBuffer<FontGlyph> fontGlyphs : register(t0);
@@ -30,9 +32,9 @@ struct VSOutput
     float2 texcoord : TEXCOORD;
     float4 glyphLocation : GLYPH_LOCATION;
     float4 color: COLOR;
-    //float4 clipRect: CLIP_RECT;
-    // float objectItemId : OBJECT_ID;
-    // uint instanceId : INSTANCE_ID;
+    
+    float2 textureOffset : TEX_OFFSET;
+    float2 textureScale : TEX_SCALE;
 };
 
 VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
@@ -50,7 +52,8 @@ VSOutput main(VSInput input, uint instanceId : SV_InstanceID)
     output.texcoord = input.texcoord;
     output.glyphLocation = fontGlyph.sourceRect;
     output.color = fontGlyph.color;
-    //output.clipRect = clipRects.Load(instanceId);
+    output.textureOffset = fontGlyph.textureOffset;
+    output.textureScale = fontGlyph.textureScale;
 
     return output;
 }

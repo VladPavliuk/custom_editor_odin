@@ -33,3 +33,7 @@ stopTimer :: proc() {
     fmt.printfln("duration, avg: %f ms, %f ms", elapsed, timeElapsedTotal / f64(timeElapsedCount))
     time.stopwatch_reset(&debugTimer)
 }
+
+toFloat2 :: proc(a: int2) -> float2 {
+    return { f32(a.x), f32(a.y) }
+}

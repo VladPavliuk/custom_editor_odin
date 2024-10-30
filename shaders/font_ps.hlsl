@@ -1,8 +1,4 @@
-Texture2D<uint> byteObjTexture : TEXTURE : register(t0);
-
-// IDEA: instad of cliping when part of glyph is outside of rect, just set it's alpha value to zero???
-
-// 300-400ms without any clipping
+Texture2D<uint> rasterizedGlyphsTexture : TEXTURE : register(t0);
 
 // cbuffer solidColorCB : register(b0)
 // {
@@ -15,7 +11,9 @@ struct PSInput
     float2 texcoord : TEXCOORD;
     float4 glyphLocation : GLYPH_LOCATION;
     float4 color: COLOR;
-    //float4 clipRect: CLIP_RECT;
+    
+    float2 textureOffset : TEX_OFFSET;
+    float2 textureScale : TEX_SCALE;
 };
 
 struct PSOutput
@@ -26,14 +24,14 @@ struct PSOutput
 
 PSOutput main(PSInput input)
 {
-    //clip(input.positionSV.y - 200); // right side check
-
     float4 glyphLocation = input.glyphLocation;
     PSOutput output;
 
-    uint value = byteObjTexture.Load(int3(
-		(int)glyphLocation.z + ((int)glyphLocation.w - (int)glyphLocation.z) * input.texcoord.x,
-        (int)glyphLocation.y + ((int)glyphLocation.x - (int)glyphLocation.y) * input.texcoord.y,
+    float2 textureCoords = input.textureOffset + input.texcoord * input.textureScale;
+
+    uint value = rasterizedGlyphsTexture.Load(int3(
+		(int)glyphLocation.z + ((int)glyphLocation.w - (int)glyphLocation.z) * textureCoords.x,
+        (int)glyphLocation.y + ((int)glyphLocation.x - (int)glyphLocation.y) * textureCoords.y,
 	0));
 
     //clip(value == 0 ? -1 : 1);

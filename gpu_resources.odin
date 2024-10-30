@@ -54,7 +54,9 @@ RectWithColor :: struct #packed {
 
 RectWithImage :: struct #packed {
     transformation: mat4,
-    imageIndex: i32,   
+    imageIndex: i32,
+    textureOffset: float2,
+    textureScale: float2,
 }
 
 GpuStructuredBufferType :: enum {

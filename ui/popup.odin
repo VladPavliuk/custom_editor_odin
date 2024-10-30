@@ -29,7 +29,7 @@ beginPopup :: proc(ctx: ^Context, popup: Popup, customId: i32 = 0, loc := #calle
 
     //bgActions := putEmptyElement(ctx, bgRect, true, customId, loc)
     
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = bgRect,
         bgColor = popup.bgColor,
     })

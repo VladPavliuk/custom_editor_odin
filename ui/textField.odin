@@ -25,13 +25,13 @@ renderTextField :: proc(ctx: ^Context, textField: TextField, customId: i32 = 0, 
         }
     }
 
-    append(&ctx.commands, RectCommand{
+    pushCommand(ctx, RectCommand{
         rect = uiRect,
         bgColor = bgColor,
     })
 
     hasFocus := ctx.focusedId == Id || ctx.hotId == Id
-    append(&ctx.commands, BorderRectCommand{
+    pushCommand(ctx, BorderRectCommand{
         rect = uiRect,
         color = BLACK_COLOR,
         thikness = hasFocus ? 2 : 1,
@@ -42,21 +42,21 @@ renderTextField :: proc(ctx: ^Context, textField: TextField, customId: i32 = 0, 
     actions := checkUiState(ctx, Id, uiRect)
 
     if ctx.focusedId == Id {
-        append(&ctx.commands, ClipCommand{
-            rect = uiRect,
-        })
-        append(&ctx.commands, EditableTextCommand{})
-        append(&ctx.commands, ResetClipCommand{})
-    } else {    
-        append(&ctx.commands, ClipCommand{
-            rect = uiRect,
-        })
-        append(&ctx.commands, TextCommand{
+        // pushCommand(ctx, ClipCommand{
+        //     rect = uiRect,
+        // })
+        pushCommand(ctx, EditableTextCommand{})
+        // pushCommand(ctx, ResetClipCommand{})
+    } else {
+        // pushCommand(ctx, ClipCommand{
+        //     rect = uiRect,
+        // })
+        pushCommand(ctx, TextCommand{
             text = textField.text, 
             position = { uiRect.left + 5, uiRect.bottom + uiRectSize.y / 2 - i32(textHeight) / 2 },
             color = BLACK_COLOR,
         })
-        append(&ctx.commands, ResetClipCommand{})
+        // pushCommand(ctx, ResetClipCommand{})
     }
 
     return actions, Id

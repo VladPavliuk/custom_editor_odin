@@ -237,32 +237,32 @@ fillGlyphsLocations :: proc(ctx: ^EditableTextContext) {
     for lineIndex in topLine..<bottomLine {
         line := ctx.lines[lineIndex]
 
-        screenPosition.x = f32(ctx.rect.left)
-
         lineLeftOffset: f32 = 0.0
         charIndex := line.x
         for char, index in text[line.x : line.y] {
             charIndex = i32(index) + line.x
             fontChar := windowData.font.chars[char]
-            
-            glyphSize: int2 = { fontChar.rect.right - fontChar.rect.left, fontChar.rect.top - fontChar.rect.bottom }
-            glyphPosition: int2 = { i32(screenPosition.x) + fontChar.offset.x, i32(screenPosition.y) - glyphSize.y - fontChar.offset.y }
 
+            screenPosition.x = f32(ctx.rect.left) + lineLeftOffset - f32(ctx.leftOffset)
+            
             lineLeftOffset += fontChar.xAdvance
 
-            if lineLeftOffset > f32(ctx.leftOffset + editableRectSize.x) { // stop line rendering if outside of line rigth boundary
-                break 
-            } else if lineLeftOffset < f32(ctx.leftOffset) { // don't render glyphs until their position is inside visible region 
+            if lineLeftOffset < f32(ctx.leftOffset) { // don't render glyphs until their position is inside visible region 
                 continue 
             }
 
-            screenPosition.x += fontChar.xAdvance
+            glyphSize: float2 = { f32(fontChar.rect.right - fontChar.rect.left), f32(fontChar.rect.top - fontChar.rect.bottom) }
+            glyphPosition: float2 = { screenPosition.x + f32(fontChar.offset.x), screenPosition.y - glyphSize.y - f32(fontChar.offset.y) }
 
             ctx.glyphsLocations[charIndex] = GlyphsLocation{
                 position = glyphPosition,
                 lineStart = i32(screenPosition.y + windowData.font.descent),
                 size = glyphSize,
                 char = char,
+            }
+            
+            if lineLeftOffset > f32(ctx.leftOffset + editableRectSize.x) { // stop line rendering if outside of line rigth boundary
+                break 
             }
         }
         screenPosition.y -= windowData.font.lineHeight
