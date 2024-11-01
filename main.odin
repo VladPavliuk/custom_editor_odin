@@ -71,7 +71,9 @@ main :: proc() {
         inputState.wasPressedKeys = {}
 
         inputState.deltaMousePosition = { 0, 0 }
-        inputState.scrollDelta = 0
+        
+        // NOTE: add scroll smooth movement
+        inputState.scrollDelta /= 10
 
         inputState.timeSinceMouseLeftDown += windowData.delta
         //<

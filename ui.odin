@@ -5,6 +5,7 @@ import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
 import "core:slice"
+import "core:math"
 
 import "ui"
 
@@ -813,6 +814,7 @@ renderEditorContent :: proc() {
         color = float4{ 0.7, 0.7, 0.7, 1.0 },
         hoverColor = float4{ 1.0, 1.0, 1.0, 1.0 },
         bgColor = float4{ 0.2, 0.2, 0.2, 1.0 },
+        preventAutomaticScroll = true,
     }, ui.Scroll{
         bgRect = {
             top = editorCtx.rect.bottom,
@@ -828,22 +830,39 @@ renderEditorContent :: proc() {
     })
 
     if .MOUSE_WHEEL_SCROLL in verticalScrollActions {
-         if inputState.scrollDelta > 5 {
-            editorCtx.lineIndex -= 1
-        } else if inputState.scrollDelta < -5 {
-            editorCtx.lineIndex += 1
+        editorCtx.topOffset -= f32(inputState.scrollDelta)
+
+        // NOTE: if it's first or last lines, prevent beyond movement
+        if editorCtx.lineIndex == 0 && editorCtx.topOffset < 0.0 {
+            editorCtx.topOffset = 0
+        } else if editorCtx.lineIndex == i32(len(editorCtx.lines)) - 1 && editorCtx.topOffset > 0.0 {
+            editorCtx.topOffset = 0.0
         }
 
+        if editorCtx.topOffset > windowData.font.lineHeight {
+            linesScrolled := editorCtx.topOffset / windowData.font.lineHeight
+            
+            editorCtx.lineIndex += i32(linesScrolled)
+
+            editorCtx.topOffset = (linesScrolled - math.trunc(linesScrolled)) * windowData.font.lineHeight
+        } else if editorCtx.topOffset < 0 {
+            linesScrolled := abs(editorCtx.topOffset) / windowData.font.lineHeight
+        
+            editorCtx.lineIndex -= i32(linesScrolled + 1.0)
+
+            editorCtx.topOffset = windowData.font.lineHeight * (1.0 - linesScrolled + math.trunc(linesScrolled))
+        }
         validateTopLine(editorCtx)
     }
 
     if .ACTIVE in verticalScrollActions {
-        editorCtx.lineIndex = i32(f32(totalLines) * (f32(verticalOffset) / f32(editorRectSize.y - verticalScrollSize)))
+        offset := f32((totalLines - 1) * verticalOffset) / f32(editorRectSize.y - verticalScrollSize)
+        editorCtx.lineIndex = i32(offset)
 
-        // TODO: temporary fix, for some reasons it's possible to move vertical scroll bar below last line???
-        editorCtx.lineIndex = min(i32(totalLines) - 1, editorCtx.lineIndex)
+        editorCtx.topOffset = windowData.font.lineHeight * (offset - math.trunc(offset))
     } else {
-        verticalOffset = i32(f32(editorCtx.lineIndex) / f32(maxLinesOnScreen + totalLines) * f32(editorRectSize.y))
+        lineSizeForScroll := f32(editorRectSize.y - verticalScrollSize) / f32(totalLines - 1)
+        verticalOffset = i32(lineSizeForScroll * (f32(editorCtx.lineIndex) + f32(editorCtx.topOffset) / f32(windowData.font.lineHeight)))
     }
 
     if .ACTIVE in horizontalScrollActions {

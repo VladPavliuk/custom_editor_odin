@@ -201,8 +201,10 @@ jumpToCursor :: proc(ctx: ^EditableTextContext) {
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
     if ctx.cursorLineIndex < ctx.lineIndex {
+        ctx.topOffset = 0.0
         ctx.lineIndex = ctx.cursorLineIndex
     } else if ctx.cursorLineIndex >= ctx.lineIndex + maxLinesOnScreen {
+        ctx.topOffset = 0.0
         ctx.lineIndex = ctx.cursorLineIndex - maxLinesOnScreen + 1
     }
 
@@ -225,13 +227,13 @@ selectWholeWord :: proc(ctx: ^EditableTextContext, cursorIndex: i32) {
 fillGlyphsLocations :: proc(ctx: ^EditableTextContext) {
     clear(&ctx.glyphsLocations)
     
-    screenPosition := float2{ f32(ctx.rect.left), f32(ctx.rect.top) - windowData.font.ascent }
+    screenPosition := float2{ f32(ctx.rect.left), f32(ctx.rect.top) - windowData.font.ascent + ctx.topOffset }
     
     editableRectSize := ui.getRectSize(ctx.rect)
     maxLinesOnScreen := editableRectSize.y / i32(windowData.font.lineHeight)
 
     topLine := ctx.lineIndex
-    bottomLine := min(topLine + maxLinesOnScreen, i32(len(ctx.lines)))
+    bottomLine := min(topLine + maxLinesOnScreen + 2, i32(len(ctx.lines)))
     text := strings.to_string(ctx.text)
 
     for lineIndex in topLine..<bottomLine {

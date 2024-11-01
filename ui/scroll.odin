@@ -5,6 +5,7 @@ Scroll :: struct {
     offset: ^i32,
     size: i32,
     color, hoverColor, bgColor: [4]f32,
+    preventAutomaticScroll: bool,
 }
 
 beginScroll :: proc(ctx: ^Context) {
@@ -13,6 +14,7 @@ beginScroll :: proc(ctx: ^Context) {
 
 endScroll :: proc(ctx: ^Context, verticalScroll: Scroll, horizontalScroll: Scroll = {}, customId: i32 = 0, loc := #caller_location) -> (Actions, Actions) {
     customId := customId
+    //TODO: there's this stupid duplication of renderVerticalScroll and renderHorizontalScroll, annoying!
     verticalScrollActions := renderVerticalScroll(ctx, verticalScroll, customId, loc)
     horizontalScrollActions: Actions = {}
 
@@ -90,7 +92,7 @@ renderVerticalScroll :: proc(ctx: ^Context, scroll: Scroll, customId: i32 = 0, l
         validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.size)
     }
 
-    if ctx.hotId in scrollableElements || .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction {
+    if !scroll.preventAutomaticScroll && (ctx.hotId in scrollableElements || .MOUSE_WHEEL_SCROLL in bgAction || .MOUSE_WHEEL_SCROLL in scrollAction) {
         scroll.offset^ -= ctx.scrollDelta
         validateScrollOffset(scroll.offset, bgRect.top - bgRect.bottom - scroll.size)
     }

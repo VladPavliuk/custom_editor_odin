@@ -586,7 +586,7 @@ renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
     topOffset -= windowData.font.lineHeight
     
     // render highlighted cursor line
-    renderRect(float2{ f32(ctx.rect.left), topOffset }, 
+    renderRect(float2{ f32(ctx.rect.left), topOffset + ctx.topOffset }, 
         float2{ f32(editorRectSize.x), windowData.font.lineHeight }, zIndex + 3, CURSOR_LINE_BG_COLOR)
 
     leftOffset := f32(ctx.rect.left) + ctx.cursorLeftOffset - f32(ctx.leftOffset)
@@ -594,7 +594,7 @@ renderCursor :: proc(ctx: ^EditableTextContext, zIndex: f32) {
     if leftOffset < f32(ctx.rect.left) || leftOffset > f32(ctx.rect.right) { return }
 
     leftOffset = min(f32(ctx.rect.right) - cursorWidth, leftOffset)
-    renderRect(float2{ leftOffset, topOffset }, float2{ cursorWidth, windowData.font.lineHeight }, 
+    renderRect(float2{ leftOffset, topOffset + ctx.topOffset }, float2{ cursorWidth, windowData.font.lineHeight }, 
         zIndex, CURSOR_COLOR)
 }
 
@@ -686,11 +686,11 @@ renderLineNumbers :: proc() {
             int2{ windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }),
         bgColor = LINE_NUMBERS_BG_COLOR,
     })
-    topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
-    
     editorCtx := getActiveTabContext()
+    topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top) + editorCtx.topOffset
+    
     firstNumber := editorCtx.lineIndex + 1
-    lastNumber := min(i32(len(editorCtx.lines)), editorCtx.lineIndex + maxLinesOnScreen)
+    lastNumber := min(i32(len(editorCtx.lines)), editorCtx.lineIndex + maxLinesOnScreen + 3)
 
     for lineIndex in firstNumber..=lastNumber {
         lineNumberStrBuffer := new([255]byte, context.temp_allocator)

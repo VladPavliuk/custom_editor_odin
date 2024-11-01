@@ -35,6 +35,7 @@ EditableTextContext :: struct {
     text: strings.Builder,
     rect: ui.Rect,
     leftOffset: i32,
+    topOffset: f32,
 
     editorState: edit.State,
     disableNewLines: bool,
