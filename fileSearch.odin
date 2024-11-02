@@ -98,7 +98,7 @@ renderFoundSearchTerms :: proc(indexes: []int, serchTerm: string) {
     editableRectSize := ui.getRectSize(ctx.rect)
     maxLinesOnScreen := editableRectSize.y / i32(windowData.font.lineHeight)
 
-    topLine := ctx.lineIndex
+    topLine := i32(ctx.lineIndex)
     bottomLine := min(topLine + maxLinesOnScreen, i32(len(ctx.lines)) - 1)
 
     firstFoundIndex: i32 = -1

@@ -830,39 +830,16 @@ renderEditorContent :: proc() {
     })
 
     if .MOUSE_WHEEL_SCROLL in verticalScrollActions {
-        editorCtx.topOffset -= f32(inputState.scrollDelta)
-
-        // NOTE: if it's first or last lines, prevent beyond movement
-        if editorCtx.lineIndex == 0 && editorCtx.topOffset < 0.0 {
-            editorCtx.topOffset = 0
-        } else if editorCtx.lineIndex == i32(len(editorCtx.lines)) - 1 && editorCtx.topOffset > 0.0 {
-            editorCtx.topOffset = 0.0
-        }
-
-        if editorCtx.topOffset > windowData.font.lineHeight {
-            linesScrolled := editorCtx.topOffset / windowData.font.lineHeight
-            
-            editorCtx.lineIndex += i32(linesScrolled)
-
-            editorCtx.topOffset = (linesScrolled - math.trunc(linesScrolled)) * windowData.font.lineHeight
-        } else if editorCtx.topOffset < 0 {
-            linesScrolled := abs(editorCtx.topOffset) / windowData.font.lineHeight
-        
-            editorCtx.lineIndex -= i32(linesScrolled + 1.0)
-
-            editorCtx.topOffset = windowData.font.lineHeight * (1.0 - linesScrolled + math.trunc(linesScrolled))
-        }
+        editorCtx.lineIndex -= f32(inputState.scrollDelta) / 10.0
         validateTopLine(editorCtx)
     }
 
     if .ACTIVE in verticalScrollActions {
         offset := f32((totalLines - 1) * verticalOffset) / f32(editorRectSize.y - verticalScrollSize)
-        editorCtx.lineIndex = i32(offset)
-
-        editorCtx.topOffset = windowData.font.lineHeight * (offset - math.trunc(offset))
+        editorCtx.lineIndex = offset
     } else {
         lineSizeForScroll := f32(editorRectSize.y - verticalScrollSize) / f32(totalLines - 1)
-        verticalOffset = i32(lineSizeForScroll * (f32(editorCtx.lineIndex) + f32(editorCtx.topOffset) / f32(windowData.font.lineHeight)))
+        verticalOffset = i32(lineSizeForScroll * editorCtx.lineIndex)
     }
 
     if .ACTIVE in horizontalScrollActions {
@@ -955,12 +932,10 @@ handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
 
         // NOTE: handle dragging of text selection above/below visible lines rect
         if mousePosition.y > ctx.rect.top {
-            ctx.lineIndex -= max(1, (mousePosition.y - ctx.rect.top) / 10)
-            ctx.topOffset = 0.0
+            ctx.lineIndex -= f32(max(1, (mousePosition.y - ctx.rect.top) / 10))
             validateTopLine(ctx)
         } else if mousePosition.y < ctx.rect.bottom {
-            ctx.lineIndex += max(1, (ctx.rect.bottom - mousePosition.y) / 10)
-            ctx.topOffset = 0.0
+            ctx.lineIndex += f32(max(1, (ctx.rect.bottom - mousePosition.y) / 10))
             validateTopLine(ctx)
         }
         

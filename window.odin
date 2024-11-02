@@ -35,13 +35,12 @@ EditableTextContext :: struct {
     text: strings.Builder,
     rect: ui.Rect,
     leftOffset: i32,
-    topOffset: f32,
 
     editorState: edit.State,
     disableNewLines: bool,
     maxLineWidth: f32,
 
-    lineIndex: i32, // top line index from which text is rendered
+    lineIndex: f32, // top line index from which text is rendered, it's float since we want to have behaviour when only part of a line is visible (for smooth scrolling)
     cursorLineIndex: i32,
     cursorLeftOffset: f32, // offset from line start
     lines: [dynamic]int2,

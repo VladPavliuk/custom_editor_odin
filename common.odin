@@ -1,6 +1,7 @@
 package main
 
 import "core:time"
+import "core:math"
 
 // just to simplify debuging
 import fmt "core:fmt"
@@ -36,4 +37,9 @@ stopTimer :: proc() {
 
 toFloat2 :: proc(a: int2) -> float2 {
     return { f32(a.x), f32(a.y) }
+}
+
+getDecimalPart :: proc(a: f32) -> f32 {
+    _, fract := math.split_decimal(a)
+    return fract
 }

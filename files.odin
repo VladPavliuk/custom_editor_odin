@@ -168,7 +168,7 @@ SavedFileTab :: struct {
     isSaved: bool,
     text: string,
     textSelection: [2]int,
-    lineIndex: i32,
+    lineIndex: f32,
 }
 
 EditorState :: struct {

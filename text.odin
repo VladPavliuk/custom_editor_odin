@@ -4,6 +4,7 @@ import "ui"
 import "core:strings"
 import "core:unicode/utf8"
 import "core:text/edit"
+import "core:math"
 
 /*
     It seeems that for wrapping and non wrapping there should be 2 different algorithms
@@ -185,8 +186,8 @@ updateCusrorData :: proc(ctx: ^EditableTextContext) {
 }
 
 validateTopLine :: proc(ctx: ^EditableTextContext) {
-    ctx.lineIndex = max(0, ctx.lineIndex)
-    ctx.lineIndex = min(i32(len(ctx.lines) - 1), ctx.lineIndex)
+    ctx.lineIndex = max(0.0, ctx.lineIndex)
+    ctx.lineIndex = min(f32(len(ctx.lines) - 1), ctx.lineIndex)
 }
 
 validateLeftOffset :: proc(ctx: ^EditableTextContext) {
@@ -200,12 +201,10 @@ validateLeftOffset :: proc(ctx: ^EditableTextContext) {
 jumpToCursor :: proc(ctx: ^EditableTextContext) {
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
-    if ctx.cursorLineIndex < ctx.lineIndex {
-        ctx.topOffset = 0.0
-        ctx.lineIndex = ctx.cursorLineIndex
-    } else if ctx.cursorLineIndex >= ctx.lineIndex + maxLinesOnScreen {
-        ctx.topOffset = 0.0
-        ctx.lineIndex = ctx.cursorLineIndex - maxLinesOnScreen + 1
+    if ctx.cursorLineIndex < i32(ctx.lineIndex) {
+        ctx.lineIndex = f32(ctx.cursorLineIndex)
+    } else if ctx.cursorLineIndex >= i32(ctx.lineIndex) + maxLinesOnScreen {
+        ctx.lineIndex = f32(ctx.cursorLineIndex - maxLinesOnScreen + 1)
     }
 
     if ctx.leftOffset > i32(ctx.cursorLeftOffset) {
@@ -227,12 +226,13 @@ selectWholeWord :: proc(ctx: ^EditableTextContext, cursorIndex: i32) {
 fillGlyphsLocations :: proc(ctx: ^EditableTextContext) {
     clear(&ctx.glyphsLocations)
     
-    screenPosition := float2{ f32(ctx.rect.left), f32(ctx.rect.top) - windowData.font.ascent + ctx.topOffset }
-    
+    screenPosition := float2{ f32(ctx.rect.left), f32(ctx.rect.top) - windowData.font.ascent }
+    screenPosition.y += getDecimalPart(ctx.lineIndex) * windowData.font.lineHeight
+
     editableRectSize := ui.getRectSize(ctx.rect)
     maxLinesOnScreen := editableRectSize.y / i32(windowData.font.lineHeight)
 
-    topLine := ctx.lineIndex
+    topLine := i32(ctx.lineIndex)
     bottomLine := min(topLine + maxLinesOnScreen + 2, i32(len(ctx.lines)))
     text := strings.to_string(ctx.text)
 
