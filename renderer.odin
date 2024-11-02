@@ -627,8 +627,10 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
         if hasSelection && glyphIndex >= selectionRange.x && glyphIndex < selectionRange.y {
             //> validate clipping
             originalSelectionRect := ui.toRect(
-                float2{ f32(glyph.position.x), f32(glyph.lineStart) }, 
-                float2{ fontChar.xAdvance, windowData.font.lineHeight })
+                float2{ glyph.position.x, f32(glyph.lineStart) }, 
+                float2{ fontChar.xAdvance + 2.0, windowData.font.lineHeight + 1.0 })
+            // TODO: right now I add 2 to x and 1 to y just to make sure that there's no spaces between selection rects
+            // it's better to investigate why it's needed (maybe something with texture filtering????)
             selectionRect := ui.clipRect(ui.toFloatRect(ctx.rect), originalSelectionRect)
             if ui.isValidRect(selectionRect) {
                 offset, scale := ui.normalizeClippedToOriginal(ui.toIntRect(selectionRect), ui.toIntRect(originalSelectionRect))
