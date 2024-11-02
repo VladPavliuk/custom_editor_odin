@@ -953,14 +953,18 @@ handleTextInputActions :: proc(ctx: ^EditableTextContext, actions: ui.Actions) {
  
         mousePosition := ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
 
+        // NOTE: handle dragging of text selection above/below visible lines rect
         if mousePosition.y > ctx.rect.top {
             ctx.lineIndex -= max(1, (mousePosition.y - ctx.rect.top) / 10)
+            ctx.topOffset = 0.0
             validateTopLine(ctx)
         } else if mousePosition.y < ctx.rect.bottom {
             ctx.lineIndex += max(1, (ctx.rect.bottom - mousePosition.y) / 10)
+            ctx.topOffset = 0.0
             validateTopLine(ctx)
         }
         
+        // NOTE: handle dragging of text selection left/right visible lines rect
         if mousePosition.x > ctx.rect.right {
             ctx.leftOffset += max(5, (mousePosition.x - ctx.rect.right) / 5)
             validateLeftOffset(ctx)
