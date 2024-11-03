@@ -80,7 +80,7 @@ initDirectX :: proc() {
 		},
 		BufferUsage = { .RENDER_TARGET_OUTPUT },
 		BufferCount = 2,
-		Scaling = .STRETCH,
+		Scaling = .NONE, // previouslly it was STRETCH
 		SwapEffect = .FLIP_DISCARD,
 		AlphaMode = .UNSPECIFIED,
 		Flags = { },
@@ -110,7 +110,7 @@ initDirectX :: proc() {
     rasterizerDesc := d3d11.RASTERIZER_DESC{
 		FillMode = .SOLID,
 		CullMode = .BACK,
-        ScissorEnable = true,
+        // ScissorEnable = true,
 	}
 	res = directXState.device->CreateRasterizerState(&rasterizerDesc, &directXState.rasterizerState)
     assert(res == 0)

@@ -73,10 +73,10 @@ getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext, clientPosition:
         ctx.rect.top - mousePosition.y,
     }
 
-    lineIndex := i16(f32(mousePosition.y) / windowData.font.lineHeight) + i16(ctx.lineIndex)
+    lineIndex := i32(f32(mousePosition.y) / windowData.font.lineHeight + ctx.lineIndex)
     
     // if user clicks lower on the screen where text was rendered take last line
-    lineIndex = min(i16(len(ctx.lines) - 1), lineIndex)
+    lineIndex = min(i32(len(ctx.lines) - 1), lineIndex)
     
     //TODO: it's a tmp fix, find something better
     if lineIndex <= -1 { return 0 }

@@ -764,22 +764,27 @@ renderEditorContent :: proc() {
 
     editorRectSize := ui.getRectSize(editorCtx.rect)
 
+    MAX_SCROLL_SIZE :: 30
     @(static)
     verticalOffset: i32 = 0
 
     verticalScrollWidth := windowData.editorPadding.right
     verticalScrollSize := i32(f32(editorRectSize.y * maxLinesOnScreen) / f32(maxLinesOnScreen + (totalLines - 1)))
+    //TODO: it shouldn't be some hardcoded value (probably)
+    verticalScrollSize = max(MAX_SCROLL_SIZE, verticalScrollSize)
 
     @(static)
     horizontalOffset: i32 = 0
 
     horizontalScrollHeight := windowData.editorPadding.bottom
-    horizontalScrollSize := editorRectSize.x
+    actualHorizontalScrollSize := editorRectSize.x
+    visibleHorizontalScrollSize := editorRectSize.x
 
     hasHorizontalScroll := editorCtx.maxLineWidth > f32(editorRectSize.x)
 
     if hasHorizontalScroll {
-        horizontalScrollSize = i32(f32(editorRectSize.x) * f32(editorRectSize.x) / editorCtx.maxLineWidth)
+        actualHorizontalScrollSize = i32(f32(editorRectSize.x * editorRectSize.x) / editorCtx.maxLineWidth)
+        visibleHorizontalScrollSize = max(MAX_SCROLL_SIZE, actualHorizontalScrollSize)
     }
 
     ui.beginScroll(&windowData.uiContext)
@@ -822,7 +827,7 @@ renderEditorContent :: proc() {
             left = editorCtx.rect.left,
             right = editorCtx.rect.right,
         },
-        size = horizontalScrollSize,
+        size = visibleHorizontalScrollSize,
         offset = &horizontalOffset,
         color = float4{ 0.7, 0.7, 0.7, 1.0 },
         hoverColor = float4{ 1.0, 1.0, 1.0, 1.0 },
@@ -830,22 +835,22 @@ renderEditorContent :: proc() {
     })
 
     if .MOUSE_WHEEL_SCROLL in verticalScrollActions {
-        editorCtx.lineIndex -= f32(inputState.scrollDelta) / 10.0
+        editorCtx.lineIndex -= f32(inputState.scrollDelta) / 30.0
         validateTopLine(editorCtx)
     }
 
     if .ACTIVE in verticalScrollActions {
-        offset := f32((totalLines - 1) * verticalOffset) / f32(editorRectSize.y - verticalScrollSize)
-        editorCtx.lineIndex = offset
+        editorCtx.lineIndex = f32((totalLines - 1) * verticalOffset) / f32(editorRectSize.y - verticalScrollSize)
     } else {
         lineSizeForScroll := f32(editorRectSize.y - verticalScrollSize) / f32(totalLines - 1)
         verticalOffset = i32(lineSizeForScroll * editorCtx.lineIndex)
     }
 
+    // what a weird formulas!
     if .ACTIVE in horizontalScrollActions {
-        editorCtx.leftOffset = i32(editorCtx.maxLineWidth * f32(horizontalOffset) / f32(editorRectSize.x))
+        editorCtx.leftOffset = i32(f32(horizontalOffset) * (editorCtx.maxLineWidth - f32(editorRectSize.x)) / f32(editorRectSize.x - visibleHorizontalScrollSize))
     } else {
-        horizontalOffset = i32(f32(editorRectSize.x) * f32(editorCtx.leftOffset) / editorCtx.maxLineWidth)
+        horizontalOffset = i32(f32(editorRectSize.x - visibleHorizontalScrollSize) * f32(editorCtx.leftOffset) / (editorCtx.maxLineWidth - f32(editorRectSize.x)))
     }
 }
 
