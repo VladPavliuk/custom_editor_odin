@@ -157,7 +157,7 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
                     thikness = 2,
                 })
 
-                if actions, _ := putEmptyElement(ctx, checkboxRect, true); .SUBMIT in actions {
+                if checkActions, _ := putEmptyElement(ctx, checkboxRect, true); .SUBMIT in checkActions {
                     item.checkbox^ = !item.checkbox^
                 }
             }

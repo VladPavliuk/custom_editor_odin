@@ -5,7 +5,6 @@ import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
 import "core:slice"
-import "core:math"
 
 import "ui"
 

@@ -57,7 +57,7 @@ render :: proc() {
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
-    // startTimer()
+    startTimer()
     ui.setClipRect(&windowData.uiContext, ui.Rect{
         top = windowData.size.y / 2,
         bottom = -windowData.size.y / 2,
@@ -66,7 +66,7 @@ render :: proc() {
     })
     uiStaff() // 5702.110 ms
     ui.resetClipRect(&windowData.uiContext)
-    // stopTimer()
+    stopTimer()
 
     // renderLineNumbers()
 
@@ -633,8 +633,6 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
             // it's better to investigate why it's needed (maybe something with texture filtering????)
             selectionRect := ui.clipRect(ui.toFloatRect(ctx.rect), originalSelectionRect)
             if ui.isValidRect(selectionRect) {
-                offset, scale := ui.normalizeClippedToOriginal(ui.toIntRect(selectionRect), ui.toIntRect(originalSelectionRect))
-
                 selectionPosition, selectionSize := ui.fromRect(selectionRect)
                 //<
 

@@ -4,7 +4,6 @@ import "ui"
 import "core:strings"
 import "core:unicode/utf8"
 import "core:text/edit"
-import "core:math"
 
 /*
     It seeems that for wrapping and non wrapping there should be 2 different algorithms
