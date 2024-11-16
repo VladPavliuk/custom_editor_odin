@@ -51,6 +51,95 @@ WinConfirmMessageAction :: enum {
     NO,
 }
 
+WIN32_INFINITE :: 0xFFFFFFFF
+
+WIN32_DEBUG_EVENT :: struct {
+    dwDebugEventCode: win32.DWORD,
+    dwProcessId: win32.DWORD,
+    dwThreadId: win32.DWORD,
+    u: struct #raw_union {
+        Exception: WIN32_EXCEPTION_DEBUG_INFO,
+        CreateThread: WIN32_CREATE_THREAD_DEBUG_INFO,
+        CreateProcessInfo: WIN32_CREATE_PROCESS_DEBUG_INFO,
+        ExitThread: WIN32_EXIT_THREAD_DEBUG_INFO,
+        ExitProcess: WIN32_EXIT_PROCESS_DEBUG_INFO,
+        LoadDll: WIN32_LOAD_DLL_DEBUG_INFO,
+        UnloadDll: WIN32_UNLOAD_DLL_DEBUG_INFO,
+        DebugString: WIN32_OUTPUT_DEBUG_STRING_INFO,
+        RipInfo: WIN32_RIP_INFO,
+    }
+}
+
+WIN32_EXCEPTION_MAXIMUM_PARAMETERS :: 15
+
+WIN32_DBG_CONTINUE :: 0x00010002
+WIN32_DBG_EXCEPTION_NOT_HANDLED :: 0x80010001
+
+WIN32_EXCEPTION_RECORD :: struct {
+    ExceptionCode: win32.DWORD,
+    ExceptionFlags: win32.DWORD,
+    ExceptionRecord: ^WIN32_EXCEPTION_RECORD,
+    ExceptionAddress: win32.PVOID,
+    NumberParameters: win32.DWORD,
+    ExceptionInformation: [WIN32_EXCEPTION_MAXIMUM_PARAMETERS]win32.ULONG_PTR,
+}
+
+WIN32_EXCEPTION_DEBUG_INFO :: struct {
+    ExceptionRecord: WIN32_EXCEPTION_RECORD, 
+    dwFirstChance: win32.DWORD,
+}
+
+WIN32_CREATE_THREAD_DEBUG_INFO :: struct {
+    hThread: win32.HANDLE,
+    lpThreadLocalBase: win32.LPVOID,
+    lpStartAddress: win32.LPVOID, //  LPTHREAD_START_ROUTINE
+}
+
+WIN32_CREATE_PROCESS_DEBUG_INFO :: struct {
+    hFile: win32.HANDLE,
+    hProcess: win32.HANDLE,
+    hThread: win32.HANDLE,
+    lpBaseOfImage: win32.LPVOID,
+    dwDebugInfoFileOffset: win32.DWORD,
+    nDebugInfoSize: win32.DWORD,
+    lpThreadLocalBase: win32.LPVOID,
+    lpStartAddress: win32.LPVOID, // LPTHREAD_START_ROUTINE
+    lpImageName: win32.LPVOID,
+    fUnicode: win32.WORD,
+}
+
+WIN32_EXIT_THREAD_DEBUG_INFO :: struct {
+    dwExitCode: win32.DWORD,
+}
+
+WIN32_EXIT_PROCESS_DEBUG_INFO :: struct {
+    dwExitCode: win32.DWORD, 
+}
+
+WIN32_LOAD_DLL_DEBUG_INFO :: struct {
+    hFile: win32.HANDLE,
+    lpBaseOfDll: win32.LPVOID,
+    dwDebugInfoFileOffset: win32.DWORD,
+    nDebugInfoSize: win32.DWORD,
+    lpImageName: win32.LPVOID,
+    fUnicode: win32.WORD,
+}
+
+WIN32_UNLOAD_DLL_DEBUG_INFO :: struct {
+    lpBaseOfDll: win32.LPVOID,
+}
+
+WIN32_OUTPUT_DEBUG_STRING_INFO :: struct {
+    lpDebugStringData: win32.LPSTR,
+    fUnicode: win32.WORD,
+    nDebugStringLength: win32.WORD,
+}
+
+WIN32_RIP_INFO :: struct {
+    dwError: win32.DWORD,
+    dwType: win32.DWORD,
+}
+
 showOsConfirmMessage :: proc(title, message: string) -> WinConfirmMessageAction {
     result := win32.MessageBoxW(
         windowData.parentHwnd,

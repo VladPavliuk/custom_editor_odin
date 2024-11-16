@@ -198,7 +198,93 @@ renderTopMenu :: proc() {
             
             ui.endPanel(&windowData.uiContext)
         }
-        topItemPosition += 100
+        topItemPosition.x += 100
+    }
+
+    { // Run menu
+        items := []ui.DropdownItem{
+            { text = "Start new process" },
+        }
+
+        @(static)
+        isOpen: bool = false
+        
+        @(static)
+        showRunProcessPanel := false
+
+        if actions, selected := ui.renderDropdown(&windowData.uiContext, ui.Dropdown{
+            text = "Run",
+            position = topItemPosition, size = { 60, fileMenuHeight },
+            items = items,
+            bgColor = DARKER_GRAY_COLOR,
+            selectedItemIndex = -1,
+            maxItemShow = i32(len(items)),
+            isOpen = &isOpen,
+            itemStyles = {
+                size = { 200, 0 },
+                padding = ui.Rect{ top = 2, bottom = 3, left = 20, right = 10, },
+            },
+        }); .SUBMIT in actions {
+            switch selected {
+            case 0: {
+                showRunProcessPanel = true
+            }
+            }
+        }
+
+        @(static)
+        panelPosition: int2 = { -250, -100 } 
+
+        @(static)
+        panelSize: int2 = { 500, 150 }
+
+        if showRunProcessPanel {
+            ui.beginPanel(&windowData.uiContext, ui.Panel{
+                title = "Settings",
+                position = &panelPosition,
+                size = &panelSize,
+                bgColor = GRAY_COLOR,
+                borderColor = BLACK_COLOR,
+                // hoverBgColor = THEME_COLOR_5,
+            }, &showRunProcessPanel)
+
+            ui.renderLabel(&windowData.uiContext, ui.Label{
+                text = "Exe file path",
+                position = { 0, 100 },
+                color = WHITE_COLOR,
+            })
+
+            renderTextField(&windowData.uiContext, ui.TextField{
+                text = "C:\\projects\\mandelbrot_set_odin\\bin\\mandelbrot.exe",
+                // text = "C:\\projects\\CppEditor\\CppEditor\\bin\\x64\\Debug\\CppEditor.exe",
+                position = { 0, 70 },
+                size = { 450, 30 },
+                bgColor = LIGHT_GRAY_COLOR,
+            })
+
+            if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+                text = "Run",
+                position = { 0, 10 },
+                size = { 100, 30 },
+                bgColor = THEME_COLOR_1,
+                //disabled = strings.builder_len(windowData.uiTextInputCtx.text) == 0,
+            }) {                
+                exePath := strings.to_string(windowData.uiTextInputCtx.text)
+
+                if os.exists(exePath) {
+                    runDebugProcess(exePath)
+                } else {
+                    ui.pushAlert(&windowData.uiContext, ui.Alert{
+                        text = strings.clone("Specified file does not exist!"),
+                        bgColor = RED_COLOR,
+                    })
+                }
+            }
+
+            ui.endPanel(&windowData.uiContext)
+        }
+
+        topItemPosition.x += 60
     }
 }
 
@@ -726,6 +812,41 @@ renderEditorFileTabs :: proc() {
     case ui.TabsActionClose:
         tryCloseFileTab(action.closedTabIndex)
     }
+}
+
+renderDebugger :: proc() {
+    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        text = "Continue",
+        position = { 0, 300 },
+        size = { 100, 25 },
+        noBorder = true,
+        bgColor = THEME_COLOR_2,
+        hoverBgColor = THEME_COLOR_1,
+    }) {
+        windowData.debuggerCommand = .CONTINUE
+    }
+
+    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        text = "Step",
+        position = { 130, 300 },
+        size = { 100, 25 },
+        noBorder = true,
+        bgColor = THEME_COLOR_2,
+        hoverBgColor = THEME_COLOR_1,
+    }) {
+        windowData.debuggerCommand = .STEP
+    }
+
+    // if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+    //     text = "Read",
+    //     position = { 130, 300 },
+    //     size = { 100, 25 },
+    //     noBorder = true,
+    //     bgColor = THEME_COLOR_2,
+    //     hoverBgColor = THEME_COLOR_1,
+    // }) {
+    //     windowData.debuggerCommand = .READ
+    // }
 }
 
 recalculateFileTabsContextRects :: proc() {

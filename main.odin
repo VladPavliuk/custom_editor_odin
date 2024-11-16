@@ -3,6 +3,7 @@ package main
 import "core:text/edit"
 import "core:time"
 import "core:mem"
+import "core:thread"
 import win32 "core:sys/windows"
 
 main :: proc() {
@@ -16,6 +17,11 @@ main :: proc() {
     default_context = context
 
     createWindow({ 800, 800 })
+    // testDia()
+
+    runDebugProcess("C:\\projects\\cpp_test_cmd\\x64\\Debug\\cpp_test_cmd.exe")
+    // runDebugProcess("C:\\projects\\odin_cmd_test\\odin_cmd_test.exe")
+    // runDebugProcess("C:\\projects\\CppEditor\\CppEditor\\bin\\x64\\Debug\\CppEditor.exe")
 
     initDirectX()
     
@@ -87,14 +93,14 @@ main :: proc() {
         //     // fmt.println("Total freed", tracker.total_memory_freed)
         //     // fmt.println("Total leaked", tracker.total_memory_allocated - tracker.total_memory_freed)
         // }
-    }
+    } 
 
     removeWindowData()
     clearDirectX()
    
     when ODIN_DEBUG {
         for _, leak in tracker.allocation_map {
-            fmt.printf("%v leaked %m\n", leak.location, leak.size)
+            //fmt.printf("%v leaked %m\n", leak.location, leak.size)
         }
         for bad_free in tracker.bad_free_array {
             fmt.printf("%v allocation %p was freed badly\n", bad_free.location, bad_free.memory)

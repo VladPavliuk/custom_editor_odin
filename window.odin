@@ -3,6 +3,7 @@ package main
 import "ui"
 
 import "core:strings"
+import "core:thread"
 import "core:text/edit"
 
 import win32 "core:sys/windows"
@@ -59,6 +60,7 @@ FileTab :: struct {
 
 WindowData :: struct {
     windowCreated: bool,
+    // windowCloseRequested: bool,
     parentHwnd: win32.HWND,
 
     delta: f64,
@@ -104,6 +106,12 @@ WindowData :: struct {
 
     autoSaveStateInterval: f64,
     sinceAutoSaveState: f64,
+    //<
+
+    //> debugger
+    debuggerThread: ^thread.Thread,
+    debuggerProcessHandler: win32.HANDLE,
+    debuggerCommand: DebuggerCommand,
     //<
 }
 
@@ -223,6 +231,8 @@ createWindow :: proc(size: int2) {
 }
 
 removeWindowData :: proc() {
+    stopDebugger()
+
     for _, kerning in windowData.font.kerningTable {
         delete(kerning)
     }

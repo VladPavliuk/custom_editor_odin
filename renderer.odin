@@ -57,7 +57,7 @@ render :: proc() {
 	ctx->IASetVertexBuffers(0, 1, &directXState.vertexBuffers[.QUAD].gpuBuffer, raw_data(strideSize[:]), raw_data(offsets[:]))
 	ctx->IASetIndexBuffer(directXState.indexBuffers[.QUAD].gpuBuffer, dxgi.FORMAT.R32_UINT, 0)
 
-    startTimer()
+    // startTimer()
     ui.setClipRect(&windowData.uiContext, ui.Rect{
         top = windowData.size.y / 2,
         bottom = -windowData.size.y / 2,
@@ -66,7 +66,7 @@ render :: proc() {
     })
     uiStaff() // 5702.110 ms
     ui.resetClipRect(&windowData.uiContext)
-    stopTimer()
+    // stopTimer()
 
     // renderLineNumbers()
 
@@ -426,6 +426,10 @@ uiStaff :: proc() {
     //> 63.444 ms
     renderEditorFileTabs()
     renderFolderExplorer()
+
+    if windowData.debuggerThread != nil {
+        renderDebugger()
+    }
 
     if windowData.isFileSearchOpen {
         renderFileSearch()

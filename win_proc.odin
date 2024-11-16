@@ -123,6 +123,7 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
     case win32.WM_DESTROY:
         saveEditorState()
+        // windowData.windowCloseRequested = true
         win32.PostQuitMessage(0)
     }
 
