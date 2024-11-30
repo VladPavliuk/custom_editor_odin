@@ -691,19 +691,58 @@ renderLineNumbers :: proc() {
             int2{ windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }),
         bgColor = LINE_NUMBERS_BG_COLOR,
     })
-    editorCtx := getActiveTabContext()
+    fileTab := getActiveTab()
+    editorCtx := fileTab.ctx
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
     topOffset += getDecimalPart(editorCtx.lineIndex) * windowData.font.lineHeight
     
+    bgActoins, _ := ui.putEmptyElement(&windowData.uiContext, ui.toRect(int2{ -windowData.size.x / 2 + lineNumbersLeftOffset, -windowData.size.y / 2 },
+        int2{ windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }))
+    bgClickPosition := int2{ -1, -1 }
+    if .SUBMIT in bgActoins {
+        bgClickPosition = ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
+    }
+
     firstNumber := i32(editorCtx.lineIndex) + 1
     lastNumber := min(i32(len(editorCtx.lines)), i32(editorCtx.lineIndex) + maxLinesOnScreen + 3)
 
-    for lineIndex in firstNumber..=lastNumber {
+    //debuggerBrakepoints
+    for lineNumber in firstNumber..=lastNumber {
         lineNumberStrBuffer := new([255]byte, context.temp_allocator)
 
-        lineNumberStr := strconv.itoa(lineNumberStrBuffer[:], int(lineIndex))
+        lineNumberStr := strconv.itoa(lineNumberStrBuffer[:], int(lineNumber))
 
         leftOffset := -f32(windowData.size.x) / 2.0 + f32(lineNumbersLeftOffset)
+
+        lineRect := ui.Rect{
+            top = i32(topOffset + windowData.font.lineHeight),
+            bottom = i32(topOffset),
+            left = i32(leftOffset),
+            right = i32(leftOffset) + windowData.editorPadding.left - lineNumbersLeftOffset,
+        }
+        if .SUBMIT in bgActoins {
+            if ui.isInRect(lineRect, bgClickPosition) {
+                toggleBrakepointForLine(fileTab.filePath, lineNumber)
+            }
+        }
+
+        // TODO: this is slow AF
+        for brakepoint in windowData.debuggerBrakepoints {
+            if existBrakepointInManager(fileTab.filePath, lineNumber) != -1 {
+                ui.pushCommand(&windowData.uiContext, ui.RectCommand{
+                    rect = lineRect,
+                    bgColor = RED_COLOR,
+                })
+            }
+        }
+
+        if windowData.currentDebuggerInstruction.line == lineNumber && 
+            windowData.currentDebuggerInstruction.filePath == fileTab.filePath {
+                ui.pushCommand(&windowData.uiContext, ui.RectCommand{
+                    rect = lineRect,
+                    bgColor = GREEN_COLOR,
+                })
+        }
         
         ui.pushCommand(&windowData.uiContext, ui.TextCommand{
             text = lineNumberStr,

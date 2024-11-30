@@ -272,7 +272,7 @@ renderTopMenu :: proc() {
                 exePath := strings.to_string(windowData.uiTextInputCtx.text)
 
                 if os.exists(exePath) {
-                    runDebugProcess(exePath)
+                    runDebugThread(exePath)
                 } else {
                     ui.pushAlert(&windowData.uiContext, ui.Alert{
                         text = strings.clone("Specified file does not exist!"),
@@ -837,16 +837,16 @@ renderDebugger :: proc() {
         windowData.debuggerCommand = .STEP
     }
 
-    // if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
-    //     text = "Read",
-    //     position = { 130, 300 },
-    //     size = { 100, 25 },
-    //     noBorder = true,
-    //     bgColor = THEME_COLOR_2,
-    //     hoverBgColor = THEME_COLOR_1,
-    // }) {
-    //     windowData.debuggerCommand = .READ
-    // }
+    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        text = "Read",
+        position = { 260, 300 },
+        size = { 100, 25 },
+        noBorder = true,
+        bgColor = THEME_COLOR_2,
+        hoverBgColor = THEME_COLOR_1,
+    }) {
+        windowData.debuggerCommand = .READ
+    }
 }
 
 recalculateFileTabsContextRects :: proc() {

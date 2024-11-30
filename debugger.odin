@@ -34,7 +34,59 @@ DebuggerCommand :: enum {
     STEP,
 }
 
-stopDebugger :: proc() {
+SingleBrakepoint :: struct {
+    filePath: string,
+    line: i32,
+}
+
+existBrakepointInManager :: proc(filePath: string, line: i32) -> i32 {
+    for brakepoint, index in windowData.debuggerBrakepoints {
+        if brakepoint.filePath == filePath && brakepoint.line == line {
+            return i32(index)
+        }
+    }
+    return -1
+}
+
+toggleBrakepointForLine :: proc(filePath: string, line: i32) {
+    index := existBrakepointInManager(filePath, line)
+
+    if index == -1 {
+        append(&windowData.debuggerBrakepoints, SingleBrakepoint{ filePath, line })
+    } else {
+        ordered_remove(&windowData.debuggerBrakepoints, index)
+    }
+}
+
+setBreakpointForThread :: proc(threadId: u32, address: uintptr) {
+    threadHandler := win32.OpenThread(
+        win32.THREAD_GET_CONTEXT | win32.THREAD_SET_CONTEXT,
+        false,
+        threadId,
+    )
+    defer win32.CloseHandle(threadHandler)
+    
+    ctx: win32.CONTEXT
+    ctx.ContextFlags = win32.WOW64_CONTEXT_ALL
+    win32.GetThreadContext(threadHandler, &ctx)
+
+    if uintptr(ctx.Rip) == address {
+        ctx.Dr0 = 0
+    } else {
+        ctx.Dr0 = win32.DWORD64(address)
+    }
+    ctx.Dr7 |= 0x1
+
+    ctx.EFlags |= (1 << 16) // set resume flag
+    // ctx.Dr7 |= (1 << 16)
+    
+    if !win32.SetThreadContext(threadHandler, &ctx) {
+        fmt.println(win32.GetLastError())
+        //panic("ERROR ")
+    }
+}
+
+stopDebuggerThread :: proc() {
     if windowData.debuggerThread == nil { return }
 
     win32.TerminateProcess(windowData.debuggerProcessHandler, 0)
@@ -47,7 +99,7 @@ stopDebugger :: proc() {
     win32.CloseHandle(windowData.debuggerProcessHandler)
 }
 
-runDebugProcess :: proc(exePath: string) {
+runDebugThread :: proc(exePath: string) {
     windowData.debuggerThread = thread.create_and_start_with_poly_data(exePath, runDebugProcess_Function, default_context)
 }
 
@@ -83,18 +135,25 @@ runDebugProcess_Function :: proc(exePath: string) {
 	if !ok {
 		panic("FAILED")
 	}
+    windowData.debuggingFinished = false
+
+    defer windowData.currentDebuggerInstruction = SingleBrakepoint {
+        filePath = "", line = 0
+    }
+    
+    defer windowData.debuggingFinished = true
 
     Module :: struct {
         name: string,
         address: uintptr,
         size: i32,
-        pdbFiles: [dynamic]PdbFile,
+        pdbFiles: [dynamic]PdbData,
         exportFunctions: [dynamic]ExportFunction,
     }
-    PdbFile :: struct {
-        filePath: string,
-        content: []u8,
-    }
+    // PdbFile :: struct {
+    //     filePath: string,
+    //     content: []u8,
+    // }
     ExportFunction :: struct {
         name: string,
         address: uintptr,
@@ -109,6 +168,7 @@ runDebugProcess_Function :: proc(exePath: string) {
     }
 
     win32.CloseHandle(processInfo.hThread)
+    // defer win32.CloseHandle(processInfo.hThread)
     
     sync.atomic_store(&windowData.debuggerProcessHandler, processInfo.hProcess)
 
@@ -117,7 +177,11 @@ runDebugProcess_Function :: proc(exePath: string) {
 
     threadsIds := make([dynamic]u32)
 
-    testFunctionRVA := testDia()
+    pdbData := initPdbData("C:\\projects\\cpp_test_cmd\\x64\\Debug\\cpp_test_cmd.pdb")
+    //functionsWithRVA := getFunctionsWithRVA(pdbData)
+
+    //testFunctionRVA := functionsWithRVA["main"]
+    // testFunctionRVA := testDia()
     exeBaseAddress: uintptr = 0
 
     for WaitForDebugEvent(&debugEvent, WIN32_INFINITE) {
@@ -131,7 +195,7 @@ runDebugProcess_Function :: proc(exePath: string) {
         switch debugEvent.dwDebugEventCode {
         case 3: {
             fmt.println("CREATE_PROCESS_DEBUG_EVENT")
-            
+            exe: Module
             read: uint
 
             threadId := GetThreadId(debugEvent.u.CreateProcessInfo.hThread)
@@ -141,10 +205,12 @@ runDebugProcess_Function :: proc(exePath: string) {
             exeNameBufferLength :: 255
             exeNameBuffer: [exeNameBufferLength]u16
             exeBasePointer := uintptr(debugEvent.u.CreateProcessInfo.lpBaseOfImage)
+            exe.address = exeBasePointer
 
             exeBaseAddress = exeBasePointer 
             nameLength := win32.GetFinalPathNameByHandleW(debugEvent.u.CreateProcessInfo.hFile, raw_data(exeNameBuffer[:]), exeNameBufferLength, 0)
             exeName, err := win32.wstring_to_utf8(win32.wstring(raw_data(exeNameBuffer[:])), int(nameLength))
+            exe.name = strings.clone(exeName)
 
             fmt.printfln("Load Process: %s (%#X)", exeName, exeBasePointer)
 
@@ -155,6 +221,8 @@ runDebugProcess_Function :: proc(exePath: string) {
             peHeader: win32.IMAGE_NT_HEADERS64
             win32.ReadProcessMemory(processInfo.hProcess, rawptr(exeBasePointer + uintptr(dosHeader.e_lfanew)), &peHeader, size_of(peHeader), &read)
             
+            exe.size = i32(peHeader.OptionalHeader.SizeOfImage)
+
             // exportDirectory: win32.IMAGE_EXPORT_DIRECTORY
             // win32.ReadProcessMemory(processInfo.hProcess, rawptr(dllBasePointer + uintptr(peHeader.OptionalHeader.ExportTable.VirtualAddress)), 
             //     &exportDirectory, size_of(exportDirectory), &read)
@@ -168,7 +236,7 @@ runDebugProcess_Function :: proc(exePath: string) {
             // private symbols
             debugDirectoriesCount := peHeader.OptionalHeader.Debug.Size / size_of(win32.IMAGE_DEBUG_DIRECTORY)
             
-            pdbFiles := make([dynamic]PdbFile)
+            // pdbFiles := make([dynamic]PdbFile)
 
             for debugDirectoryIndex in 0..<debugDirectoriesCount {      
                 debugDirectory: win32.IMAGE_DEBUG_DIRECTORY
@@ -189,20 +257,27 @@ runDebugProcess_Function :: proc(exePath: string) {
                     pdbFilePath := strings.truncate_to_byte(string(pdbNameBuffer[:]), 0)
                     pdbFileContent, err := os.read_entire_file_from_filename_or_err(pdbFilePath)
 
-                    append(&pdbFiles, PdbFile{
-                        filePath = pdbFilePath,
-                        content = pdbFileContent,
-                    })
+                    pdbData := initPdbData(pdbFilePath)
+
+                    append(&exe.pdbFiles, pdbData)
                     // fmt.println("Process pdb file:", strings.truncate_to_byte(string(pdbNameBuffer[:]), 0))
                 }
             } 
 
-            append(&modules, Module{
-                name = strings.clone(exeName),
-                address = exeBasePointer,
-                size = i32(peHeader.OptionalHeader.SizeOfImage),
-                pdbFiles = pdbFiles,
-            })
+            // TODO: for now just set breakpoints that where defined before program run
+            //>
+            if len(windowData.debuggerBrakepoints) > 0 {           
+                testBreakpoint := windowData.debuggerBrakepoints[0]
+                brakepointRVA := getRVABySourcePosition(pdbData.session, testBreakpoint.filePath, testBreakpoint.line)
+
+                assert(brakepointRVA != 0)
+                setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + uintptr(brakepointRVA))
+                // brakepointRVA
+            }
+            //<
+
+            //test := getRVABySourcePosition(pdbData.session, "C:\\projects\\cpp_test_cmd\\cpp_test_cmd\\main.cpp", 11)
+            append(&modules, exe)
         }
         case 2: {
             threadId := GetThreadId(debugEvent.u.CreateThread.hThread)
@@ -226,13 +301,22 @@ runDebugProcess_Function :: proc(exePath: string) {
             ctx.ContextFlags = win32.WOW64_CONTEXT_ALL
             win32.GetThreadContext(threadHandler, &ctx)
             if ctx.Dr6 & 0x1 == 1 {
-                fmt.println("HIT!!!!!!", ctx.Dr6)
                 continueStatus = WIN32_DBG_CONTINUE
+
+                fmt.println("HIT!!!!!! ", firstChance)
+
+                rva := uintptr(ctx.Rip) - exeBaseAddress
+                fileName, line, _, _ := getSourcePositionByRVA(pdbData.session, u32(rva))
+
+                windowData.currentDebuggerInstruction = SingleBrakepoint{
+                    filePath = fileName, line = i32(line)
+                } 
             }
             //<
 
             if expectStepException && debugEvent.u.Exception.ExceptionRecord.ExceptionCode == win32.EXCEPTION_SINGLE_STEP {
                 continueStatus = WIN32_DBG_CONTINUE
+                expectStepException = false
             }
 
             switch debugEvent.u.Exception.ExceptionRecord.ExceptionCode {
@@ -409,6 +493,8 @@ runDebugProcess_Function :: proc(exePath: string) {
 
         if exitDebugger { break }
 
+        stopDebugger := false
+
         // if sync.atomic_load(&windowData.debuggerCommand) == .STOP {
         //     sync.atomic_store(&windowData.debuggerCommand, .NONE)
 
@@ -425,29 +511,7 @@ runDebugProcess_Function :: proc(exePath: string) {
 
         //> set break testing breakpoint for all threads
         // for threadId in threadsIds {
-            threadHandler2 := win32.OpenThread(
-                win32.THREAD_GET_CONTEXT | win32.THREAD_SET_CONTEXT,
-                false,
-                debugEvent.dwThreadId,
-            )
-            defer win32.CloseHandle(threadHandler2)
-            
-            ctx2: win32.CONTEXT
-            ctx2.ContextFlags = win32.WOW64_CONTEXT_ALL
-            win32.GetThreadContext(threadHandler2, &ctx2)
-
-            ctx2.Dr0 = win32.DWORD64(exeBaseAddress + uintptr(testFunctionRVA))
-            ctx2.Dr7 |= 0x1
-
-            ctx2.EFlags |= (1 << 16) // set resume flag
-            // ctx.Dr7 |= (1 << 16)
-            
-            if !win32.SetThreadContext(threadHandler2, &ctx2) {
-                // win32.GetLastError()
-                fmt.println(win32.GetLastError())
-                //panic("ERROR ")
-            }
-            // exeBaseAddress + uintptr(testFunctionRVA)
+        //setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + uintptr(testFunctionRVA))
         // }
         //<
 
@@ -469,6 +533,7 @@ runDebugProcess_Function :: proc(exePath: string) {
             endAddress := module.address + uintptr(module.size)
 
             if addressToCheck >= startAddress && addressToCheck < endAddress {
+                // check is the function in exports table
                 functionName: string
                 minFunctionStartOffset := uintptr((1 << 64) - 1)
                 for exportFunction in module.exportFunctions {
@@ -481,13 +546,28 @@ runDebugProcess_Function :: proc(exePath: string) {
                         }
                     }
                 }
+
+                // check is the function is pdb file
+                for pdbFile in module.pdbFiles {
+                    rva := uintptr(ctx.Rip) - module.address
+                    functionName = getFunctionNameByRVA(pdbData.session, u32(rva))
+                    fileName, line, column, _ := getSourcePositionByRVA(pdbData.session, u32(rva))
+        
+                    //test := getRVABySourcePosition(pdbData.session, "C:\\projects\\cpp_test_cmd\\cpp_test_cmd\\main.cpp", 11)
+                    // test := getRVABySourcePosition(pdbData.session, "C:\\projects\\DirectXTemplate\\DirectXTemplate\\gpuShaders.cpp", 11)
+
+                    stopDebugger = true
+                    fmt.printfln("source %s %i %i", fileName, line, column)
+                }
                 fmt.printfln("match %s %s %i", module.name, functionName, addressToCheck)
             }
         }
         // ctx.Rip
 
         //> testing
-        for {
+        for stopDebugger {
+            if !isProcessRunning(windowData.debuggerProcessHandler) { return }
+
             if sync.atomic_load(&windowData.debuggerCommand) == .CONTINUE {
                 sync.atomic_store(&windowData.debuggerCommand, .NONE)
                 break
@@ -496,19 +576,37 @@ runDebugProcess_Function :: proc(exePath: string) {
             if sync.atomic_load(&windowData.debuggerCommand) == .STEP {
                 sync.atomic_store(&windowData.debuggerCommand, .NONE)
 
-                expectStepException = true
-                ctx.EFlags |= 0x100
-                if !win32.SetThreadContext(threadHandler, &ctx) {
-                    panic("ASDASD")
-                }
+                rva := uintptr(ctx.Rip) - exeBaseAddress
+                fileName, line, column, length := getSourcePositionByRVA(pdbData.session, u32(rva))
+
+                rva += uintptr(length)
+                
+                // exeBaseAddress + testFunctionRVA)
+                setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + rva)
+                
+                // expectStepException = true
+                // ctx.EFlags |= 0x100
+                // if !win32.SetThreadContext(threadHandler, &ctx) {
+                //     panic("ASDASD")
+                // }
                 break
             }
 
             if sync.atomic_load(&windowData.debuggerCommand) == .READ {
                 sync.atomic_store(&windowData.debuggerCommand, .NONE)
 
+                expectStepException = true
+                ctx.EFlags |= 0x100
+                if !win32.SetThreadContext(threadHandler, &ctx) {
+                    panic("ASDASD")
+                }
+                fmt.println("CURRENT RIP: ", ctx.Rip)
+
+                // break
+                // rva := uintptr(ctx.Rip) - exeBaseAddress
+                // getFunctionNameByRVA(pdbData.session, u32(rva))
                 // win32.ReadProcessMemory()
-                break
+                //break
             }
         }
         //<
@@ -527,7 +625,13 @@ runDebugProcess_Function :: proc(exePath: string) {
 	// }
 
     // win32.CloseHandle(processInfo.hProcess)
-    win32.CloseHandle(processInfo.hThread)
+}
+
+isProcessRunning :: proc(handle: win32.HANDLE) -> bool { 
+    exitCode: win32.DWORD
+    win32.GetExitCodeProcess(handle, &exitCode)
+
+    return exitCode == 259 // STILL_ACTIVE
 }
 
 test :: proc() {

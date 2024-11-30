@@ -1,7 +1,8 @@
 package main
 import win32 "core:sys/windows"
+import "core:strings"
 
-// foreign import msdia140 "system:msdia140.lib"
+// foreign import msdia140 "system:diaguids.lib"
 
 SymTagEnum :: enum u32 {
     SymTagNull,
@@ -63,6 +64,109 @@ NameSearchOptions :: enum u32 {
     nsFNameExt	= ( nsfCaseInsensitive | nsfFNameExt ) ,
     nsRegularExpression	= ( nsfRegularExpression | nsfCaseSensitive ) ,
     nsCaseInRegularExpression	= ( nsfRegularExpression | nsfCaseInsensitive ) 
+}
+
+IDiaLineNumber_UUID_STRING :: "B388EB14-BE4D-421d-A8A1-6CF7AB057086"
+IDiaLineNumber_UUID := &win32.IID{0xB388EB14, 0xBE4D, 0x421d, {0xA8, 0xA1, 0x6C, 0xF7, 0xAB, 0x05, 0x70, 0x86}}
+IDiaLineNumber :: struct #raw_union {
+	#subtype iunknown: win32.IUnknown,
+	using idialinenumber_vtable: ^IDiaLineNumber_VTable,
+}
+
+IDiaLineNumber_VTable :: struct {
+    using iunknown_vtable: win32.IUnknown_VTable,
+
+    get_compiland: proc "system" (this: ^IDiaLineNumber, pRetVal: ^^IDiaSymbol) -> win32.HRESULT,
+    get_sourceFile: proc "system" (this: ^IDiaLineNumber, pRetVal: ^^IDiaSourceFile) -> win32.HRESULT,
+    get_lineNumber: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_lineNumberEnd: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_columnNumber: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_columnNumberEnd: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_addressSection: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_addressOffset: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_relativeVirtualAddress: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_virtualAddress: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.ULONGLONG) -> win32.HRESULT,
+    get_length: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_sourceFileId: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_statement: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.BOOL) -> win32.HRESULT,
+    get_compilandId: proc "system" (this: ^IDiaLineNumber, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+}
+
+IDiaEnumLineNumbers_UUID_STRING :: "FE30E878-54AC-44f1-81BA-39DE940F6052"
+IDiaEnumLineNumbers_UUID := &win32.IID{0xFE30E878, 0x54AC, 0x44f1, {0x81, 0xBA, 0x39, 0xDE, 0x94, 0x0F, 0x60, 0x52}}
+IDiaEnumLineNumbers :: struct #raw_union {
+	#subtype iunknown: win32.IUnknown,
+	using idiaenumlinenumbers_vtable: ^IDiaEnumLineNumbers_VTable,
+}
+
+IDiaEnumLineNumbers_VTable :: struct {
+    using iunknown_vtable: win32.IUnknown_VTable,
+
+    get__NewEnum: proc "system" (this: ^IDiaEnumLineNumbers, pRetVal: ^^win32.IUnknown) -> win32.HRESULT,
+    get_Count: proc "system" (this: ^IDiaEnumLineNumbers, pRetVal: ^win32.LONG) -> win32.HRESULT,
+    Item: proc "system" (this: ^IDiaEnumLineNumbers, index: win32.DWORD, lineNumber: ^^IDiaLineNumber) -> win32.HRESULT,
+    Next: proc "system" (this: ^IDiaEnumLineNumbers, celt: win32.ULONG, rgelt: ^^IDiaLineNumber, pceltFetched: ^win32.ULONG) -> win32.HRESULT,
+    Skip: proc "system" (this: ^IDiaEnumLineNumbers, celt: win32.ULONG) -> win32.HRESULT,
+    Reset: proc "system" (this: ^IDiaEnumLineNumbers) -> win32.HRESULT,
+    Clone: proc "system" (this: ^IDiaEnumLineNumbers, ppenum: ^^IDiaEnumLineNumbers) -> win32.HRESULT,
+}
+
+IDiaEnumSourceFiles_UUID_STRING :: "10F3DBD9-664F-4469-B808-9471C7A50538"
+IDiaEnumSourceFiles_UUID := &win32.IID{0x10F3DBD9, 0x664F, 0x4469, {0xB8, 0x08, 0x94, 0x71, 0xC7, 0xA5, 0x05, 0x38}}
+IDiaEnumSourceFiles :: struct #raw_union {
+	#subtype iunknown: win32.IUnknown,
+	using idiaenumsourcefiles_vtable: ^IDiaEnumSourceFiles_VTable,
+}
+
+IDiaEnumSourceFiles_VTable :: struct {
+    using iunknown_vtable: win32.IUnknown_VTable,
+
+    get__NewEnum: proc "system" (this: ^IDiaEnumSourceFiles, pRetVal: ^^win32.IUnknown) -> win32.HRESULT,
+    get_Count: proc "system" (this: ^IDiaEnumSourceFiles, pRetVal: ^win32.LONG) -> win32.HRESULT,
+    Item: proc "system" (this: ^IDiaEnumSourceFiles, index: win32.DWORD, lineNumber: ^^IDiaSourceFile) -> win32.HRESULT,
+    Next: proc "system" (this: ^IDiaEnumSourceFiles, celt: win32.ULONG, rgelt: ^^IDiaSourceFile, pceltFetched: ^win32.ULONG) -> win32.HRESULT,
+    Skip: proc "system" (this: ^IDiaEnumSourceFiles, celt: win32.ULONG) -> win32.HRESULT,
+    Reset: proc "system" (this: ^IDiaEnumSourceFiles) -> win32.HRESULT,
+    Clone: proc "system" (this: ^IDiaEnumSourceFiles, ppenum: ^^IDiaEnumSourceFiles) -> win32.HRESULT,
+}
+
+IDiaSourceFile_UUID_STRING :: "A2EF5353-F5A8-4eb3-90D2-CB526ACB3CDD"
+IDiaSourceFile_UUID := &win32.IID{0xA2EF5353, 0xF5A8, 0x4eb3, {0x90, 0xD2, 0xCB, 0x52, 0x6A, 0xCB, 0x3C, 0xDD}}
+IDiaSourceFile :: struct #raw_union {
+	#subtype iunknown: win32.IUnknown,
+	using idiasourcefile_vtable: ^IDiaSourceFile_VTable,
+}
+
+IDiaSourceFile_VTable :: struct {
+    using iunknown_vtable: win32.IUnknown_VTable,
+
+    get_uniqueId: proc "system" (this: ^IDiaSourceFile, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_fileName: proc "system" (this: ^IDiaSourceFile, pRetVal: ^win32.BSTR) -> win32.HRESULT,
+    get_checksumType: proc "system" (this: ^IDiaSourceFile, pRetVal: ^win32.DWORD) -> win32.HRESULT,
+    get_compilands: proc "system" (this: ^IDiaSourceFile, pRetVal: ^^IDiaEnumSymbols) -> win32.HRESULT,
+    get_checksum: proc "system" (this: ^IDiaSourceFile, cbData: win32.DWORD, pcbData: ^win32.DWORD, pbData: ^win32.BYTE) -> win32.HRESULT,
+}
+
+IDiaEnumSymbolsByAddr_UUID_STRING :: "624B7D9C-24EA-4421-9D06-3B577471C1FA"
+IDiaEnumSymbolsByAddr_UUID := &win32.IID{0x624B7D9C, 0x24EA, 0x4421, {0x9D, 0x06, 0x3B, 0x57, 0x74, 0x71, 0xC1, 0xFA}}
+IDiaEnumSymbolsByAddr :: struct #raw_union {
+	#subtype iunknown: win32.IUnknown,
+	using idiaenumsymbolsbyaddr_vtable: ^IDiaEnumSymbolsByAddr_VTable,
+}
+
+IDiaEnumSymbolsByAddr_VTable :: struct {
+    using iunknown_vtable: win32.IUnknown_VTable,
+}
+
+IDiaEnumTables_UUID_STRING :: "C65C2B0A-1150-4d7a-AFCC-E05BF3DEE81E"
+IDiaEnumTables_UUID := &win32.IID{0xC65C2B0A, 0x1150, 0x4d7a, {0xAF, 0xCC, 0xE0, 0x5B, 0xF3, 0xDE, 0xE8, 0x1E}}
+IDiaEnumTables :: struct #raw_union {
+	#subtype iunknown: win32.IUnknown,
+	using idiaenumtables_vtable: ^IDiaEnumTables_VTable,
+}
+
+IDiaEnumTables_VTable :: struct {
+    using iunknown_vtable: win32.IUnknown_VTable,
 }
 
 IDiaEnumSymbols_UUID_STRING :: "CAB72C48-443B-48f5-9B0B-42F0820AB29A"
@@ -204,6 +308,27 @@ IDiaSession_VTable :: struct {
     put_loadAddress: proc "system" (this: ^IDiaSession, NewVal: win32.ULONGLONG) -> win32.HRESULT,
 
     get_globalScope: proc "system" (this: ^IDiaSession, pRetVal: ^^IDiaSymbol) -> win32.HRESULT,
+    getEnumTables: proc "system" (this: ^IDiaSession, ppEnumTables: ^^IDiaEnumTables) -> win32.HRESULT,
+    getSymbolsByAddr: proc "system" (this: ^IDiaSession, ppEnumbyAddr: ^^IDiaEnumSymbolsByAddr) -> win32.HRESULT,
+    findChildren: proc "system" (this: ^IDiaSession, parent: ^IDiaSymbol, symtag: SymTagEnum, name: win32.LPCOLESTR, compareFlags: win32.DWORD, ppResult: ^^IDiaEnumSymbols) -> win32.HRESULT,
+    findChildrenEx: proc "system" (this: ^IDiaSession, parent: ^IDiaSymbol, symtag: SymTagEnum, name: win32.LPCOLESTR, compareFlags: win32.DWORD, ppResult: ^^IDiaEnumSymbols) -> win32.HRESULT,
+    findChildrenExByAddr: proc "system" (this: ^IDiaSession, parent: ^IDiaSymbol, symtag: SymTagEnum, name: win32.LPCOLESTR, compareFlags, isect, offset: win32.DWORD, ppResult: ^^IDiaEnumSymbols) -> win32.HRESULT,
+    findChildrenExByVA: proc "system" (this: ^IDiaSession, parent: ^IDiaSymbol, symtag: SymTagEnum, name: win32.LPCOLESTR, compareFlags: win32.DWORD, va: win32.ULONGLONG, ppResult: ^^IDiaEnumSymbols) -> win32.HRESULT,
+    findChildrenExByRVA: proc "system" (this: ^IDiaSession, parent: ^IDiaSymbol, symtag: SymTagEnum, name: win32.LPCOLESTR, compareFlags, rva: win32.DWORD, ppResult: ^^IDiaEnumSymbols) -> win32.HRESULT,
+    findSymbolByAddr: proc "system" (this: ^IDiaSession, isect, offset: win32.DWORD, symtag: SymTagEnum, ppSymbol: ^^IDiaSymbol) -> win32.HRESULT,
+    findSymbolByRVA: proc "system" (this: ^IDiaSession, rva: win32.DWORD, symtag: SymTagEnum, ppSymbol: ^^IDiaSymbol) -> win32.HRESULT,
+    findSymbolByVA: proc "system" (this: ^IDiaSession, va: win32.ULONGLONG, symtag: SymTagEnum, ppSymbol: ^^IDiaSymbol) -> win32.HRESULT,
+    findSymbolByToken: proc "system" (this: ^IDiaSession, token: win32.ULONG, symtag: SymTagEnum, ppSymbol: ^^IDiaSymbol) -> win32.HRESULT,
+    symsAreEquiv: proc "system" (this: ^IDiaSession, symbolA, symbolB: ^IDiaSymbol) -> win32.HRESULT,
+    symbolById: proc "system" (this: ^IDiaSession, id: win32.DWORD, ppSymbol: ^^IDiaSymbol) -> win32.HRESULT,
+    findSymbolByRVAEx: proc "system" (this: ^IDiaSession, rva: win32.DWORD, symtag: SymTagEnum, ppSymbol: ^^IDiaSymbol, displacement: ^win32.c_long) -> win32.HRESULT,
+    findSymbolByVAEx: proc "system" (this: ^IDiaSession, va: win32.ULONGLONG, symtag: SymTagEnum, ppSymbol: ^^IDiaSymbol, displacement: ^win32.c_long) -> win32.HRESULT,
+    findFile: proc "system" (this: ^IDiaSession, pCompiland: ^IDiaSymbol, name: win32.LPCOLESTR, compareFlags: win32.DWORD, ppResult: ^^IDiaEnumSourceFiles) -> win32.HRESULT,
+    findFileById: proc "system" (this: ^IDiaSession, uniqueId: win32.DWORD, ppResult: ^^IDiaSourceFile) -> win32.HRESULT,
+    findLines: proc "system" (this: ^IDiaSession, compiland: ^IDiaSymbol, file: ^IDiaSourceFile, ppResult: ^^IDiaEnumLineNumbers) -> win32.HRESULT,
+    findLinesByAddr: proc "system" (this: ^IDiaSession, seg, offset, length: win32.DWORD, ppResult: ^^IDiaEnumLineNumbers) -> win32.HRESULT,
+    findLinesByRVA: proc "system" (this: ^IDiaSession, rva, length: win32.DWORD, ppResult: ^^IDiaEnumLineNumbers) -> win32.HRESULT,
+
 }
 
 DiaSource_UUID_STRING :: "e6756135-1e65-4d17-8576-610761398c3c"
@@ -240,9 +365,195 @@ IDiaDataSource_VTable :: struct {
         pCallback: ^win32.IUnknown) -> win32.HRESULT,
 }
 
+PdbData :: struct {
+    session: ^IDiaSession,
+    globalSymbol: ^IDiaSymbol,
+
+}
+
+initPdbData :: proc(pdbFilePath: string) -> PdbData {
+    dataSource: ^IDiaDataSource
+    win32.CoInitialize(nil)
+    // NOTE: if it can't find dll it will return 14007 error, to fix it run regsvr32 <path_to_msdia140.dll>
+    hr := win32.CoCreateInstance(DiaSource_UUID, nil, win32.CLSCTX_INPROC_SERVER, IDiaDataSource_UUID, cast(^win32.LPVOID)(&dataSource))
+    assert(hr == 0)
+    // defer dataSource->Release();
+
+    path := win32.utf8_to_wstring(pdbFilePath)
+    hr = dataSource->loadDataFromPdb(transmute(win32.LPCOLESTR)(path))
+    assert(hr == 0)
+
+    dataSession: ^IDiaSession
+    hr = dataSource->openSession(&dataSession)
+    assert(hr == 0)
+
+    pGlobal: ^IDiaSymbol
+    hr = dataSession->get_globalScope(&pGlobal)
+    assert(hr == 0)
+
+    return PdbData{
+        session = dataSession,
+        globalSymbol = pGlobal   
+    }
+}
+
+getFunctionNameByRVA :: proc(session: ^IDiaSession, rva: u32) -> string {
+    pSymbol: ^IDiaSymbol
+    hr := session->findSymbolByRVA(rva, .SymTagFunction, &pSymbol)
+    assert(hr == 0)
+    defer pSymbol->Release()
+
+    functionName: win32.BSTR
+    hr = pSymbol->get_name(&functionName)
+    assert(hr == 0)
+
+    name, _ := win32.wstring_to_utf8(win32.wstring(functionName), -1)
+
+    return name
+}
+
+getRVABySourcePosition :: proc(session: ^IDiaSession, filePath: string, line: i32) -> u32 {
+    filePathWide := win32.utf8_to_wstring(filePath)
+
+    pEnumSourceFiles: ^IDiaEnumSourceFiles
+    hr := session->findFile(nil, transmute(win32.LPCOLESTR)filePathWide, u32(NameSearchOptions.nsCaseInsensitive), &pEnumSourceFiles)
+    assert(hr == 0)
+    defer pEnumSourceFiles->Release()
+
+    foundFilesCount: i32
+    hr = pEnumSourceFiles->get_Count(&foundFilesCount)
+    assert(hr == 0)
+    assert(foundFilesCount > 0, "source file not found")
+    
+    lineRVA: u32
+    celt: win32.ULONG
+    pSourceFile: ^IDiaSourceFile
+    fileFound := false
+
+    for pEnumSourceFiles->Next(1, &pSourceFile, &celt) == 0 && celt == 1 {
+        fileFound = true
+        break
+    }
+
+    if !fileFound { return 0 }
+
+    pEnumSymbols: ^IDiaEnumSymbols
+    hr = pSourceFile->get_compilands(&pEnumSymbols)
+    assert(hr == 0)
+
+    compiland: ^IDiaSymbol
+    got: win32.ULONG
+    hr = pEnumSymbols->Next(1, &compiland, &got)
+    assert(hr == 0)
+
+    // compiland2: ^IDiaSymbol
+    // hr = pEnumSymbols->Next(1, &compiland2, &got)
+
+    // compilandName: win32.BSTR
+    // hr = compiland->get_name(&compilandName)
+
+    // fmt.println(win32.wstring_to_utf8(win32.wstring(compilandName), -1))
+
+    pEnumLineNumbers: ^IDiaEnumLineNumbers
+    hr = session->findLines(compiland, pSourceFile, &pEnumLineNumbers)
+    test := win32.GetLastError()
+    assert(hr == 0)
+    defer pEnumLineNumbers->Release()
+
+    pLine: ^IDiaLineNumber
+    // lineFound := false
+    for pEnumLineNumbers->Next(1, &pLine, &celt) == 0 && celt == 1 {
+        defer pLine->Release()
+
+        currentLine: u32
+        hr = pLine->get_lineNumber(&currentLine)
+        assert(hr == 0)
+
+        if currentLine == u32(line) {
+            hr = pLine->get_relativeVirtualAddress(&lineRVA)
+            assert(hr == 0)
+
+            return lineRVA
+        }
+    }
+
+    return 0
+}
+
+getSourcePositionByRVA :: proc(session: ^IDiaSession, rva: u32) -> (string, u32, u32, u32) {
+    pLines: ^IDiaEnumLineNumbers
+    hr := session->findLinesByRVA(rva, 1, &pLines)
+    defer pLines->Release()
+
+    pLine: ^IDiaLineNumber
+    celt: win32.ULONG
+    for pLines->Next(1, &pLine, &celt) == 0 && celt == 1 {
+        defer pLine->Release()
+        line: u32
+        column: u32
+        
+        hr = pLine->get_lineNumber(&line)
+        assert(hr == 0)
+        hr = pLine->get_columnNumber(&column)
+        assert(hr == 0)
+
+        lineLength: u32
+        pLine->get_length(&lineLength)
+        assert(hr == 0)
+
+        pSourceFile: ^IDiaSourceFile
+        fileNameP: win32.BSTR
+
+        hr = pLine->get_sourceFile(&pSourceFile)
+        assert(hr == 0)
+        defer pSourceFile->Release()
+
+        hr = pSourceFile->get_fileName(&fileNameP)
+        assert(hr == 0)
+
+        fileName, err := win32.wstring_to_utf8(win32.wstring(fileNameP), -1)
+        assert(err == nil)
+
+        return fileName, line, column, lineLength
+    }
+
+    return "", 0, 0, 0
+}
+
+getFunctionsWithRVA :: proc(pdbData: PdbData) -> map[string]u32 {
+    diaEnumSymbols: ^IDiaEnumSymbols
+    hr := pdbData.globalSymbol->findChildrenEx(.SymTagFunction, nil, 0, &diaEnumSymbols) // TODO: findChildren returns 0x80070057, which is super weird!!!
+    assert(hr == 0)
+
+    pFunction: ^IDiaSymbol
+    celt: win32.ULONG = 0
+
+    functions := make(map[string]u32)
+    for {        
+        hr = diaEnumSymbols->Next(1, &pFunction, &celt)
+        //assert(hr == 0)
+
+        if hr != 0 || celt != 1 {
+            break
+        }
+        bstrName: win32.BSTR
+        hr = pFunction->get_name(&bstrName)
+        assert(hr == 0)
+
+        rva: win32.DWORD
+        pFunction->get_relativeVirtualAddress(&rva)
+
+        path2, _ := win32.wstring_to_utf8(win32.wstring(bstrName), -1)
+        functions[path2] = rva
+    }
+
+    return functions
+}
+
 testDia :: proc() -> u32 {
     dataSource: ^IDiaDataSource
     win32.CoInitialize(nil)
+    // NOTE: if it can't find dll it will return 14007 error, to fix it run regsvr32 <path_to_msdia140.dll>
     hr := win32.CoCreateInstance(DiaSource_UUID, nil, win32.CLSCTX_INPROC_SERVER, IDiaDataSource_UUID, cast(^win32.LPVOID)(&dataSource))
 
     path := win32.utf8_to_wstring("C:\\projects\\cpp_test_cmd\\x64\\Debug\\cpp_test_cmd.pdb")

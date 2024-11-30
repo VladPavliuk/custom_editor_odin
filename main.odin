@@ -17,9 +17,15 @@ main :: proc() {
     default_context = context
 
     createWindow({ 800, 800 })
+    
+    // append(&windowData.debuggerBrakepoints, SingleBrakepoint{
+    //     filePath = "C:\\projects\\cpp_test_cmd\\cpp_test_cmd\\main.cpp", 
+    //     line = 32,
+    // })
+
     // testDia()
 
-    runDebugProcess("C:\\projects\\cpp_test_cmd\\x64\\Debug\\cpp_test_cmd.exe")
+    // runDebugProcess("C:\\projects\\cpp_test_cmd\\x64\\Debug\\cpp_test_cmd.exe")
     // runDebugProcess("C:\\projects\\odin_cmd_test\\odin_cmd_test.exe")
     // runDebugProcess("C:\\projects\\CppEditor\\CppEditor\\bin\\x64\\Debug\\CppEditor.exe")
 
@@ -39,6 +45,14 @@ main :: proc() {
             win32.TranslateMessage(&msg)
             win32.DispatchMessageW(&msg)
             continue
+        }
+
+        if .F5 in inputState.wasPressedKeys {
+            runDebugThread("C:\\projects\\cpp_test_cmd\\x64\\Debug\\cpp_test_cmd.exe")
+        }
+
+        if .F11 in inputState.wasPressedKeys {
+            windowData.debuggerCommand = .STEP
         }
 
         // NOTE: For some reasons if mouse double click on laptop touchpad happened, windows sends WM_LBUTTONDOWN and WM_LBUTTONUP at the same time??!
@@ -87,6 +101,11 @@ main :: proc() {
         windowData.delta = time.duration_seconds(time.tick_diff(beforeFrame, time.tick_now()))
         windowData.wasTextContextModified = false
         windowData.wasFileTabChanged = false
+
+        if windowData.debuggingFinished {
+            stopDebuggerThread()
+            windowData.debuggingFinished = false
+        }
 
         // when ODIN_DEBUG {    
         //     // fmt.println("Total allocated", tracker.current_memory_allocated)

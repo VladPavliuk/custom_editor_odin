@@ -154,6 +154,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
     case win32.VK_F8: inputState.wasPressedKeys += {.F8}
     case win32.VK_F9: inputState.wasPressedKeys += {.F9}
     case win32.VK_F10: inputState.wasPressedKeys += {.F10}
+    case win32.VK_F11: inputState.wasPressedKeys += {.F11}
     }
 
     windowData.wasInputSymbolTyped = false

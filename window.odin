@@ -109,9 +109,12 @@ WindowData :: struct {
     //<
 
     //> debugger
+    debuggingFinished: bool,
     debuggerThread: ^thread.Thread,
     debuggerProcessHandler: win32.HANDLE,
     debuggerCommand: DebuggerCommand,
+    debuggerBrakepoints: [dynamic]SingleBrakepoint,
+    currentDebuggerInstruction: SingleBrakepoint,
     //<
 }
 
@@ -231,7 +234,7 @@ createWindow :: proc(size: int2) {
 }
 
 removeWindowData :: proc() {
-    stopDebugger()
+    stopDebuggerThread()
 
     for _, kerning in windowData.font.kerningTable {
         delete(kerning)
