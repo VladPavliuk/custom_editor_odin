@@ -18,6 +18,8 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         // windowData := (^WindowData)(((^win32.CREATESTRUCTW)(uintptr(lParam))).lpCreateParams)
 
         // win32.SetWindowLongPtrW(hwnd, win32.GWLP_USERDATA, win32.LONG_PTR(uintptr(&windowData)))
+    case win32.WM_CREATE:
+        win32.DragAcceptFiles(hwnd, true)
     case win32.WM_MOUSELEAVE:
         //TODO: Doesn't look like the best solution...
         inputState.mousePosition = {-1,-1}
@@ -96,6 +98,21 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         // NOTE: while resizing we only get resize message, so we can't redraw from main loop, so we do it explicitlly
         render()
+    case win32.WM_DROPFILES:
+        MAX_PATH :: 512
+        hDrop := win32.HDROP(wParam)
+        fileCount := win32.DragQueryFileW(hDrop, 0xFFFFFFFF, nil, 0)
+        filePathBuffer: [MAX_PATH]win32.WCHAR
+
+        for i in 0..<fileCount {
+            // Get the path of the file
+            win32.DragQueryFileW(hDrop, i, raw_data(filePathBuffer[:]), MAX_PATH);
+            filePath, err := win32.wstring_to_utf8(raw_data(filePathBuffer[:]), MAX_PATH)
+            assert(err == nil)
+            loadFileIntoNewTab(filePath)
+        }
+
+        win32.DragFinish(hDrop)
     case win32.WM_KEYDOWN:
         handle_WM_KEYDOWN(lParam, wParam)
     case win32.WM_CHAR:
