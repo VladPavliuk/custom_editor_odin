@@ -127,7 +127,9 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
         handle_WM_KEYDOWN(lParam, wParam)
     case win32.WM_CHAR:
         if windowData.wasInputSymbolTyped && windowData.isInputMode {
-            edit.input_rune(&windowData.editableTextCtx.editorState, rune(wParam))
+            if windowData.editableTextCtx != nil {
+                edit.input_rune(&windowData.editableTextCtx.editorState, rune(wParam))
+            }
             if isActiveTabContext() { getActiveTab().isSaved = false }
             windowData.wasTextContextModified = true
             
@@ -258,7 +260,9 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
                 moveToNextTab()
             }
         } else {
-            edit.input_rune(&editorCtx.editorState, rune('\t'))
+            if windowData.editableTextCtx != nil {
+                edit.input_rune(&editorCtx.editorState, rune('\t'))
+            }
             if isActiveTabContext() { getActiveTab().isSaved = false }
             windowData.wasTextContextModified = true
         }

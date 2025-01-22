@@ -195,7 +195,7 @@ validateTopLine :: proc(ctx: ^EditableTextContext) {
 
 validateLeftOffset :: proc(ctx: ^EditableTextContext) {
     if ctx == nil { return }
-    
+
     if ctx.leftOffset < 0.0 {
         ctx.leftOffset = 0.0
     } else if ctx.leftOffset + ui.getRectSize(ctx.rect).x > i32(ctx.maxLineWidth) {
@@ -204,6 +204,8 @@ validateLeftOffset :: proc(ctx: ^EditableTextContext) {
 }
 
 jumpToCursor :: proc(ctx: ^EditableTextContext) {
+    if ctx == nil { return }
+    
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
 
     if ctx.cursorLineIndex < i32(ctx.lineIndex) {

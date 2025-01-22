@@ -19,6 +19,8 @@ getActiveTabContext :: proc() -> ^EditableTextContext {
 }
 
 isActiveTabContext :: proc() -> bool {
+    if windowData.editableTextCtx == nil { return false }
+    
     return windowData.editableTextCtx == getActiveTab().ctx
 }
 
