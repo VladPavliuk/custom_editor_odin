@@ -102,6 +102,8 @@ getCursorIndexByMousePosition :: proc(ctx: ^EditableTextContext, clientPosition:
 }
 
 updateCusrorData :: proc(ctx: ^EditableTextContext) {
+    if ctx == nil { return }
+
     // find cursor line
     ctx.cursorLineIndex = 0
     cursorLine: int2 = { 0, 0 }
@@ -185,11 +187,15 @@ updateCusrorData :: proc(ctx: ^EditableTextContext) {
 }
 
 validateTopLine :: proc(ctx: ^EditableTextContext) {
+    if ctx == nil { return }
+
     ctx.lineIndex = max(0.0, ctx.lineIndex)
     ctx.lineIndex = min(f32(len(ctx.lines) - 1), ctx.lineIndex)
 }
 
 validateLeftOffset :: proc(ctx: ^EditableTextContext) {
+    if ctx == nil { return }
+    
     if ctx.leftOffset < 0.0 {
         ctx.leftOffset = 0.0
     } else if ctx.leftOffset + ui.getRectSize(ctx.rect).x > i32(ctx.maxLineWidth) {
@@ -271,6 +277,8 @@ fillGlyphsLocations :: proc(ctx: ^EditableTextContext) {
 }
 
 calculateLines :: proc(ctx: ^EditableTextContext) {
+    if ctx == nil { return }
+
     clear(&ctx.lines)
     stringToRender := strings.to_string(ctx.text)
     stringLength := len(stringToRender)

@@ -5,6 +5,7 @@ import "core:strings"
 import "core:text/edit"
 import "core:path/filepath"
 import "core:slice"
+import win32 "core:sys/windows"
 
 import "ui"
 
@@ -185,12 +186,16 @@ renderTopMenu :: proc() {
                 hoverBgColor = BLACK_COLOR,
             }) {
                 //TODO: looks a bit hacky
-                if windowData.wordWrapping {
-                    getActiveTabContext().leftOffset = 0
+                ctx := getActiveTabContext()
+                if ctx != nil {
+                    if windowData.wordWrapping {
+                        ctx.leftOffset = 0
+                    }
+                    calculateLines(ctx)
+                    updateCusrorData(ctx)
+                    validateTopLine(ctx)
+                    
                 }
-                calculateLines(getActiveTabContext())
-                updateCusrorData(getActiveTabContext())
-                validateTopLine(getActiveTabContext())
                 // jumpToCursor(&windowData.editorCtx)
             }
 
@@ -366,7 +371,8 @@ renderFolderExplorer :: proc() {
     }
 
     // jump to current file button
-    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
+    if activeTab != nil && 
+        .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
         position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
         textureId = i32(TextureId.JUMP_TO_CURRENT_FILE_ICON),
@@ -514,7 +520,7 @@ renderFolderExplorer :: proc() {
 
         itemActions, _ := ui.putEmptyElement(&windowData.uiContext, itemRect, customId = itemIndex)
 
-        if item.fullPath == activeTab.filePath { // highlight selected file
+        if activeTab != nil && item.fullPath == activeTab.filePath { // highlight selected file
             ui.pushCommand(&windowData.uiContext, ui.RectCommand{
                 rect = itemRect,
                 bgColor = ui.getDarkerColor(GRAY_COLOR),
@@ -639,7 +645,7 @@ renderFolderExplorer :: proc() {
     }
 
     if ui.beginPopup(&windowData.uiContext, ui.Popup{
-        position = fileContextMenuPosition, size = {100,75},
+        position = fileContextMenuPosition, size = {130,100},
         bgColor = DARKER_GRAY_COLOR,
         isOpen = &showFileContextMenu,
         clipRect = ui.Rect{
@@ -653,8 +659,8 @@ renderFolderExplorer :: proc() {
 
         if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "New file",
-            position = { 0, 50 },
-            size = { 100, 25 },
+            position = { 0, 75 },
+            size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
         }) {
@@ -703,8 +709,8 @@ renderFolderExplorer :: proc() {
 
         if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Rename",
-            position = { 0, 25 },
-            size = { 100, 25 },
+            position = { 0, 50 },
+            size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
         }) {
@@ -714,9 +720,28 @@ renderFolderExplorer :: proc() {
         }
 
         if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            text = "Open In Folder",
+            position = { 0, 25 },
+            size = { 130, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            item := openedItems[itemContextMenuIndex]
+
+            pidl := win32.ILCreateFromPathW(win32.utf8_to_wstring(item.fullPath))
+            defer win32.CoTaskMemFree(pidl)
+            assert(pidl != nil)
+
+            hr := win32.SHOpenFolderAndSelectItems(pidl, 0, nil, 0)
+            assert(hr == 0)
+
+            showFileContextMenu = false
+        }
+
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Delete",
             position = { 0, 0 },
-            size = { 100, 25 },
+            size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
         }) {
@@ -811,6 +836,10 @@ renderEditorFileTabs :: proc() {
         switchInputContextToEditor()
     case ui.TabsActionClose:
         tryCloseFileTab(action.closedTabIndex)
+    case ui.TabsHot:
+        if .MIDDLE_WAS_UP in inputState.mouse {
+            tryCloseFileTab(action.index)
+        }
     }
 }
 
@@ -879,6 +908,8 @@ getIconByFilePath :: proc(filePath: string) -> TextureId {
 // TODO: move it from here
 renderEditorContent :: proc() {
     editorCtx := getActiveTabContext()
+    if editorCtx == nil { return }
+
     maxLinesOnScreen := getEditorSize().y / i32(windowData.font.lineHeight)
     totalLines := i32(len(editorCtx.lines))
 

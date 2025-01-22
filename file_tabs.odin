@@ -6,10 +6,15 @@ import "core:path/filepath"
 import "ui"
 
 getActiveTab :: proc() -> ^FileTab {
+    if len(windowData.fileTabs) == 0 { return nil }
+
     return &windowData.fileTabs[windowData.activeFileTab]
 }
 
 getActiveTabContext :: proc() -> ^EditableTextContext {
+    tab := getActiveTab()
+    if tab == nil { return nil }
+
     return getActiveTab().ctx
 }
 
@@ -21,12 +26,13 @@ addEmptyTab :: proc() {
     addTab(strings.clone("(empty)"))
 }
 
-addTab :: proc(title: string, filePath := "", text := "") {
+addTab :: proc(title: string, filePath := "", text := "", lastUpdatedAt: i64 = 0) {
     tab := FileTab{
         name = title,
         filePath = filePath,
         ctx = createEmptyTextContext(text),
         isSaved = true,
+        lastUpdatedAt = lastUpdatedAt,
     }
     append(&windowData.fileTabs, tab)
 
@@ -62,20 +68,21 @@ loadFileIntoNewTab :: proc(filePath: string) {
         return
     }
 
-    activeTab := getActiveTab()
+    //activeTab := getActiveTab()
 
-    if len(windowData.fileTabs) == 1 && 
-        len(activeTab.filePath) == 0 && activeTab.isSaved {
-        replaceTabInfoByIndex(FileTab{
-            name = strings.clone(filepath.base(filePath)),
-            ctx = createEmptyTextContext(fileText),
-            filePath = strings.clone(filePath),
-            isSaved = true,
-        }, windowData.activeFileTab)
-        return
-    }
+    // if len(windowData.fileTabs) == 1 && 
+    //     len(activeTab.filePath) == 0 && activeTab.isSaved {
+    //     replaceTabInfoByIndex(FileTab{
+    //         name = strings.clone(filepath.base(filePath)),
+    //         ctx = createEmptyTextContext(fileText),
+    //         filePath = strings.clone(filePath),
+    //         isSaved = true,
+    //         lastUpdatedAt = getCurrentUnixTime(),
+    //     }, windowData.activeFileTab)
+    //     return
+    // }
 
-    addTab(strings.clone(filepath.base(filePath)), strings.clone(filePath), fileText)
+    addTab(strings.clone(filepath.base(filePath)), strings.clone(filePath), fileText, getCurrentUnixTime())
 }
 
 getFileTabIndex :: proc(tabs: []FileTab, filePath: string) -> i32 {
@@ -98,6 +105,7 @@ replaceTabInfoByIndex :: proc(tab: FileTab, index: i32) {
     oldTab.ctx = tab.ctx
     oldTab.filePath = tab.filePath
     oldTab.isSaved = tab.isSaved
+    oldTab.lastUpdatedAt = tab.lastUpdatedAt
     oldTab.name = tab.name
 
     switchInputContextToEditor()
@@ -116,28 +124,17 @@ moveToPrevTab :: proc() {
     switchInputContextToEditor()
 }
 
-wasFileModifiedOutside :: proc(tab: ^FileTab) {
-    // add validation
-    switch showOsConfirmMessage("Edi the editor", "File was modified outside the editor, override the existing?") {
-    case .YES:
-        newText := loadTextFile(tab.filePath)
-
-        freeTextContext(tab.ctx)
-        tab.ctx = createEmptyTextContext(newText)
-
-        switchInputContextToEditor()
-    case .NO, .CANCEL, .CLOSE_WINDOW:
-        tab.isSaved = false
-        delete(tab.filePath)
-        tab.filePath = ""        
+wasFileModifiedExternally :: proc(tab: ^FileTab) {
+    // if no real file association, just skip the validation
+    if tab == nil || tab.filePath == "" {
+        return 
     }
-}
 
-checkTabFileExistance :: proc(tab: ^FileTab) {
-    if len(tab.filePath) > 0 && !os.exists(tab.filePath) {
-        // if file does not exist anymore, just mark tab as unsafed and remove old file association
+    lastModified, exists := getFileLastMidifiedUnixTime(tab.filePath)
 
-        ui.pushAlert(&windowData.uiContext, ui.Alert{
+    if !exists {
+         // if file does not exist anymore, just mark tab as unsafed and remove old file association
+         ui.pushAlert(&windowData.uiContext, ui.Alert{
             text = strings.clone(fmt.tprintfln("%q was removed!", tab.name)),
             timeout = 5.0,
             bgColor = RED_COLOR,
@@ -146,6 +143,26 @@ checkTabFileExistance :: proc(tab: ^FileTab) {
         tab.isSaved = false
         delete(tab.filePath)
         tab.filePath = ""
+        return
+    }
+
+    if tab.lastUpdatedAt > lastModified { // no changes, ignore
+        return
+    }
+
+    switch showOsConfirmMessage("Edi the editor", "File was modified outside the editor, override your version?") {
+    case .YES:
+        newText := loadTextFile(tab.filePath)
+
+        freeTextContext(tab.ctx)
+        tab.ctx = createEmptyTextContext(newText)
+        tab.lastUpdatedAt = getCurrentUnixTime()
+
+        switchInputContextToEditor()
+    case .NO, .CANCEL, .CLOSE_WINDOW:
+        tab.isSaved = false
+        delete(tab.filePath)
+        tab.filePath = ""        
     }
 }
 
@@ -169,9 +186,9 @@ tryCloseFileTab :: proc(index: i32, force := false) {
     windowData.activeFileTab = index == 0 ? index : index - 1
     windowData.wasFileTabChanged = true
 
-    if len(windowData.fileTabs) == 0 {
-        addEmptyTab()
-    }
+    // if len(windowData.fileTabs) == 0 {
+    //     addEmptyTab()
+    // }
 
     switchInputContextToEditor()
 }

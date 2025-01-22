@@ -81,6 +81,16 @@ winProc :: proc "system" (hwnd: win32.HWND, msg: win32.UINT, wParam: win32.WPARA
 
         // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
         win32.ReleaseCapture()
+    case win32.WM_MBUTTONDOWN:
+        inputState.mouse += { .MIDDLE_IS_DOWN, .MIDDLE_WAS_DOWN }
+
+        win32.SetCapture(hwnd)
+    case win32.WM_MBUTTONUP:
+        inputState.mouse += { .MIDDLE_WAS_UP }
+        inputState.mouse -= { .MIDDLE_IS_DOWN }
+
+        // NOTE: We have to release previous capture, because we won't be able to use windws default buttons on the window
+        win32.ReleaseCapture()
     case win32.WM_SIZE:
         if !windowData.windowCreated { break }
 

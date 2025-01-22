@@ -397,10 +397,13 @@ initPdbData :: proc(pdbFilePath: string) -> PdbData {
     }
 }
 
-getFunctionNameByRVA :: proc(session: ^IDiaSession, rva: u32) -> string {
+getFunctionNameByRVA :: proc(session: ^IDiaSession, rva: u32) -> (string, bool) {
     pSymbol: ^IDiaSymbol
     hr := session->findSymbolByRVA(rva, .SymTagFunction, &pSymbol)
-    assert(hr == 0)
+    if hr != 0 {
+        return "(source file not found)", false
+    }
+    // assert(hr == 0)
     defer pSymbol->Release()
 
     functionName: win32.BSTR
@@ -409,7 +412,7 @@ getFunctionNameByRVA :: proc(session: ^IDiaSession, rva: u32) -> string {
 
     name, _ := win32.wstring_to_utf8(win32.wstring(functionName), -1)
 
-    return name
+    return name, true
 }
 
 getRVABySourcePosition :: proc(session: ^IDiaSession, filePath: string, line: i32) -> u32 {

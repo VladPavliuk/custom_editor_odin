@@ -24,11 +24,15 @@ TabsActionClose :: struct {
     closedTabIndex: i32,
 }
 
+TabsHot :: struct {
+    index: i32,
+}
+
 TabsSwitched :: struct {
     index: i32,
 }
 
-TabsActions :: union {TabsSwitched, TabsActionClose}
+TabsActions :: union {TabsSwitched, TabsHot, TabsActionClose}
 
 renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_location) -> TabsActions {
     customId := customId
@@ -56,6 +60,10 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
         } else {
             if .HOT in itemActions { bgColor = getOrDefaultColor(tabs.hoverBgColor, getDarkerColor(bgColor)) }
             if .ACTIVE in itemActions { bgColor = getOrDefaultColor(tabs.activeColor, getDarkerColor(bgColor)) }
+        }
+
+        if .HOT in itemActions { 
+            tabsActions = TabsHot{ index = i32(index) }
         }
 
         if .SUBMIT in itemActions {

@@ -5,9 +5,12 @@ import "core:thread"
 import "core:strings"
 import "core:os"
 import win32 "core:sys/windows"
+import "base:intrinsics"
 
 foreign import kernel32 "system:Kernel32.lib"
 foreign import psapi "system:Psapi.lib"
+foreign import zycore "libs/Zycore.lib"
+foreign import zydis "libs/Zydis.lib"
 
 @(default_calling_convention = "std")
 foreign kernel32 {
@@ -22,6 +25,13 @@ foreign psapi {
     EnumProcesses :: proc(lpidProcess: ^win32.DWORD, cb: win32.DWORD, lpcbNeeded: win32.LPDWORD) -> win32.BOOL ---
     EnumProcessModules :: proc(hProcess: win32.HANDLE, lphModule: ^win32.HMODULE, cb: win32.DWORD, lpcbNeeded: win32.LPDWORD) -> win32.BOOL ---
     GetModuleBaseNameW :: proc(hProcess: win32.HANDLE, hModule: win32.HMODULE, lpBaseName: win32.LPWSTR, nSize: win32.DWORD) -> win32.DWORD ---
+}
+
+@(default_calling_convention = "std")
+foreign zydis {
+    //@(link_name = "ZydisDisassembleIntel")
+    ZydisDisassembleIntel :: proc(machine_mode: u32, runtime_address: rawptr, buffer: rawptr, length: u64, instruction: rawptr) -> u32 ---
+    // ZydisRegisterGetId :: proc(machine_mode: u32) -> i8 ---
 }
 
 TRAP_FLAG :: 1 << 8;
@@ -58,7 +68,39 @@ toggleBrakepointForLine :: proc(filePath: string, line: i32) {
     }
 }
 
-setBreakpointForThread :: proc(threadId: u32, address: uintptr) {
+applyBreakpoint :: proc(process: win32.HANDLE, address: uintptr, appliedBreakpoints: ^map[uintptr]u8) {
+    originalByte: u8
+
+    bytesRead, bytesWritten: uint
+
+    res := win32.ReadProcessMemory(process, win32.LPCVOID(address), &originalByte, 1, &bytesRead)
+    assert(res == true && bytesRead == 1)
+
+    breakpointInstruction: u8 = 0xCC
+    res = win32.WriteProcessMemory(process, win32.LPCVOID(address), &breakpointInstruction, 1, &bytesWritten)
+    assert(res == true && bytesWritten == 1)
+
+    res = win32.FlushInstructionCache(process, win32.LPCVOID(address), 1);
+    assert(res == true)
+
+    appliedBreakpoints[address] = originalByte
+}
+
+removeBreakpoint :: proc(process: win32.HANDLE, breakpointAddress: uintptr, appliedBreakpoints: ^map[uintptr]u8) {
+    originalByte, ok := appliedBreakpoints[breakpointAddress]
+    assert(ok)
+
+    bytesWritten: uint
+    res := win32.WriteProcessMemory(process, win32.LPCVOID(breakpointAddress), &originalByte, 1, &bytesWritten)
+    assert(res == true && bytesWritten == 1)
+
+    res = win32.FlushInstructionCache(process, win32.LPCVOID(breakpointAddress), 1);
+    assert(res == true)
+
+    delete_key(appliedBreakpoints, breakpointAddress)
+}
+
+setHardwareBreakpointForThread :: proc(threadId: u32, address: uintptr) {  
     threadHandler := win32.OpenThread(
         win32.THREAD_GET_CONTEXT | win32.THREAD_SET_CONTEXT,
         false,
@@ -116,7 +158,7 @@ runDebugProcess_Function :: proc(exePath: string) {
 		nil,
 		nil,
 		false,
-		win32.DEBUG_PROCESS | win32.DEBUG_ONLY_THIS_PROCESS | win32.CREATE_UNICODE_ENVIRONMENT | win32.NORMAL_PRIORITY_CLASS | win32.CREATE_NEW_CONSOLE,
+		win32.DEBUG_PROCESS | win32.DEBUG_ONLY_THIS_PROCESS | win32.CREATE_UNICODE_ENVIRONMENT | win32.HIGH_PRIORITY_CLASS | win32.CREATE_NEW_CONSOLE,
 		// win32.DEBUG_ONLY_THIS_PROCESS | win32.CREATE_NEW_CONSOLE,
 		nil, // it's for passing env data???
         nil, // win32.utf8_to_wstring("C:\\projects\\mandelbrot_set_odin\\bin"),
@@ -175,6 +217,11 @@ runDebugProcess_Function :: proc(exePath: string) {
     debugEvent: WIN32_DEBUG_EVENT
     expectStepException := false
 
+    appliedBreakpoints := make(map[uintptr]u8)
+    tmpBreakpoints := make(map[uintptr]u8)
+    defer delete(appliedBreakpoints)
+    defer delete(tmpBreakpoints)
+
     threadsIds := make([dynamic]u32)
 
     pdbData := initPdbData("C:\\projects\\cpp_test_cmd\\x64\\Debug\\cpp_test_cmd.pdb")
@@ -183,6 +230,9 @@ runDebugProcess_Function :: proc(exePath: string) {
     //testFunctionRVA := functionsWithRVA["main"]
     // testFunctionRVA := testDia()
     exeBaseAddress: uintptr = 0
+    steppingToNextLine := false
+    originalStepFilePath: string
+    originalStepLine: u32 = 0
 
     for WaitForDebugEvent(&debugEvent, WIN32_INFINITE) {
         continueStatus: u32 = WIN32_DBG_EXCEPTION_NOT_HANDLED // why should it be always that and not WIN32_DBG_CONTINUE???
@@ -271,7 +321,8 @@ runDebugProcess_Function :: proc(exePath: string) {
                 brakepointRVA := getRVABySourcePosition(pdbData.session, testBreakpoint.filePath, testBreakpoint.line)
 
                 assert(brakepointRVA != 0)
-                setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + uintptr(brakepointRVA))
+                applyBreakpoint(processInfo.hProcess, exeBaseAddress + uintptr(brakepointRVA), &appliedBreakpoints)
+                // setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + uintptr(brakepointRVA))
                 // brakepointRVA
             }
             //<
@@ -290,28 +341,38 @@ runDebugProcess_Function :: proc(exePath: string) {
             firstChance := debugEvent.u.Exception.dwFirstChance
             
             //> was breakpoint hit
-            threadHandler := win32.OpenThread(
-                win32.THREAD_GET_CONTEXT | win32.THREAD_SET_CONTEXT,
-                false,
-                debugEvent.dwThreadId,
-            )
-            defer win32.CloseHandle(threadHandler)
+            // threadHandler := win32.OpenThread(
+            //     win32.THREAD_GET_CONTEXT | win32.THREAD_SET_CONTEXT,
+            //     false,
+            //     debugEvent.dwThreadId,
+            // )
+            // defer win32.CloseHandle(threadHandler)
             
-            ctx: win32.CONTEXT
-            ctx.ContextFlags = win32.WOW64_CONTEXT_ALL
-            win32.GetThreadContext(threadHandler, &ctx)
-            if ctx.Dr6 & 0x1 == 1 {
-                continueStatus = WIN32_DBG_CONTINUE
+            // ctx: win32.CONTEXT
+            // ctx.ContextFlags = win32.WOW64_CONTEXT_ALL
+            // win32.GetThreadContext(threadHandler, &ctx)
+            // if ctx.Dr6 & 0x1 == 1 {
+            //     continueStatus = WIN32_DBG_CONTINUE
 
-                fmt.println("HIT!!!!!! ", firstChance)
+            //     // instruction: u64 = 0
+            //     // read: uint
+            //     // test1 := win32.ReadProcessMemory(processInfo.hProcess, rawptr(uintptr(ctx.Rip)), &instruction, size_of(u64), &read)
 
-                rva := uintptr(ctx.Rip) - exeBaseAddress
-                fileName, line, _, _ := getSourcePositionByRVA(pdbData.session, u32(rva))
+            //     // mbi: win32.MEMORY_BASIC_INFORMATION
+            //     // res := win32.VirtualQueryEx(processInfo.hProcess, rawptr(debugEvent.u.Exception.ExceptionRecord.ExceptionAddress), &mbi, size_of(mbi))
+            //     // test2 := win32.GetLastError()
 
-                windowData.currentDebuggerInstruction = SingleBrakepoint{
-                    filePath = fileName, line = i32(line)
-                } 
-            }
+            //     // fmt.println("test ", read)
+
+            //     fmt.println("HIT!!!!!! ", firstChance)
+
+            //     rva := uintptr(ctx.Rip) - exeBaseAddress
+            //     fileName, line, _, _ := getSourcePositionByRVA(pdbData.session, u32(rva))
+
+            //     windowData.currentDebuggerInstruction = SingleBrakepoint{
+            //         filePath = fileName, line = i32(line)
+            //     } 
+            // }
             //<
 
             if expectStepException && debugEvent.u.Exception.ExceptionRecord.ExceptionCode == win32.EXCEPTION_SINGLE_STEP {
@@ -322,7 +383,54 @@ runDebugProcess_Function :: proc(exePath: string) {
             switch debugEvent.u.Exception.ExceptionRecord.ExceptionCode {
             case win32.EXCEPTION_ACCESS_VIOLATION: fmt.println("EXCEPTION_ACCESS_VIOLATION")     
             case win32.EXCEPTION_ARRAY_BOUNDS_EXCEEDED: fmt.println("EXCEPTION_ARRAY_BOUNDS_EXCEEDED")     
-            case win32.EXCEPTION_BREAKPOINT: fmt.println("EXCEPTION_BREAKPOINT")     
+            case win32.EXCEPTION_BREAKPOINT: // software breakpoint
+                threadHandler := win32.OpenThread(
+                    win32.THREAD_GET_CONTEXT | win32.THREAD_SET_CONTEXT,
+                    false,
+                    debugEvent.dwThreadId,
+                )
+                defer win32.CloseHandle(threadHandler)
+                
+                ctx: win32.CONTEXT
+                ctx.ContextFlags = win32.WOW64_CONTEXT_ALL
+                win32.GetThreadContext(threadHandler, &ctx)
+                
+                rva := uintptr(ctx.Rip) - exeBaseAddress
+                fileName, line, _, _ := getSourcePositionByRVA(pdbData.session, u32(rva))
+
+                fmt.println("HIT!!!!!! ", fileName, line)
+
+                windowData.currentDebuggerInstruction = SingleBrakepoint{
+                    filePath = fileName, line = i32(line)
+                }
+
+                if uintptr(ctx.Rip) - 1 in tmpBreakpoints {
+                    ctx.Rip = ctx.Rip - 1
+
+                    if !win32.SetThreadContext(threadHandler, &ctx) {
+                        fmt.println(win32.GetLastError())
+                        panic("ERROR SAVING THREAD CTX")
+                    }
+                }
+
+                for breakpointAddress, originalInstruction in tmpBreakpoints {
+                    removeBreakpoint(processInfo.hProcess, breakpointAddress, &tmpBreakpoints)   
+                }
+                clear(&tmpBreakpoints)
+
+                if uintptr(ctx.Rip) - 1 in appliedBreakpoints {    
+                    // since RIP regisgter points to the next instruction
+                    // in order to correctly resote original instruction in which the first byte was replaced by software breakpoint
+                    // we have to move RIP 1 byte back and restore the original instruction
+                    ctx.Rip = ctx.Rip - 1
+
+                    if !win32.SetThreadContext(threadHandler, &ctx) {
+                        fmt.println(win32.GetLastError())
+                        panic("ERROR SAVING THREAD CTX")
+                    }
+
+                    removeBreakpoint(processInfo.hProcess, uintptr(ctx.Rip), &appliedBreakpoints)   
+                }
             case win32.EXCEPTION_DATATYPE_MISALIGNMENT: fmt.println("EXCEPTION_DATATYPE_MISALIGNMENT")     
             case win32.EXCEPTION_FLT_DENORMAL_OPERAND: fmt.println("EXCEPTION_FLT_DENORMAL_OPERAND")     
             case win32.EXCEPTION_FLT_DIVIDE_BY_ZERO: fmt.println("EXCEPTION_FLT_DIVIDE_BY_ZERO")     
@@ -550,7 +658,7 @@ runDebugProcess_Function :: proc(exePath: string) {
                 // check is the function is pdb file
                 for pdbFile in module.pdbFiles {
                     rva := uintptr(ctx.Rip) - module.address
-                    functionName = getFunctionNameByRVA(pdbData.session, u32(rva))
+                    functionName, _ = getFunctionNameByRVA(pdbData.session, u32(rva))
                     fileName, line, column, _ := getSourcePositionByRVA(pdbData.session, u32(rva))
         
                     //test := getRVABySourcePosition(pdbData.session, "C:\\projects\\cpp_test_cmd\\cpp_test_cmd\\main.cpp", 11)
@@ -568,6 +676,27 @@ runDebugProcess_Function :: proc(exePath: string) {
         for stopDebugger {
             if !isProcessRunning(windowData.debuggerProcessHandler) { return }
 
+            if steppingToNextLine {
+                rva := uintptr(ctx.Rip) - exeBaseAddress
+                fileName, line, column, length := getSourcePositionByRVA(pdbData.session, u32(rva))
+
+                // TODO: ADD NORMAL FILE FILTERING!!!
+                if fileName == "" || !strings.starts_with(fileName, "C:\\projects\\cpp_test_cmd") || (originalStepFilePath == fileName && originalStepLine == line) {
+                    expectStepException = true
+                    continueStatus = WIN32_DBG_CONTINUE
+                    ctx.EFlags |= 0x100
+                    assert(win32.SetThreadContext(threadHandler, &ctx) == true)
+
+                    // if there's a function call don't use trap flag, but instead set breakpoint on the next instruction
+                    
+                } else {
+                    applyBreakpoint(processInfo.hProcess, uintptr(ctx.Rip), &tmpBreakpoints)
+
+                    steppingToNextLine = false
+                }
+                break
+            }
+
             if sync.atomic_load(&windowData.debuggerCommand) == .CONTINUE {
                 sync.atomic_store(&windowData.debuggerCommand, .NONE)
                 break
@@ -576,19 +705,48 @@ runDebugProcess_Function :: proc(exePath: string) {
             if sync.atomic_load(&windowData.debuggerCommand) == .STEP {
                 sync.atomic_store(&windowData.debuggerCommand, .NONE)
 
+                //> advancing to the next line line
                 rva := uintptr(ctx.Rip) - exeBaseAddress
                 fileName, line, column, length := getSourcePositionByRVA(pdbData.session, u32(rva))
 
                 rva += uintptr(length)
-                
-                // exeBaseAddress + testFunctionRVA)
-                setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + rva)
-                
-                // expectStepException = true
-                // ctx.EFlags |= 0x100
-                // if !win32.SetThreadContext(threadHandler, &ctx) {
-                //     panic("ASDASD")
-                // }
+
+                applyBreakpoint(processInfo.hProcess, exeBaseAddress + rva, &tmpBreakpoints)
+                //<
+
+                instructions: [1024]u8
+                res := win32.ReadProcessMemory(processInfo.hProcess, rawptr(uintptr(ctx.Rip)), raw_data(instructions[:]), uint(length), nil)
+                assert(res == true, "Could not read the debugged process memory")
+
+                zydisInstruction: ZydisDisassembledInstruction
+
+                offset: u64 = 0
+                runtimeAddress := uintptr(ctx.Rip)
+
+                for ZydisDisassembleIntel(0, rawptr(runtimeAddress), rawptr(uintptr(raw_data(instructions[:])) + uintptr(offset)), u64(length) - offset, &zydisInstruction) & 0x80000000 == 0 {
+                    offset += u64(zydisInstruction.info.length)
+                    runtimeAddress += uintptr(zydisInstruction.info.length)
+
+                    switch zydisInstruction.info.opcode {
+                    case
+                        0xE8, // call
+                        0x74, // je
+                        0x7E, // jle
+                        0xEB, // jmp
+                        0x7D: // jnl
+                        address := i128(runtimeAddress) + i128(zydisInstruction.operands[0].value.imm.value.s)
+                        applyBreakpoint(processInfo.hProcess, uintptr(address), &tmpBreakpoints)
+                        // append(&potentialAddresses, uintptr(address))
+
+                        //fmt.printfln("YEAH(%#X)", address)
+                    }
+                   
+                    // fmt.printfln("opcode(%#X) %s", zydisInstruction.info.opcode, cstring(raw_data(zydisInstruction.text[:])))
+                    fmt.println(cstring(raw_data(zydisInstruction.text[:])))
+                    // setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + rva)
+                }
+
+                continueStatus = WIN32_DBG_CONTINUE
                 break
             }
 
@@ -596,17 +754,70 @@ runDebugProcess_Function :: proc(exePath: string) {
                 sync.atomic_store(&windowData.debuggerCommand, .NONE)
 
                 expectStepException = true
+                continueStatus = WIN32_DBG_CONTINUE
                 ctx.EFlags |= 0x100
-                if !win32.SetThreadContext(threadHandler, &ctx) {
-                    panic("ASDASD")
-                }
-                fmt.println("CURRENT RIP: ", ctx.Rip)
+                assert(win32.SetThreadContext(threadHandler, &ctx) == true)
 
-                // break
+                //fmt.printfln("CURRENT RIP: %#X", ctx.Rip)
+
+                rva := uintptr(ctx.Rip) - exeBaseAddress
+                fileName, line, column, length := getSourcePositionByRVA(pdbData.session, u32(rva))
+
+                originalStepFilePath = fileName
+                originalStepLine = line
+
+                steppingToNextLine = true
+
+                break
+                // instructionAddress := uintptr(ctx.Rip) - exeBaseAddress
+                
                 // rva := uintptr(ctx.Rip) - exeBaseAddress
-                // getFunctionNameByRVA(pdbData.session, u32(rva))
-                // win32.ReadProcessMemory()
-                //break
+                // _, _, _, length := getSourcePositionByRVA(pdbData.session, u32(rva))
+
+                // instructions: [1024]u8
+                // read: uint
+                // res := win32.ReadProcessMemory(processInfo.hProcess, rawptr(uintptr(ctx.Rip)), raw_data(instructions[:]), uint(length), &read)
+                // assert(res == true, "Could not read the debugged process memory")
+
+                // zydisInstruction: ZydisDisassembledInstruction
+
+                // offset: u64 = 0
+                // runtimeAddress := uintptr(ctx.Rip)
+                // potentialAddresses := make([dynamic]uintptr)
+                // defer delete(potentialAddresses)
+
+                // for ZydisDisassembleIntel(0, rawptr(runtimeAddress), rawptr(uintptr(raw_data(instructions[:])) + uintptr(offset)), u64(length) - offset, &zydisInstruction) & 0x80000000 == 0 {
+                //     offset += u64(zydisInstruction.info.length)
+                //     runtimeAddress += uintptr(zydisInstruction.info.length)
+
+                //     switch zydisInstruction.info.opcode {
+                //     case
+                //         0xE8, // call
+                //         0x74, // je
+                //         0x7E, // jle
+                //         0xEB, // jmp
+                //         0x7D: // jnl
+                //         address := i128(runtimeAddress) + i128(zydisInstruction.operands[0].value.imm.value.s)
+                //         append(&potentialAddresses, uintptr(address))
+
+                //         //fmt.printfln("YEAH(%#X)", address)
+                //     }
+                   
+                //     // fmt.printfln("opcode(%#X) %s", zydisInstruction.info.opcode, cstring(raw_data(zydisInstruction.text[:])))
+                //     fmt.println(cstring(raw_data(zydisInstruction.text[:])))
+                //     // setBreakpointForThread(debugEvent.dwThreadId, exeBaseAddress + rva)
+                // }
+
+                // fmt.println("POTENTIAL ADDRESSES:")
+                // for address in potentialAddresses {
+                //     fmt.println(address)
+                // }
+
+                // fmt.printf("line has %i bytes, machine code: ", length)
+                // for i in 0..=length {
+                //     fmt.print(strings.right_justify(fmt.tprintf("%X", instructions[i]), 2, "0"))
+                // }
+                // fmt.println("")
             }
         }
         //<

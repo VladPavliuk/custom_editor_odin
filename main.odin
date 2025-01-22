@@ -62,7 +62,9 @@ main :: proc() {
             inputState.mouse += {.LEFT_WAS_DOUBLE_CLICKED, .LEFT_IS_DOWN_AFTER_DOUBLE_CLICKED}
         }
 
-        edit.update_time(&windowData.editableTextCtx.editorState)
+        if windowData.editableTextCtx != nil {
+            edit.update_time(&windowData.editableTextCtx.editorState)
+        }
 
         windowData.uiContext.deltaMousePosition = inputState.deltaMousePosition
         windowData.uiContext.mousePosition = inputState.mousePosition
@@ -72,7 +74,7 @@ main :: proc() {
 
         render()
 
-        checkTabFileExistance(getActiveTab())
+        wasFileModifiedExternally(getActiveTab())
 
         if windowData.sinceExplorerSync > windowData.explorerSyncInterval {
             validateExplorerItems(&windowData.explorer)
@@ -87,7 +89,7 @@ main :: proc() {
         windowData.sinceAutoSaveState += windowData.delta
         
         //> update input state
-        inputState.mouse -= {.LEFT_WAS_DOWN, .LEFT_WAS_UP, .LEFT_WAS_DOUBLE_CLICKED, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP}
+        inputState.mouse -= {.LEFT_WAS_DOWN, .LEFT_WAS_UP, .LEFT_WAS_DOUBLE_CLICKED, .MIDDLE_WAS_DOWN, .MIDDLE_WAS_UP, .RIGHT_WAS_DOWN, .RIGHT_WAS_UP}
         inputState.wasPressedKeys = {}
 
         inputState.deltaMousePosition = { 0, 0 }

@@ -15,6 +15,22 @@ editorStateFilePath :: "./edi_state.json"
 //     OpenFolderDialog
 // }
 
+getFileLastMidifiedUnixTime :: proc(filePath: string) -> (unixTime: i64, exists: bool) {
+    if !os.exists(filePath) {
+        return 0, false
+    }
+
+    hFile := win32.CreateFileW(win32.utf8_to_wstring(filePath), win32.GENERIC_READ, win32.FILE_SHARE_READ, nil, win32.OPEN_EXISTING, win32.FILE_ATTRIBUTE_NORMAL, nil)
+    assert(hFile != win32.INVALID_HANDLE_VALUE)
+    defer win32.CloseHandle(hFile)
+
+    lpLastWriteTime: win32.FILETIME
+    res := win32.GetFileTime(hFile, nil, nil, &lpLastWriteTime)
+    assert(res != false)
+
+    return win32.FILETIME_as_unix_nanoseconds(lpLastWriteTime), true
+}
+
 showOpenFileDialog :: proc(showOnlyFolders := false) -> (res: string, success: bool) {
     hr := win32.CoInitializeEx(nil, win32.COINIT(0x2 | 0x4))
     assert(hr == 0)
@@ -84,6 +100,7 @@ saveToOpenedFile :: proc(tab: ^FileTab) -> (success: bool) {
     }
     assert(err == nil, fmt.tprintfln("File save error: %s", err))
     tab.isSaved = true
+    tab.lastUpdatedAt = getCurrentUnixTime()
 
     return true
 }
@@ -166,6 +183,7 @@ SavedFileTab :: struct {
     name: string,
     filePath: string,
     isSaved: bool,
+    lastUpdatedAt: i64,
     text: string,
     textSelection: [2]int,
     lineIndex: f32,
@@ -193,6 +211,7 @@ saveEditorState :: proc() {
             name = tab.name,
             filePath = tab.filePath,
             isSaved = tab.isSaved,
+            lastUpdatedAt = tab.lastUpdatedAt,
             text = strings.to_string(tab.ctx.text),
             textSelection = tab.ctx.editorState.selection,
             lineIndex = tab.ctx.lineIndex,
@@ -231,6 +250,7 @@ applyEditorState :: proc() -> bool {
             ctx = ctx,
             filePath = strings.clone(tab.filePath),
             isSaved = tab.isSaved,
+            lastUpdatedAt = tab.lastUpdatedAt,
         })
         // delete(tab.text)
     }

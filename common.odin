@@ -43,3 +43,7 @@ getDecimalPart :: proc(a: f32) -> f32 {
     _, fract := math.split_decimal(a)
     return fract
 }
+
+getCurrentUnixTime :: proc() -> i64 {
+    return time.to_unix_nanoseconds(time.now())
+}

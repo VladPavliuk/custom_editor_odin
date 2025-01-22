@@ -681,6 +681,9 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
 }
 
 renderLineNumbers :: proc() {
+    fileTab := getActiveTab()
+    if fileTab == nil { return }
+
     lineNumbersLeftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
 
     maxLinesOnScreen := i32(f32(getEditorSize().y) / windowData.font.lineHeight)
@@ -691,7 +694,6 @@ renderLineNumbers :: proc() {
             int2{ windowData.editorPadding.left - lineNumbersLeftOffset, windowData.size.y }),
         bgColor = LINE_NUMBERS_BG_COLOR,
     })
-    fileTab := getActiveTab()
     editorCtx := fileTab.ctx
     topOffset := math.round(f32(windowData.size.y) / 2.0 - windowData.font.lineHeight) - f32(windowData.editorPadding.top)
     topOffset += getDecimalPart(editorCtx.lineIndex) * windowData.font.lineHeight
