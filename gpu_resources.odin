@@ -209,6 +209,7 @@ loadTextures :: proc() {
     directXState.textures[.ICONS_ARRAY] = initIcons2DTexture({ // 702 micoseconds
         .CLOSE_ICON,
         .CHECK_ICON,
+        .CIRCLE,
         .TXT_FILE_ICON,
         .C_FILE_ICON,
         .C_PLUS_PLUS_FILE_ICON,

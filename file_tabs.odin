@@ -5,6 +5,60 @@ import "core:os"
 import "core:path/filepath"
 import "ui"
 
+renderEditorFileTabs :: proc() {
+    tabsHeight: i32 = 25
+    topOffset: i32 = 25 // TODO: calcualte it
+    leftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
+    
+    ui.pushCommand(&windowData.uiContext, ui.RectCommand{
+        rect = ui.toRect(
+            int2{ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, 
+            int2{ windowData.size.x - leftOffset, tabsHeight }),
+        bgColor = GRAY_COLOR,
+    })
+
+    tabItems := make([dynamic]ui.TabsItem)
+    defer delete(tabItems)
+
+    for &fileTab in windowData.fileTabs {
+        rightIcon: TextureId = .CLOSE_ICON
+        
+        if !fileTab.isSaved { rightIcon = .CIRCLE }
+
+        tab := ui.TabsItem{
+            text = fileTab.name,
+            leftIconId = i32(getIconByFilePath(fileTab.filePath)),
+            leftIconSize = { 16, 16 },
+            rightIconId = i32(rightIcon),
+        }
+
+        append(&tabItems, tab)
+    }
+
+    tabActions := ui.renderTabs(&windowData.uiContext, ui.Tabs{
+        position = { -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight },
+        activeTabIndex = &windowData.activeFileTab,
+        items = tabItems[:],
+        itemStyles = {
+            padding = { top = 2, bottom = 2, left = 2, right = 5 },
+            size = { 120, tabsHeight },
+        },
+        bgColor = GRAY_COLOR,
+    })
+
+    switch action in tabActions {
+    case ui.TabsSwitched:
+        windowData.wasFileTabChanged = true
+        switchInputContextToEditor()
+    case ui.TabsActionClose:
+        tryCloseFileTab(action.closedTabIndex)
+    case ui.TabsHot:
+        if .MIDDLE_WAS_UP in inputState.mouse {
+            tryCloseFileTab(action.index)
+        }
+    }
+}
+
 getActiveTab :: proc() -> ^FileTab {
     if len(windowData.fileTabs) == 0 { return nil }
 
