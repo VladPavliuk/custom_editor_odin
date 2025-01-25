@@ -56,6 +56,7 @@ FileTab :: struct {
     ctx: ^EditableTextContext,
     filePath: string, // path to actual file that mapped to the tab
     isSaved: bool,
+    isPinned: bool,
     lastUpdatedAt: i64, // UTC time
 }
 
@@ -91,7 +92,7 @@ WindowData :: struct {
     editableTextCtx: ^EditableTextContext,
 
     fileTabs: [dynamic]FileTab,
-    activeFileTab: i32,
+    activeTabIndex: int,
     wasFileTabChanged: bool,
 
     explorer: ^Explorer,

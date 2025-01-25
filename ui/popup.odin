@@ -13,13 +13,8 @@ beginPopup :: proc(ctx: ^Context, popup: Popup, customId: i32 = 0, loc := #calle
     assert(popup.isOpen != nil)
     if !popup.isOpen^ { return false }
 
-    position := popup.position
-    bgRect := toRect(position, popup.size) 
-
-    //> make sure that popup is on the screen
-    bgRect = clipRect(popup.clipRect, bgRect)
-    position, _ = fromRect(bgRect)  
-    //<
+    position, size := fitRectOnWindow(popup.position, popup.size, ctx)
+    bgRect := toRect(position, size)
 
     ctx.isAnyPopupOpened = popup.isOpen
 

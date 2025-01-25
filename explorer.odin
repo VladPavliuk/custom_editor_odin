@@ -151,6 +151,7 @@ renderFolderExplorer :: proc() {
 
     @(static)
     fileContextMenuPosition: int2 = {-1,-1}
+    fileContextMenuSize: int2 = { 130, 100 }
 
     // TODO: used only for setting focus to just selected item's action (like rename). that looks awful!
     @(static)
@@ -285,12 +286,16 @@ renderFolderExplorer :: proc() {
         if .RIGHT_CLICK in itemActions {
             showFileContextMenu = true
             fileContextMenuPosition = ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
+
+            //fileContextMenuPosition, _ := ui.fitRectOnWindow(fileContextMenuPosition, fileContextMenuSize, &windowData.uiContext)
+
             itemContextMenuIndex = itemIndex
         }
 
-        if .LOST_FOCUS in itemActions {
-            itemContextMenuIndex = -1
-        }
+        // TODO: LOST_FOCUS triggers to soon
+        // if .LOST_FOCUS in itemActions {
+        //     itemContextMenuIndex = -1
+        // }
         
         // ui.pushCommand(&windowData.uiContext, ui.ClipCommand{
         //     rect = itemRect,
@@ -386,7 +391,7 @@ renderFolderExplorer :: proc() {
     }
 
     if ui.beginPopup(&windowData.uiContext, ui.Popup{
-        position = fileContextMenuPosition, size = {130,100},
+        position = fileContextMenuPosition, size = fileContextMenuSize,
         bgColor = DARKER_GRAY_COLOR,
         isOpen = &showFileContextMenu,
         clipRect = ui.Rect{
@@ -492,7 +497,7 @@ renderFolderExplorer :: proc() {
             // tabIndex := getFileTabIndex(windowData.fileTabs[:], item.fullPath)
 
             // if tabIndex != -1 {
-            //     windowData.activeFileTab = tabIndex
+            //     windowData.activeTabIndex = tabIndex
             // }
 
             #partial switch showOsConfirmMessage("Edi the editor", fmt.tprintf("Do you really want to delete: \"%s\"?", item.name)) {

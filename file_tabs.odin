@@ -9,6 +9,17 @@ renderEditorFileTabs :: proc() {
     tabsHeight: i32 = 25
     topOffset: i32 = 25 // TODO: calcualte it
     leftOffset: i32 = windowData.explorer == nil ? 0 : windowData.explorerWidth // TODO: make it configurable
+
+    @(static)
+    showTabContextMenu := false
+
+    @(static)
+    tabIndexContextMenu: int = -1
+
+    @(static)
+    tabContextMenuPosition := int2{ 0, 0 }
+
+    tabContextMenuSize := int2{ 130, 100 }
     
     ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = ui.toRect(
@@ -24,6 +35,7 @@ renderEditorFileTabs :: proc() {
         rightIcon: TextureId = .CLOSE_ICON
         
         if !fileTab.isSaved { rightIcon = .CIRCLE }
+        if fileTab.isPinned { rightIcon = .PIN }
 
         tab := ui.TabsItem{
             text = fileTab.name,
@@ -37,7 +49,7 @@ renderEditorFileTabs :: proc() {
 
     tabActions := ui.renderTabs(&windowData.uiContext, ui.Tabs{
         position = { -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight },
-        activeTabIndex = &windowData.activeFileTab,
+        activeTabIndex = &windowData.activeTabIndex,
         items = tabItems[:],
         itemStyles = {
             padding = { top = 2, bottom = 2, left = 2, right = 5 },
@@ -51,18 +63,80 @@ renderEditorFileTabs :: proc() {
         windowData.wasFileTabChanged = true
         switchInputContextToEditor()
     case ui.TabsActionClose:
-        tryCloseFileTab(action.closedTabIndex)
-    case ui.TabsHot:
-        if .MIDDLE_WAS_UP in inputState.mouse {
-            tryCloseFileTab(action.index)
+        tab := &windowData.fileTabs[action.itemIndex]
+
+        if tab.isPinned {
+            toggleTabPin(action.itemIndex)
+        } else {
+            tryCloseFileTab(action.itemIndex)
         }
+    case ui.TabsHot:
+        switch inputState.mouse {
+        case { .MIDDLE_WAS_UP }: tryCloseFileTab(action.itemIndex)
+        case { .RIGHT_WAS_UP }:
+            tabContextMenuPosition = ui.screenToDirectXCoords(inputState.mousePosition, &windowData.uiContext)
+            tabIndexContextMenu = action.itemIndex
+            showTabContextMenu = true
+        }
+    }
+
+    if ui.beginPopup(&windowData.uiContext, ui.Popup{
+        position = tabContextMenuPosition, size = tabContextMenuSize,
+        bgColor = DARKER_GRAY_COLOR,
+        isOpen = &showTabContextMenu,
+        clipRect = ui.Rect{
+            top = windowData.size.y / 2 - 25, // TODO: remove hardcoded value
+            bottom = -windowData.size.y / 2,
+            right = windowData.size.x / 2,
+            left = -windowData.size.x / 2,
+        },
+    }) {
+        defer ui.endPopup(&windowData.uiContext)
+
+        tabToPin := &windowData.fileTabs[tabIndexContextMenu]
+
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            text = tabToPin.isPinned ? "Unpin tab" : "Pin tab",
+            position = { 0, 0 },
+            size = { 130, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            showTabContextMenu = false
+
+            toggleTabPin(tabIndexContextMenu)
+        }
+    }
+}
+
+toggleTabPin :: proc(tabIndex: int) {
+    // todo: what if that tab is gone??
+    tmpTab := windowData.fileTabs[tabIndex]
+    tmpTab.isPinned = !tmpTab.isPinned
+
+    ordered_remove(&windowData.fileTabs, tabIndex)
+
+    // find last pinned tab index
+    lastPinnedIndex := -1
+    for tab, index in windowData.fileTabs {
+        if !tab.isPinned { break }
+        lastPinnedIndex = index
+    }
+    lastPinnedIndex += 1 // we should insert right after the last pinned tab
+
+    inject_at(&windowData.fileTabs, lastPinnedIndex, tmpTab)
+
+    if windowData.activeTabIndex == tabIndex {
+        windowData.activeTabIndex = lastPinnedIndex
+    } else if tabIndex > windowData.activeTabIndex {
+        windowData.activeTabIndex += 1
     }
 }
 
 getActiveTab :: proc() -> ^FileTab {
     if len(windowData.fileTabs) == 0 { return nil }
 
-    return &windowData.fileTabs[windowData.activeFileTab]
+    return &windowData.fileTabs[windowData.activeTabIndex]
 }
 
 getActiveTabContext :: proc() -> ^EditableTextContext {
@@ -92,7 +166,7 @@ addTab :: proc(title: string, filePath := "", text := "", lastUpdatedAt: i64 = 0
     }
     append(&windowData.fileTabs, tab)
 
-    windowData.activeFileTab = i32(len(windowData.fileTabs) - 1) // switch to new tab
+    windowData.activeTabIndex = len(windowData.fileTabs) - 1 // switch to new tab
     windowData.wasFileTabChanged = true
 
     switchInputContextToEditor()
@@ -109,16 +183,16 @@ loadFileIntoNewTab :: proc(filePath: string) {
     fileText := loadTextFile(filePath)
 
     // find if any tab is already associated with opened file
-    tabIndex: i32 = -1
+    tabIndex := -1
     for tab, index in windowData.fileTabs {
         if tab.filePath == filePath {
-            tabIndex = i32(index)
+            tabIndex = index
             break
         }
     }
 
     if tabIndex != -1 {
-        windowData.activeFileTab = tabIndex
+        windowData.activeTabIndex = tabIndex
         windowData.wasFileTabChanged = true
         switchInputContextToEditor()
         return
@@ -134,18 +208,16 @@ loadFileIntoNewTab :: proc(filePath: string) {
     //         filePath = strings.clone(filePath),
     //         isSaved = true,
     //         lastUpdatedAt = getCurrentUnixTime(),
-    //     }, windowData.activeFileTab)
+    //     }, windowData.activeTabIndex)
     //     return
     // }
 
     addTab(strings.clone(filepath.base(filePath)), strings.clone(filePath), fileText, getCurrentUnixTime())
 }
 
-getFileTabIndex :: proc(tabs: []FileTab, filePath: string) -> i32 {
+getFileTabIndex :: proc(tabs: []FileTab, filePath: string) -> int {
     for tab, index in tabs {
-        if tab.filePath == filePath {
-            return i32(index)
-        }
+        if tab.filePath == filePath { return index }
     }
 
     return -1
@@ -168,13 +240,13 @@ replaceTabInfoByIndex :: proc(tab: FileTab, index: i32) {
 }
 
 moveToNextTab :: proc() {
-    windowData.activeFileTab = (windowData.activeFileTab + 1) % i32(len(windowData.fileTabs))
+    windowData.activeTabIndex = (windowData.activeTabIndex + 1) % len(windowData.fileTabs)
     windowData.wasFileTabChanged = true
     switchInputContextToEditor()
 }
 
 moveToPrevTab :: proc() {
-    windowData.activeFileTab = windowData.activeFileTab == 0 ? i32(len(windowData.fileTabs) - 1) : windowData.activeFileTab - 1
+    windowData.activeTabIndex = windowData.activeTabIndex == 0 ? len(windowData.fileTabs) - 1 : windowData.activeTabIndex - 1
     windowData.wasFileTabChanged = true
 
     switchInputContextToEditor()
@@ -222,7 +294,7 @@ wasFileModifiedExternally :: proc(tab: ^FileTab) {
     }
 }
 
-tryCloseFileTab :: proc(index: i32, force := false) {
+tryCloseFileTab :: proc(index: int, force := false) {
     tab := &windowData.fileTabs[index]
 
     // if there's any unsaved changes, show confirmation box
@@ -239,7 +311,7 @@ tryCloseFileTab :: proc(index: i32, force := false) {
     delete(tab.filePath)
     
     ordered_remove(&windowData.fileTabs, index)
-    windowData.activeFileTab = index == 0 ? index : index - 1
+    windowData.activeTabIndex = index == 0 ? index : index - 1
     windowData.wasFileTabChanged = true
 
     // if len(windowData.fileTabs) == 0 {

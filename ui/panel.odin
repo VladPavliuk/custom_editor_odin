@@ -25,14 +25,7 @@ beginPanel :: proc(ctx: ^Context, panel: Panel, open: ^bool, customId: i32 = 0, 
     }
 
     //> make sure that panel is on the screen
-    windowRect := Rect{
-        top = ctx.clientSize.y / 2,
-        bottom = -ctx.clientSize.y / 2,
-        right = ctx.clientSize.x / 2,
-        left = -ctx.clientSize.x / 2,
-    }
-
-    panelRect = clipRect(windowRect, panelRect)    
+    panelRect = fitRectOnWindow(panelRect, ctx)
     panel.position^, _ = fromRect(panelRect)
     //<
 
@@ -89,12 +82,7 @@ beginPanel :: proc(ctx: ^Context, panel: Panel, open: ^bool, customId: i32 = 0, 
         panel.position.x += ctx.deltaMousePosition.x
         panel.position.y -= ctx.deltaMousePosition.y
 
-        panelRect = toRect(panel.position^, panel.size^)
-
-        panelRect = clipRect(windowRect, panelRect)
-        position, _ := fromRect(panelRect)
-
-        panel.position^ = position
+        panel.position^, _ = fitRectOnWindow(panel.position^, panel.size^, ctx)
     }
 
     append(&ctx.parentPositionsStack, panel.position^)

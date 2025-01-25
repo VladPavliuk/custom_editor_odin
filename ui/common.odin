@@ -100,6 +100,46 @@ shrinkRect :: proc(using rect: Rect, amount: i32) -> Rect {
     }
 }
 
+fitChildRect :: proc(child, parent: Rect) -> Rect {
+    childPosition, childSize := fromRect(child)
+    parentPosition, parentSize := fromRect(parent)
+    assert(childSize.x > 0 && childSize.y > 0 && parentSize.x > 0 && parentSize.y > 0)
+    assert(parentSize.y >= childSize.y && parentSize.y >= childSize.y)
+
+    childPosition.x -= max(0, child.right - parent.right)
+    childPosition.x += max(0, parent.left - child.left)
+
+    childPosition.y -= max(0, child.top - parent.top)
+    childPosition.y += max(0, parent.bottom - child.bottom)
+
+    return toRect(childPosition, childSize)
+}
+
+fitRectOnWindow :: proc{fitRectOnWindow_Rect, fitRectOnWindow_Pos_Size}
+
+fitRectOnWindow_Rect :: proc(rect: Rect, ctx: ^Context) -> Rect {
+    windowRect := Rect{
+        top = ctx.clientSize.y / 2,
+        bottom = -ctx.clientSize.y / 2,
+        right = ctx.clientSize.x / 2,
+        left = -ctx.clientSize.x / 2,
+    }
+
+    return fitChildRect(rect, windowRect)    
+}
+
+fitRectOnWindow_Pos_Size :: proc(position: int2, size: int2, ctx: ^Context) -> (int2, int2) {
+    windowRect := Rect{
+        top = ctx.clientSize.y / 2,
+        bottom = -ctx.clientSize.y / 2,
+        right = ctx.clientSize.x / 2,
+        left = -ctx.clientSize.x / 2,
+    }
+
+    rect := fitChildRect(toRect(position, size), windowRect)    
+    return fromRect(rect)
+}
+
 clipRect :: proc{clipRect_Int, clipRect_Float}
 
 clipRect_Int :: proc(a, b: Rect) -> Rect {

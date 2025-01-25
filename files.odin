@@ -183,6 +183,7 @@ SavedFileTab :: struct {
     name: string,
     filePath: string,
     isSaved: bool,
+    isPinned: bool,
     lastUpdatedAt: i64,
     text: string,
     textSelection: [2]int,
@@ -191,7 +192,7 @@ SavedFileTab :: struct {
 
 EditorState :: struct {
     fileTabs: [dynamic]SavedFileTab,
-    activeTabIndex: i32,
+    activeTabIndex: int,
     openedFolder: string,
 }
 
@@ -203,7 +204,7 @@ saveEditorState :: proc() {
         state.openedFolder = windowData.explorer.rootPath
     }
 
-    state.activeTabIndex = windowData.activeFileTab
+    state.activeTabIndex = windowData.activeTabIndex
 
     // TODO: save only text copies of files that are relativelly small (less then 2k symbols)
     for tab in windowData.fileTabs {
@@ -211,6 +212,7 @@ saveEditorState :: proc() {
             name = tab.name,
             filePath = tab.filePath,
             isSaved = tab.isSaved,
+            isPinned = tab.isPinned,
             lastUpdatedAt = tab.lastUpdatedAt,
             text = strings.to_string(tab.ctx.text),
             textSelection = tab.ctx.editorState.selection,
@@ -250,6 +252,7 @@ applyEditorState :: proc() -> bool {
             ctx = ctx,
             filePath = strings.clone(tab.filePath),
             isSaved = tab.isSaved,
+            isPinned = tab.isPinned,
             lastUpdatedAt = tab.lastUpdatedAt,
         })
         // delete(tab.text)
@@ -260,7 +263,7 @@ applyEditorState :: proc() -> bool {
         showExplorer(strings.clone(state.openedFolder))
     }
 
-    windowData.activeFileTab = state.activeTabIndex
+    windowData.activeTabIndex = state.activeTabIndex
 
     return true
 }

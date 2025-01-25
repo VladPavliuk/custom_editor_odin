@@ -18,6 +18,7 @@ TextureId :: enum {
     NONE,
     FONT,
     CIRCLE,
+    PIN,
     ICONS_ARRAY,
     
     CLOSE_ICON,
@@ -187,6 +188,7 @@ loadTextures :: proc() {
         .CLOSE_ICON = #load("./resources/images/close_icon.png"),
         .CHECK_ICON = #load("./resources/images/check_icon.png"),
         .CIRCLE = #load("./resources/images/circle.png"),
+        .PIN = #load("./resources/images/pin_icon.png"),
         .TXT_FILE_ICON = #load("./resources/images/txt_file_icon.png"),
         .C_FILE_ICON = #load("./resources/images/c_file_icon.png"),
         .C_PLUS_PLUS_FILE_ICON = #load("./resources/images/c_plus_plus_file_icon.png"),
@@ -210,6 +212,7 @@ loadTextures :: proc() {
         .CLOSE_ICON,
         .CHECK_ICON,
         .CIRCLE,
+        .PIN,
         .TXT_FILE_ICON,
         .C_FILE_ICON,
         .C_PLUS_PLUS_FILE_ICON,

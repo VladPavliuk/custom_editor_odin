@@ -14,22 +14,22 @@ TabsItemStyles :: struct {
 
 Tabs :: struct {
     position: [2]i32,
-    activeTabIndex: ^i32,
+    activeTabIndex: ^int,
     items: []TabsItem,
     itemStyles: TabsItemStyles,
     bgColor, hoverBgColor, activeColor: [4]f32,
 }
 
 TabsActionClose :: struct {
-    closedTabIndex: i32,
+    itemIndex: int,
 }
 
 TabsHot :: struct {
-    index: i32,
+    itemIndex: int,
 }
 
 TabsSwitched :: struct {
-    index: i32,
+    itemIndex: int,
 }
 
 TabsActions :: union {TabsSwitched, TabsHot, TabsActionClose}
@@ -55,7 +55,7 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
 
         bgColor := tabs.bgColor
 
-        if tabs.activeTabIndex^ == i32(index) {
+        if tabs.activeTabIndex^ == index {
             bgColor = getDarkerColor(bgColor)
         } else {
             if .HOT in itemActions { bgColor = getOrDefaultColor(tabs.hoverBgColor, getDarkerColor(bgColor)) }
@@ -63,12 +63,12 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
         }
 
         if .HOT in itemActions { 
-            tabsActions = TabsHot{ index = i32(index) }
+            tabsActions = TabsHot{ itemIndex = index }
         }
 
         if .SUBMIT in itemActions {
-            tabsActions = TabsSwitched{ index = i32(index) } 
-            tabs.activeTabIndex^ = i32(index)
+            tabsActions = TabsSwitched{ itemIndex = index } 
+            tabs.activeTabIndex^ = index
         }
         
         pushCommand(ctx, RectCommand{
@@ -103,6 +103,7 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
         })
         // pushCommand(ctx, ResetClipCommand{})
 
+        // right icon
         if item.rightIconId != 0 {
             iconWidth = 20
             iconRightPadding = 3
@@ -113,13 +114,11 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
                 position = iconPosition,
                 size = { iconWidth, iconWidth },
                 textureId = item.rightIconId,
-                texturePadding = 4,
+                texturePadding = 2,
                 bgColor = bgColor,
                 noBorder = true,
             }, customId, loc) {
-                tabsActions = TabsActionClose{
-                    closedTabIndex = i32(index),
-                }
+                tabsActions = TabsActionClose{ itemIndex = index }
             }
         }
 
