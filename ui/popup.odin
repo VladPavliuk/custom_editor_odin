@@ -13,7 +13,17 @@ beginPopup :: proc(ctx: ^Context, popup: Popup, customId: i32 = 0, loc := #calle
     assert(popup.isOpen != nil)
     if !popup.isOpen^ { return false }
 
-    position, size := fitRectOnWindow(popup.position, popup.size, ctx)
+    // treat posion as top-left instead of bottom-left as usual
+    position := popup.position
+    size := popup.size
+    position.y -= size.y
+
+    // TODO: Maybe it shouldn't be here?
+    // add some offset from starting point
+    position.x += 5
+    position.y += 10
+
+    position, size = fitRectOnWindow(position, size, ctx)
     bgRect := toRect(position, size)
 
     ctx.isAnyPopupOpened = popup.isOpen

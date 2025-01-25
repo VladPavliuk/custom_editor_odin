@@ -325,13 +325,14 @@ renderFolderExplorer :: proc() {
             maxWidth = ui.getRectSize(itemRect).x - iconSize - 5 - leftOffset,
         })
 
-        if itemContextMenuIndex == itemIndex {
-            ui.pushCommand(&windowData.uiContext, ui.BorderRectCommand{
-                rect = ui.toRect(int2{ position.x + leftOffset, position.y }, int2{ maxWidthItem, itemHeight }),
-                color = RED_COLOR,
-                thikness = 1,
-            })
-        }
+        // TODO: fix it
+        // if itemContextMenuIndex == itemIndex {
+        //     ui.pushCommand(&windowData.uiContext, ui.BorderRectCommand{
+        //         rect = ui.toRect(int2{ position.x + leftOffset, position.y }, int2{ maxWidthItem, itemHeight }),
+        //         color = RED_COLOR,
+        //         thikness = 1,
+        //     })
+        // }
         // ui.pushCommand(&windowData.uiContext, ui.ResetClipCommand{})
     }
     // ui.advanceZIndex(&windowData.uiContext) // there's no need to update zIndex multiple times per explorer item, so we do it once

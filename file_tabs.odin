@@ -19,7 +19,7 @@ renderEditorFileTabs :: proc() {
     @(static)
     tabContextMenuPosition := int2{ 0, 0 }
 
-    tabContextMenuSize := int2{ 130, 100 }
+    tabContextMenuSize := int2{ 130, 125 }
     
     ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = ui.toRect(
@@ -106,6 +106,63 @@ renderEditorFileTabs :: proc() {
 
             toggleTabPin(tabIndexContextMenu)
         }
+
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            text = "Close all",
+            position = { 0, 25 },
+            size = { 130, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            #reverse for fileTab, index in windowData.fileTabs {
+                if !tryCloseFileTab(index) { break }
+            }
+            showTabContextMenu = false
+        }
+
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            text = "Close to the right",
+            position = { 0, 50 },
+            size = { 130, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            #reverse for fileTab, index in windowData.fileTabs {
+                if tabIndexContextMenu >= index { break }
+                if !tryCloseFileTab(index) { break }
+            }
+
+            showTabContextMenu = false
+        }
+
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            text = "Close others",
+            position = { 0, 75 },
+            size = { 130, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            // do it in reverse to keep indices
+            #reverse for fileTab, index in windowData.fileTabs {
+                if tabIndexContextMenu != index {
+                    if !tryCloseFileTab(index) {
+                        break
+                    }
+                }
+            }
+            showTabContextMenu = false
+        }
+
+        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            text = "Close",
+            position = { 0, 100 },
+            size = { 130, 25 },
+            noBorder = true,
+            hoverBgColor = THEME_COLOR_1,
+        }) {
+            tryCloseFileTab(tabIndexContextMenu)
+            showTabContextMenu = false
+        }
     }
 }
 
@@ -126,10 +183,15 @@ toggleTabPin :: proc(tabIndex: int) {
 
     inject_at(&windowData.fileTabs, lastPinnedIndex, tmpTab)
 
+    //adjust active tab index
     if windowData.activeTabIndex == tabIndex {
         windowData.activeTabIndex = lastPinnedIndex
-    } else if tabIndex > windowData.activeTabIndex {
-        windowData.activeTabIndex += 1
+    } else {
+        if windowData.activeTabIndex >= lastPinnedIndex && tabIndex > windowData.activeTabIndex {
+            windowData.activeTabIndex += 1
+        } else if windowData.activeTabIndex <= lastPinnedIndex && tabIndex < windowData.activeTabIndex {
+            windowData.activeTabIndex -= 1
+        }
     }
 }
 
@@ -294,7 +356,7 @@ wasFileModifiedExternally :: proc(tab: ^FileTab) {
     }
 }
 
-tryCloseFileTab :: proc(index: int, force := false) {
+tryCloseFileTab :: proc(index: int, force := false) -> (wasClosed: bool) {
     tab := &windowData.fileTabs[index]
 
     // if there's any unsaved changes, show confirmation box
@@ -302,7 +364,7 @@ tryCloseFileTab :: proc(index: int, force := false) {
         switch showOsConfirmMessage("Edi the editor", "Do you want to save the changes?") {
         case .YES: saveToOpenedFile(tab)
         case .NO:
-        case .CANCEL, .CLOSE_WINDOW: return    
+        case .CANCEL, .CLOSE_WINDOW: return false
         }
     }
 
@@ -311,7 +373,10 @@ tryCloseFileTab :: proc(index: int, force := false) {
     delete(tab.filePath)
     
     ordered_remove(&windowData.fileTabs, index)
-    windowData.activeTabIndex = index == 0 ? index : index - 1
+    if index <= windowData.activeTabIndex {
+        windowData.activeTabIndex -= 1
+        windowData.activeTabIndex = max(0, windowData.activeTabIndex) // if active tab if on the left it will be -1 without it
+    }
     windowData.wasFileTabChanged = true
 
     // if len(windowData.fileTabs) == 0 {
@@ -319,4 +384,6 @@ tryCloseFileTab :: proc(index: int, force := false) {
     // }
 
     switchInputContextToEditor()
+
+    return true
 }
