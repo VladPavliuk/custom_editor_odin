@@ -103,7 +103,7 @@ render :: proc() {
 // }
 
 testingButtons :: proc() {
-    if action := ui.renderButton(&windowData.uiContext, ui.TextButton{
+    if action, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
         text = "Test 1",
         position = { 0, 0 },
         size = { 100, 30 },
@@ -126,7 +126,7 @@ testingButtons :: proc() {
         fmt.print('\n')
     }
 
-    if action := ui.renderButton(&windowData.uiContext, ui.TextButton{
+    if action, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
         text = "Test 2",
         position = { 40, 10 },
         size = { 100, 30 },

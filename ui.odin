@@ -117,12 +117,12 @@ renderTopMenu :: proc() {
     { // Settings menu
         @(static)
         showSettings := false
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Settings",
             position = topItemPosition, size = { 100, fileMenuHeight },
             bgColor = DARKER_GRAY_COLOR,
             noBorder = true,
-        }) {
+        }); .SUBMIT in actions {
             showSettings = !showSettings
         }
 
@@ -155,13 +155,13 @@ renderTopMenu :: proc() {
                 bgColor = LIGHT_GRAY_COLOR,
             })
 
-            if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
                 text = "Load Font",
                 position = { 0, 190 },
                 size = { 100, 30 },
                 bgColor = THEME_COLOR_1,
                 disabled = strings.builder_len(windowData.uiTextInputCtx.text) == 0,
-            }) {
+            }); .SUBMIT in actions {
                 // try load font
                 fontPath := strings.to_string(windowData.uiTextInputCtx.text)
 
@@ -267,13 +267,13 @@ renderTopMenu :: proc() {
                 bgColor = LIGHT_GRAY_COLOR,
             })
 
-            if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+            if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
                 text = "Run",
                 position = { 0, 10 },
                 size = { 100, 30 },
                 bgColor = THEME_COLOR_1,
                 //disabled = strings.builder_len(windowData.uiTextInputCtx.text) == 0,
-            }) {                
+            }); .SUBMIT in actions {
                 exePath := strings.to_string(windowData.uiTextInputCtx.text)
 
                 if os.exists(exePath) {
@@ -294,36 +294,36 @@ renderTopMenu :: proc() {
 }
 
 renderDebugger :: proc() {
-    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+    if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
         text = "Continue",
         position = { 0, 300 },
         size = { 100, 25 },
         noBorder = true,
         bgColor = THEME_COLOR_2,
         hoverBgColor = THEME_COLOR_1,
-    }) {
+    }); .SUBMIT in actions {
         windowData.debuggerCommand = .CONTINUE
     }
 
-    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+    if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
         text = "Step",
         position = { 130, 300 },
         size = { 100, 25 },
         noBorder = true,
         bgColor = THEME_COLOR_2,
         hoverBgColor = THEME_COLOR_1,
-    }) {
+    }); .SUBMIT in actions {
         windowData.debuggerCommand = .STEP
     }
 
-    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+    if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
         text = "Read",
         position = { 260, 300 },
         size = { 100, 25 },
         noBorder = true,
         bgColor = THEME_COLOR_2,
         hoverBgColor = THEME_COLOR_1,
-    }) {
+    }) ; .SUBMIT in actions {
         windowData.debuggerCommand = .READ
     }
 }

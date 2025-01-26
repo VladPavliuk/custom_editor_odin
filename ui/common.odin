@@ -1,5 +1,9 @@
 package ui
 
+import "core:fmt"
+fmt :: fmt
+print :: fmt.println
+
 int2 :: [2]i32
 int3 :: [3]i32
 int4 :: [4]i32

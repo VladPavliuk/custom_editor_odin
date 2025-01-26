@@ -47,7 +47,7 @@ renderDropdown :: proc(ctx: ^Context, dropdown: Dropdown, customId: i32 = 0, loc
         text = dropdown.items[dropdown.selectedItemIndex].text
     }
 
-    buttonActions := renderButton(ctx, TextButton{
+    buttonActions, _ := renderButton(ctx, TextButton{
         text = text,
         position = dropdown.position,
         size = dropdown.size,

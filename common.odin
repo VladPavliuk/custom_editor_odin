@@ -4,8 +4,9 @@ import "core:time"
 import "core:math"
 
 // just to simplify debuging
-import fmt "core:fmt"
+import "core:fmt"
 fmt :: fmt
+print :: fmt.println
 
 int2 :: [2]i32
 int3 :: [3]i32

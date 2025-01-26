@@ -89,34 +89,35 @@ renderFolderExplorer :: proc() {
     // explorer action buttons
     // collapse button
     activeTab := getActiveTab()
-    if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
+    if actions, _ := ui.renderButton(&windowData.uiContext, ui.ImageButton{
         position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth, headerPosition.y },
         size = { explorerHeaderHeight, explorerHeaderHeight },
         textureId = i32(TextureId.COLLAPSE_FILES_ICON),
         texturePadding = 4,
         hoverBgColor = ui.getDarkerColor(GRAY_COLOR),
-    }) {
+    }); .SUBMIT in actions {
         collapseExplorer(windowData.explorer)
     }
 
     // jump to current file button
-    if activeTab != nil && 
-        .SUBMIT in ui.renderButton(&windowData.uiContext, ui.ImageButton{
-        position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
-        size = { explorerHeaderHeight, explorerHeaderHeight },
-        textureId = i32(TextureId.JUMP_TO_CURRENT_FILE_ICON),
-        texturePadding = 4,
-        hoverBgColor = ui.getDarkerColor(GRAY_COLOR),
-    }) {
-        if expandExplorerToFile(windowData.explorer, activeTab.filePath) {
-            itemIndex := getIndexInFlatenItemsByFilePath(activeTab.filePath, &windowData.explorer.items)
+    if activeTab != nil {
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.ImageButton{
+            position = { headerPosition.x + windowData.explorerWidth - explorerButtonsWidth + explorerHeaderHeight, headerPosition.y },
+            size = { explorerHeaderHeight, explorerHeaderHeight },
+            textureId = i32(TextureId.JUMP_TO_CURRENT_FILE_ICON),
+            texturePadding = 4,
+            hoverBgColor = ui.getDarkerColor(GRAY_COLOR),
+        }); .SUBMIT in actions {
+            if expandExplorerToFile(windowData.explorer, activeTab.filePath) {
+                itemIndex := getIndexInFlatenItemsByFilePath(activeTab.filePath, &windowData.explorer.items)
 
-            if itemIndex < topItemIndex {
-                topItemIndex = itemIndex
-            } else if itemIndex >= topItemIndex + maxItemsOnScreen {
-                topItemIndex = itemIndex - maxItemsOnScreen + 1
+                if itemIndex < topItemIndex {
+                    topItemIndex = itemIndex
+                } else if itemIndex >= topItemIndex + maxItemsOnScreen {
+                    topItemIndex = itemIndex - maxItemsOnScreen + 1
+                }
             }
-        }
+        }   
     }
 
     position: int2 = {
@@ -404,13 +405,13 @@ renderFolderExplorer :: proc() {
     }) {
         defer ui.endPopup(&windowData.uiContext)
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "New file",
             position = { 0, 75 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             item := openedItems[itemContextMenuIndex]
             showFileContextMenu = false
 
@@ -454,25 +455,25 @@ renderFolderExplorer :: proc() {
         //     showFileContextMenu = false
         // }
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Rename",
             position = { 0, 50 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             renameItemIndex = itemContextMenuIndex
             showFileContextMenu = false
             fileContextMenuJustOpened = true
         }
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Open In Folder",
             position = { 0, 25 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             item := openedItems[itemContextMenuIndex]
 
             pidl := win32.ILCreateFromPathW(win32.utf8_to_wstring(item.fullPath))
@@ -485,13 +486,13 @@ renderFolderExplorer :: proc() {
             showFileContextMenu = false
         }
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Delete",
             position = { 0, 0 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             item := openedItems[itemContextMenuIndex]
 
             // TODO: add switching to tab, if file is about to be deleted (now the ui thread is blocked by win message)

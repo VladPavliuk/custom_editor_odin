@@ -20,6 +20,9 @@ renderEditorFileTabs :: proc() {
     tabContextMenuPosition := int2{ 0, 0 }
 
     tabContextMenuSize := int2{ 130, 125 }
+
+    @(static)
+    leftSkipOffset := 0
     
     ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = ui.toRect(
@@ -49,12 +52,14 @@ renderEditorFileTabs :: proc() {
 
     tabActions := ui.renderTabs(&windowData.uiContext, ui.Tabs{
         position = { -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight },
+        width = int(windowData.size.x - leftOffset),
         activeTabIndex = &windowData.activeTabIndex,
         items = tabItems[:],
         itemStyles = {
             padding = { top = 2, bottom = 2, left = 2, right = 5 },
             size = { 120, tabsHeight },
         },
+        leftSkipOffset = &leftSkipOffset,
         bgColor = GRAY_COLOR,
     })
 
@@ -95,38 +100,38 @@ renderEditorFileTabs :: proc() {
 
         tabToPin := &windowData.fileTabs[tabIndexContextMenu]
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = tabToPin.isPinned ? "Unpin tab" : "Pin tab",
             position = { 0, 0 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             showTabContextMenu = false
 
             toggleTabPin(tabIndexContextMenu)
         }
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Close all",
             position = { 0, 25 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             #reverse for fileTab, index in windowData.fileTabs {
                 if !tryCloseFileTab(index) { break }
             }
             showTabContextMenu = false
         }
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Close to the right",
             position = { 0, 50 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             #reverse for fileTab, index in windowData.fileTabs {
                 if tabIndexContextMenu >= index { break }
                 if !tryCloseFileTab(index) { break }
@@ -135,13 +140,13 @@ renderEditorFileTabs :: proc() {
             showTabContextMenu = false
         }
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Close others",
             position = { 0, 75 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             // do it in reverse to keep indices
             #reverse for fileTab, index in windowData.fileTabs {
                 if tabIndexContextMenu != index {
@@ -153,13 +158,13 @@ renderEditorFileTabs :: proc() {
             showTabContextMenu = false
         }
 
-        if .SUBMIT in ui.renderButton(&windowData.uiContext, ui.TextButton{
+        if actions, _ := ui.renderButton(&windowData.uiContext, ui.TextButton{
             text = "Close",
             position = { 0, 100 },
             size = { 130, 25 },
             noBorder = true,
             hoverBgColor = THEME_COLOR_1,
-        }) {
+        }); .SUBMIT in actions {
             tryCloseFileTab(tabIndexContextMenu)
             showTabContextMenu = false
         }

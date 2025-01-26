@@ -1830,11 +1830,8 @@ Flourish. [Enter King and Queen, Rosencrantz and Guildenstern, cum aliis.
     As he is very potent with such spirits,
     Abuses me to damn me. I'll have grounds
     More relative than this. The play's the thing
-    Wherein I'll catch the conscience of the King.         Exit.
-
-
-
-
+    Wherein I'll catch the conscience of the King.
+    
 
 ACT III. Scene I.
 Elsinore. A room in the Castle.

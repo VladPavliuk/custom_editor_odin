@@ -113,7 +113,7 @@ renderActiveAlert :: proc(ctx: ^Context, customId: i32 = 0, loc := #caller_locat
     customId += 1
     closeBgColor := alert.bgColor
     closeBgColor.a = 0.0
-    closeButtonActions := renderButton(ctx, ImageButton{
+    closeButtonActions, _ := renderButton(ctx, ImageButton{
         position = { alertRect.right - closeButtonSize - closeButtonPadding, alertRect.bottom + closeButtonPadding },
         size = { closeButtonSize, closeButtonSize },
         bgColor = closeBgColor,

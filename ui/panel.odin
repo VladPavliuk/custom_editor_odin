@@ -59,14 +59,16 @@ beginPanel :: proc(ctx: ^Context, panel: Panel, open: ^bool, customId: i32 = 0, 
     // panel close button
     customId += 1
     closeButtonSize := headerRect.top - headerRect.bottom
-    if .SUBMIT in renderButton(ctx, ImageButton{
+    closeButtonsActions, _ := renderButton(ctx, ImageButton{
         position = { headerRect.right - closeButtonSize, headerRect.bottom },
         size = { closeButtonSize, closeButtonSize },
         bgColor = headerBgColor,
         textureId = ctx.closeIconId,
         texturePadding = 2,
         noBorder = true,
-    }, customId, loc) {
+    }, customId, loc)
+    
+    if .SUBMIT in closeButtonsActions {
         open^ = false
     }
 

@@ -231,7 +231,7 @@ handle_WM_KEYDOWN :: proc(lParam: win32.LPARAM, wParam: win32.WPARAM) {
     editorCtx := windowData.editableTextCtx
     switch wParam {
     case win32.VK_RETURN:
-        if editorCtx.disableNewLines { break }
+        if editorCtx == nil || editorCtx.disableNewLines { break }
         
         // NOTE: if there's any whitespace at the beginning of the line, copy it to the new line
         lineStart := editorCtx.editorState.line_start

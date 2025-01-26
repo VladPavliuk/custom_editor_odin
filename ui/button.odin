@@ -12,10 +12,10 @@ Button :: struct {
 renderButton :: proc{renderTextButton, renderImageButton}
 
 @(private="file")
-renderButton_Base :: proc(ctx: ^Context, button: Button, customId: i32 = 0, loc := #caller_location) -> Actions {
-    Id := getId(customId, loc)
+renderButton_Base :: proc(ctx: ^Context, button: Button, customId: i32 = 0, loc := #caller_location) -> (Actions, Id) {
+    id := getId(customId, loc)
     position := button.position + getAbsolutePosition(ctx)
-    pushElement(ctx, Id)
+    pushElement(ctx, id)
 
     uiRect := toRect(position, button.size)
 
@@ -23,10 +23,10 @@ renderButton_Base :: proc(ctx: ^Context, button: Button, customId: i32 = 0, loc 
     if !button.disabled {
         bgColor = button.bgColor
 
-        if ctx.hotId == Id { 
+        if ctx.hotId == id { 
             bgColor = button.hoverBgColor.a != 0.0 ? button.hoverBgColor : getDarkerColor(bgColor) 
             
-            if ctx.activeId == Id { 
+            if ctx.activeId == id { 
                 bgColor = getDarkerColor(bgColor) 
             }
         }
@@ -42,12 +42,12 @@ renderButton_Base :: proc(ctx: ^Context, button: Button, customId: i32 = 0, loc 
     if !button.noBorder {
         pushCommand(ctx, BorderRectCommand{
             rect = uiRect,
-            color = ctx.activeId == Id ? DARKER_GRAY_COLOR : GRAY_COLOR,
+            color = ctx.activeId == id ? DARKER_GRAY_COLOR : GRAY_COLOR,
             thikness = 1,
         })
     }
 
-    return button.disabled ? {} : checkUiState(ctx, Id, uiRect, button.ignoreFocusUpdate)
+    return button.disabled ? {} : checkUiState(ctx, id, uiRect, button.ignoreFocusUpdate), id
 }
 
 TextButton :: struct {
@@ -57,8 +57,8 @@ TextButton :: struct {
 }
 
 @(private="file")
-renderTextButton :: proc(ctx: ^Context, button: TextButton, customId: i32 = 0, loc := #caller_location) -> Actions {
-    actions := renderButton_Base(ctx, button.base, customId, loc)
+renderTextButton :: proc(ctx: ^Context, button: TextButton, customId: i32 = 0, loc := #caller_location) -> (Actions, Id) {
+    actions, id := renderButton_Base(ctx, button.base, customId, loc)
 
     position := button.position + getAbsolutePosition(ctx)
 
@@ -83,7 +83,7 @@ renderTextButton :: proc(ctx: ^Context, button: TextButton, customId: i32 = 0, l
     })
     // pushCommand(ctx, ResetClipCommand{})
 
-    return actions
+    return actions, id
 }
 
 ImageButton :: struct {
@@ -93,8 +93,8 @@ ImageButton :: struct {
 } 
 
 @(private="file")
-renderImageButton :: proc(ctx: ^Context, button: ImageButton, customId: i32 = 0, loc := #caller_location) -> Actions {
-    actions := renderButton_Base(ctx, button.base, customId, loc)
+renderImageButton :: proc(ctx: ^Context, button: ImageButton, customId: i32 = 0, loc := #caller_location) -> (Actions, Id) {
+    actions, id := renderButton_Base(ctx, button.base, customId, loc)
 
     position := button.position + getAbsolutePosition(ctx)
 
@@ -113,5 +113,5 @@ renderImageButton :: proc(ctx: ^Context, button: ImageButton, customId: i32 = 0,
         textureId = button.textureId,
     })
 
-    return actions
+    return actions, id
 }

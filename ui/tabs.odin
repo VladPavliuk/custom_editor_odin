@@ -14,9 +14,11 @@ TabsItemStyles :: struct {
 
 Tabs :: struct {
     position: [2]i32,
+    width: int,
     activeTabIndex: ^int,
     items: []TabsItem,
     itemStyles: TabsItemStyles,
+    leftSkipOffset: ^int,
     bgColor, hoverBgColor, activeColor: [4]f32,
 }
 
@@ -35,23 +37,42 @@ TabsSwitched :: struct {
 TabsActions :: union {TabsSwitched, TabsHot, TabsActionClose}
 
 renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_location) -> TabsActions {
+    assert(tabs.width > 0)
     customId := customId
     tabsActions: TabsActions = nil
 
-    leftOffset: i32 = 0
+    // todo: it shouldn't be tabs.itemStyles.size.y
+    tabsBgRect := toRect(tabs.position, int2{ i32(tabs.width), tabs.itemStyles.size.y })
+    prevClipRect := ctx.clipRect
+    setClipRect(ctx, tabsBgRect)
+
+    position := tabs.position
+    startPosition := position.x
+
+    position.x -= i32(tabs.leftSkipOffset^)
+    itemsIds := make(map[Id]struct{})
+    defer delete(itemsIds)
+
     for item, index in tabs.items {
-        position: int2 = { tabs.position.x + leftOffset, tabs.position.y }
-        padding := tabs.itemStyles.padding
-        
         width := tabs.itemStyles.size.x
+
         if width == 0 { width = i32(ctx.getTextWidth(item.text, ctx.font)) }
-        
+
+        if position.x + width < startPosition { 
+            position.x += width
+            continue
+        }
+        else if position.x > i32(tabs.width) + startPosition { break }
+
         height := tabs.itemStyles.size.y
         if height == 0 { height = i32(ctx.getTextHeight(ctx.font)) }
 
+        padding := tabs.itemStyles.padding
+
         itemRect := toRect(position, int2{ width, height })
 
-        itemActions, _ := putEmptyElement(ctx, itemRect, customId = customId, loc = loc)
+        itemActions, itemId := putEmptyElement(ctx, itemRect, customId = customId, loc = loc)
+        itemsIds[itemId] = {}
 
         bgColor := tabs.bgColor
 
@@ -92,16 +113,12 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
 
         textPosition: int2 = { position.x + padding.left + iconWidth + iconRightPadding, position.y + padding.bottom }
         
-        // pushCommand(ctx, ClipCommand{
-        //     rect = Rect { top = itemRect.top, bottom = itemRect.bottom, left = textPosition.x, right = itemRect.right - padding.right },
-        // })
         pushCommand(ctx, TextCommand{
             text = item.text,
             position = textPosition,
             color = WHITE_COLOR,
             maxWidth = itemRect.right - padding.right - textPosition.x,
         })
-        // pushCommand(ctx, ResetClipCommand{})
 
         // right icon
         if item.rightIconId != 0 {
@@ -110,21 +127,34 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
             iconPosition: int2 = { position.x + width - iconWidth - iconRightPadding, position.y + height / 2 - iconWidth / 2 }
             
             customId += 1
-            if .SUBMIT in renderButton(ctx, ImageButton{
+            rightButtonActions, rightButtonId := renderButton(ctx, ImageButton{
                 position = iconPosition,
                 size = { iconWidth, iconWidth },
                 textureId = item.rightIconId,
                 texturePadding = 2,
                 bgColor = bgColor,
                 noBorder = true,
-            }, customId, loc) {
+            }, customId, loc)
+
+            if .SUBMIT in rightButtonActions {
                 tabsActions = TabsActionClose{ itemIndex = index }
             }
+            itemsIds[rightButtonId] = {}
         }
 
         customId += 1
-        leftOffset += width
+        position.x += width
     }
+
+    tmpOffset := tabs.leftSkipOffset^
+    if ctx.hotId in itemsIds && abs(ctx.scrollDelta) > 0 {
+        tabs.leftSkipOffset^ -= int(ctx.scrollDelta) / 3
+    }
+
+    tabs.leftSkipOffset^ = min(int(position.x - startPosition) + tmpOffset - tabs.width, tabs.leftSkipOffset^)
+    tabs.leftSkipOffset^ = max(0, tabs.leftSkipOffset^)
+
+    setClipRect(ctx, prevClipRect)
 
     return tabsActions
 }

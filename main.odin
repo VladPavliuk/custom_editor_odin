@@ -16,7 +16,7 @@ main :: proc() {
 
     default_context = context
 
-    createWindow({ 800, 800 })
+    createWindow({ 1000, 1000 })
     
     // append(&windowData.debuggerBrakepoints, SingleBrakepoint{
     //     filePath = "C:\\projects\\cpp_test_cmd\\cpp_test_cmd\\main.cpp", 
