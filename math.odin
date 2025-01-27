@@ -1,32 +1,34 @@
 package main
 
+import "base:intrinsics"
 import "core:math"
+import "core:math/linalg"
 
 getOrthoraphicsMatrix :: proc(viewWidth, viewHeight, nearZ, farZ: f32) -> mat4 {
+    // todo: investigate why it does not work, prorably nearZ and farZ are messed up
+    // l := -viewWidth / 2
+    // r := viewWidth / 2
+    // t := viewHeight / 2
+    // b := -viewHeight / 2
+
+    // return intrinsics.transpose(linalg.matrix_ortho3d(l, r, b, t, nearZ, farZ, true))
+
     range := 1.0 / (farZ - nearZ)
 
     return mat4{
         2.0 / viewWidth, 0, 0, 0,
-        0, 2 / viewHeight, 0, 0,
+        0, 2.0 / viewHeight, 0, 0,
         0, 0, range, 0,
         0, 0, -range * nearZ, 1,
     }
 }
 
 getTransformationMatrix :: proc(position, rotation, scale: float3) -> mat4 {
-    return getScaleMatrix(scale.x, scale.y, scale.z) *
-        getTranslationMatrix(position.x, position.y, position.z) * 
-        getRotationMatrix(rotation.x, rotation.y, rotation.z)
-} 
+    return linalg.matrix4_translate(position) * linalg.matrix4_scale(scale)
 
-getTranslationMatrix :: proc(x, y, z: f32) -> mat4 {
-    return mat4{
-        1, 0, 0, 0,
-        0, 1, 0, 0,
-        0, 0, 1, 0,
-        x, y, z, 1,
-    }
-}
+    // todo: for now remove rotation
+    //getRotationMatrix(rotation.x, rotation.y, rotation.z)
+} 
 
 getRotationMatrix :: proc(pitch, roll, yaw: f32) -> mat4{
     cp := math.cos(pitch)
@@ -43,14 +45,5 @@ getRotationMatrix :: proc(pitch, roll, yaw: f32) -> mat4{
         cr * sp * sy - sr * cy, cr * cp, sr * sy + cr * sp * cy, 0,
         cp * sy               , -sp    , cp * cy               , 0,
         0                     ,0       ,0                      , 1,
-    }
-}
-
-getScaleMatrix :: proc(x, y, z: f32) -> mat4 {
-    return mat4{
-        x, 0, 0, 0,
-        0, y, 0, 0,
-        0, 0, z, 0,
-        0, 0, 0, 1,
     }
 }

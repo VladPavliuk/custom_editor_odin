@@ -208,7 +208,7 @@ loadTextures :: proc() {
 
     directXState.textures[.FONT], windowData.font = loadFont("c:/windows/fonts/arial.TTF")
 
-    directXState.textures[.ICONS_ARRAY] = initIcons2DTexture({ // 702 micoseconds
+    directXState.textures[.ICONS_ARRAY] = initIcons2DTexture({ // 702 microseconds
         .CLOSE_ICON,
         .CHECK_ICON,
         .CIRCLE,

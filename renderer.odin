@@ -178,10 +178,9 @@ renderUi :: proc() {
 
             position, size := ui.fromRect(rect)
             rectGpu := RectWithColor{
-                // TODO: investigate removing of intrinsics.transpose
-                transformation = intrinsics.transpose(getTransformationMatrix(
+                transformation = getTransformationMatrix(
                     { f32(position.x), f32(position.y), zIndex }, 
-                    { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 })),
+                    { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 }),
                 color = color,
             }
             list[index^] = rectGpu
@@ -249,13 +248,12 @@ renderUi :: proc() {
                 if !ui.isValidRect(rect) { break }
 
                 offset, scale := ui.normalizeClippedToOriginal(rect, command.rect)
-
+// todo: HERE IS FLICKRING PROBLEM??????????
                 position, size := ui.fromRect(rect)
                 image := RectWithImage{
-                    // TODO: investigate removing of intrinsics.transpose
-                    transformation = intrinsics.transpose(getTransformationMatrix(
+                    transformation = getTransformationMatrix(
                         { f32(position.x), f32(position.y), zIndex }, 
-                        { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 })),
+                        { 0.0, 0.0, 0.0 }, { f32(size.x), f32(size.y), 1.0 }),
                     imageIndex = directXState.iconsIndexesMapping[TextureId(command.textureId)],
                     textureOffset = offset,
                     textureScale =  scale,
@@ -335,7 +333,7 @@ renderUi :: proc() {
 
                     fontsList[charIndex] = FontGlyphGpu{
                         sourceRect = fontChar.rect,
-                        targetTransformation = intrinsics.transpose(modelMatrix),
+                        targetTransformation = modelMatrix,
                         color = command.color,
                         textureOffset = offset,
                         textureScale = scale,
@@ -409,7 +407,7 @@ replace3SymbolsByDots :: proc(fontsList: []FontGlyphGpu, lastIndexToReplace: i32
 
         fontsList[lastIndexToReplace + i] = FontGlyphGpu{
             sourceRect = fontChar.rect,
-            targetTransformation = intrinsics.transpose(modelMatrix),
+            targetTransformation = modelMatrix,
             color = color,
         }
     }
@@ -467,9 +465,9 @@ renderRectVec_Float :: proc(position, size: float2, zValue: f32, color: float4) 
     ctx->PSSetShader(directXState.pixelShaders[.SOLID_COLOR], nil, 0)
     ctx->PSSetConstantBuffers(0, 1, &directXState.constantBuffers[.COLOR].gpuBuffer)
 
-    modelMatrix := getTransformationMatrix(
+    modelMatrix := intrinsics.transpose(getTransformationMatrix(
         { position.x, position.y, zValue }, 
-        { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 })
+        { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 }))
 
     updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION])
     updateGpuBuffer(&color, directXState.constantBuffers[.COLOR])
@@ -498,9 +496,9 @@ renderImageRectVec_Float :: proc(position, size: float2, zValue: f32, texture: T
     ctx->PSSetShader(directXState.pixelShaders[.TEXTURE], nil, 0)
     ctx->PSSetShaderResources(0, 1, &directXState.textures[texture].srv)
 
-    modelMatrix := getTransformationMatrix(
+    modelMatrix := intrinsics.transpose(getTransformationMatrix(
         { position.x, position.y, zValue }, 
-        { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 })
+        { 0.0, 0.0, 0.0 }, { size.x, size.y, 1.0 }))
 
     updateGpuBuffer(&modelMatrix, directXState.constantBuffers[.MODEL_TRANSFORMATION])
 
@@ -552,7 +550,7 @@ renderLine :: proc(text: string, font: ^FontData, position: int2, color: float4,
         
         fontsList[index] = FontGlyphGpu{
             sourceRect = fontChar.rect,
-            targetTransformation = intrinsics.transpose(modelMatrix), 
+            targetTransformation = modelMatrix, 
         }
         leftOffset += fontChar.xAdvance
     }
@@ -640,11 +638,11 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
                 selectionPosition, selectionSize := ui.fromRect(selectionRect)
                 //<
 
-                rectsList[selectionsCount] = intrinsics.transpose(getTransformationMatrix(
+                rectsList[selectionsCount] = getTransformationMatrix(
                     { selectionPosition.x, selectionPosition.y, zIndex - 1.0 }, 
                     { 0.0, 0.0, 0.0 }, 
                     { selectionSize.x, selectionSize.y, 1.0 },
-                ))
+                )
                 selectionsCount += 1
             }
         }
@@ -669,7 +667,7 @@ fillTextBuffer :: proc(ctx: ^EditableTextContext, color: float4, zIndex: f32) ->
         
         fontsList[glyphsCount] = FontGlyphGpu{
             sourceRect = fontChar.rect,
-            targetTransformation = intrinsics.transpose(modelMatrix),
+            targetTransformation = modelMatrix,
             color = color,
             textureOffset = offset,
             textureScale = scale,

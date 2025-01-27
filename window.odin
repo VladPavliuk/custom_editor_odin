@@ -159,6 +159,9 @@ createWindow :: proc(size: int2) {
     // TODO: it won't work with utf-16 symbols in the title
     windowTitle := "Editor"
     
+    // rect: win32.RECT = {0, 0, size.x, size.y}
+    // win32.AdjustWindowRect(&rect, win32.WS_OVERLAPPEDWINDOW, true)
+
     hwnd := win32.CreateWindowExW(
         0,
         wndClassName,
@@ -189,6 +192,8 @@ createWindow :: proc(size: int2) {
 
     clientRect: win32.RECT
     win32.GetClientRect(hwnd, &clientRect)
+
+    //win32.AdjustWindowRect(&clientRect)
 
     windowData.size = { clientRect.right - clientRect.left, clientRect.bottom - clientRect.top }
     windowData.parentHwnd = hwnd
