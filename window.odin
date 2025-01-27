@@ -92,6 +92,7 @@ WindowData :: struct {
     editableTextCtx: ^EditableTextContext,
 
     fileTabs: [dynamic]FileTab,
+    shouldJumpToActiveTab: bool,
     activeTabIndex: int,
     wasFileTabChanged: bool,
 

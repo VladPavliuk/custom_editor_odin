@@ -16,6 +16,7 @@ Tabs :: struct {
     position: [2]i32,
     width: int,
     activeTabIndex: ^int,
+    jumpToActive: bool, // if true will jump to active tab if it's beyond rendering box
     items: []TabsItem,
     itemStyles: TabsItemStyles,
     leftSkipOffset: ^int,
@@ -58,11 +59,25 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
 
         if width == 0 { width = i32(ctx.getTextWidth(item.text, ctx.font)) }
 
-        if position.x + width < startPosition { 
+        if position.x < startPosition {
+            if tabs.jumpToActive && tabs.activeTabIndex^ == index { // if active tab is skiped on left side, adjust skip value so it's visible
+                tabs.leftSkipOffset^ -= int(startPosition - position.x)
+            }
+            if position.x + width < startPosition {
+                position.x += width
+    
+                continue
+            }
+        }
+
+        // if active tab is beyond right tabs side, continue iteration until it's not shown
+        if tabs.jumpToActive && tabs.activeTabIndex^ >= index && position.x + width > i32(tabs.width) + startPosition {
+            tabs.leftSkipOffset^ += int(width)
             position.x += width
             continue
         }
-        else if position.x > i32(tabs.width) + startPosition { break }
+
+        if position.x > i32(tabs.width) + startPosition { break }
 
         height := tabs.itemStyles.size.y
         if height == 0 { height = i32(ctx.getTextHeight(ctx.font)) }

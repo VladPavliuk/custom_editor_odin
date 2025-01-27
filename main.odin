@@ -102,6 +102,8 @@ main :: proc() {
 
         windowData.delta = time.duration_seconds(time.tick_diff(beforeFrame, time.tick_now()))
         windowData.wasTextContextModified = false
+
+        windowData.shouldJumpToActiveTab = windowData.wasFileTabChanged // specify here the data for next rendering call
         windowData.wasFileTabChanged = false
 
         if windowData.debuggingFinished {

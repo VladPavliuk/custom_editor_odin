@@ -17,13 +17,13 @@ renderEditorFileTabs :: proc() {
     tabIndexContextMenu: int = -1
 
     @(static)
+    leftSkip := 0
+
+    @(static)
     tabContextMenuPosition := int2{ 0, 0 }
 
     tabContextMenuSize := int2{ 130, 125 }
 
-    @(static)
-    leftSkipOffset := 0
-    
     ui.pushCommand(&windowData.uiContext, ui.RectCommand{
         rect = ui.toRect(
             int2{ -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight }, 
@@ -54,12 +54,13 @@ renderEditorFileTabs :: proc() {
         position = { -windowData.size.x / 2 + leftOffset, windowData.size.y / 2 - topOffset - tabsHeight },
         width = int(windowData.size.x - leftOffset),
         activeTabIndex = &windowData.activeTabIndex,
+        jumpToActive = windowData.shouldJumpToActiveTab,
         items = tabItems[:],
         itemStyles = {
             padding = { top = 2, bottom = 2, left = 2, right = 5 },
             size = { 120, tabsHeight },
         },
-        leftSkipOffset = &leftSkipOffset,
+        leftSkipOffset = &leftSkip,
         bgColor = GRAY_COLOR,
     })
 
