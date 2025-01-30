@@ -6,7 +6,7 @@ import "core:strings"
 import "core:unicode/utf8"
 
 renderFileSearch :: proc() {
-    size := int2{ 120, 80 }
+    size := int2{ 200, 80 }
     position := int2{ windowData.size.x / 2 - size.x - 15, windowData.size.y / 2 - size.y - 60 }
 
     bgRect := ui.toRect(position, size)
@@ -26,6 +26,19 @@ renderFileSearch :: proc() {
         position = { position.x + 5, position.y + 55 },
         color = BLACK_COLOR,
     })
+
+    iconWidth: i32 = 25
+    if closeButtonActions, _ := ui.renderButton(&windowData.uiContext, ui.ImageButton{
+        position = { position.x + size.x - iconWidth - 5, position.y + size.y - iconWidth - 2, },
+        size = { iconWidth, iconWidth },
+        textureId = i32(TextureId.CLOSE_ICON),
+        texturePadding = 2,
+        bgColor = EMPTY_COLOR,
+        noBorder = true,
+    }); .SUBMIT in closeButtonActions {
+        windowData.isFileSearchOpen = false
+    }
+
     actions, fieldId := renderTextField(&windowData.uiContext, ui.TextField{
         text = strings.to_string(windowData.fileSearchStr),
         position = { position.x + 5, position.y + 25 },
