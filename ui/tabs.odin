@@ -2,6 +2,7 @@ package ui
 
 TabsItem :: struct {
     text: string,
+    isPinned: bool,
     leftIconId: i32,
     leftIconSize: [2]i32,
     rightIconId: i32,
@@ -35,7 +36,11 @@ TabsSwitched :: struct {
     itemIndex: int,
 }
 
-TabsActions :: union {TabsSwitched, TabsHot, TabsActionClose}
+TabsSwapTabs :: struct {
+    aIndex, bIndex: int,
+}
+
+TabsActions :: union {TabsSwitched, TabsHot, TabsActionClose, TabsSwapTabs}
 
 renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_location) -> TabsActions {
     assert(tabs.width > 0)
@@ -53,6 +58,19 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
     position.x -= i32(tabs.leftSkipOffset^)
     itemsIds := make(map[Id]struct{})
     defer delete(itemsIds)
+
+    @(static)
+    dragPosition := int2{ 0, 0 }
+
+    @(static)
+    dragFromTabIndex := -1
+
+    @(static)
+    isDragTabPinned := false
+
+    if dragFromTabIndex != -1 { dragPosition = screenToDirectXCoords(ctx.mousePosition, ctx) }
+
+    dragToTabIndex := -1
 
     for item, index in tabs.items {
         width := tabs.itemStyles.size.x
@@ -94,8 +112,14 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
         if tabs.activeTabIndex^ == index {
             bgColor = getDarkerColor(bgColor)
         } else {
-            if .HOT in itemActions { bgColor = getOrDefaultColor(tabs.hoverBgColor, getDarkerColor(bgColor)) }
-            if .ACTIVE in itemActions { bgColor = getOrDefaultColor(tabs.activeColor, getDarkerColor(bgColor)) }
+            if .HOT in itemActions {
+                bgColor = getOrDefaultColor(tabs.hoverBgColor, getDarkerColor(bgColor))
+                if .ACTIVE in itemActions { bgColor = getOrDefaultColor(tabs.activeColor, getDarkerColor(bgColor)) }
+            }
+        }
+
+        if dragFromTabIndex == index {
+            bgColor = getOrDefaultColor(tabs.activeColor, getDarkerColor(bgColor))
         }
 
         if .HOT in itemActions { 
@@ -103,8 +127,20 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
         }
 
         if .SUBMIT in itemActions {
-            tabsActions = TabsSwitched{ itemIndex = index } 
+            tabsActions = TabsSwitched{ itemIndex = index }
             tabs.activeTabIndex^ = index
+        }
+
+        if .GOT_ACTIVE in itemActions && .LEFT_WAS_DOWN in ctx.mouse {
+            isDragTabPinned = item.isPinned
+            dragFromTabIndex = index
+            dragPosition = screenToDirectXCoords(ctx.mousePosition, ctx)
+        }
+
+        if dragFromTabIndex != -1 && dragFromTabIndex != index && 
+            item.isPinned == isDragTabPinned && // guerantee that pined tabs can be shuffled among other pined tabs and vise verse
+            dragPosition.x > position.x && dragPosition.x < position.x + width {
+                dragToTabIndex = index
         }
         
         pushCommand(ctx, RectCommand{
@@ -159,6 +195,17 @@ renderTabs :: proc(ctx: ^Context, tabs: Tabs, customId: i32 = 0, loc := #caller_
 
         customId += 1
         position.x += width
+    }
+
+    if dragToTabIndex != -1 {
+        tabsActions = TabsSwapTabs{ aIndex = dragFromTabIndex, bIndex = dragToTabIndex }
+        dragFromTabIndex = dragToTabIndex
+    }
+
+    if .LEFT_WAS_UP in ctx.mouse {
+        isDragTabPinned = false
+        dragPosition = { 0, 0 }
+        dragFromTabIndex = -1
     }
 
     tmpOffset := tabs.leftSkipOffset^

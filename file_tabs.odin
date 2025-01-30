@@ -42,6 +42,7 @@ renderEditorFileTabs :: proc() {
 
         tab := ui.TabsItem{
             text = fileTab.name,
+            isPinned = fileTab.isPinned,
             leftIconId = i32(getIconByFilePath(fileTab.filePath)),
             leftIconSize = { 16, 16 },
             rightIconId = i32(rightIcon),
@@ -84,6 +85,7 @@ renderEditorFileTabs :: proc() {
             tabIndexContextMenu = action.itemIndex
             showTabContextMenu = true
         }
+        case ui.TabsSwapTabs: swapTabs(action.aIndex, action.bIndex)
     }
 
     if ui.beginPopup(&windowData.uiContext, ui.Popup{
@@ -170,6 +172,25 @@ renderEditorFileTabs :: proc() {
             showTabContextMenu = false
         }
     }
+}
+
+swapTabs :: proc(fromIndex, toIndex: int) {
+    assert(fromIndex >= 0)
+    assert(toIndex >= 0)
+    assert(fromIndex < len(windowData.fileTabs) )
+    assert(toIndex < len(windowData.fileTabs))
+
+    if fromIndex == toIndex { return }
+
+    //if windowData.fileTabs[fromIndex].isPinned != windowData.fileTabs[toIndex].isPinned { return }
+
+    tmpTab := windowData.fileTabs[fromIndex]
+
+    windowData.fileTabs[fromIndex] = windowData.fileTabs[toIndex]
+    windowData.fileTabs[toIndex] = tmpTab
+
+    if windowData.activeTabIndex == fromIndex { windowData.activeTabIndex = toIndex } 
+    else if windowData.activeTabIndex == toIndex { windowData.activeTabIndex = fromIndex }
 }
 
 toggleTabPin :: proc(tabIndex: int) {

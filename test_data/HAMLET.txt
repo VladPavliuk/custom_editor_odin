@@ -3742,7 +3742,7 @@ Enter two Clowns, [with spades and pickaxes].
 
                  Enter Hamlet and Horatio afar off.
 
-  Clown. Cudgel thy brains no more about it, for your dull ass will
+  Clown. Cudgel thy brains no more about it, for your dull IGORS ass will
     not mend his pace with beating; and when you are ask'd this
     question next, say 'a grave-maker.' The houses he makes lasts
     till doomsday. Go, get thee to Yaughan; fetch me a stoup of
